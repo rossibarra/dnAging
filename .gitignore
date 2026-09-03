@@ -216,3 +216,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Project-specific ---
+
+# Pipeline outputs / genomic data
+*.npz
+*.tsv
+*.vcf
+*.vcf.gz
+*.trees
+*.tsz
+
+# SLURM + run logs
+logs/*
+!logs/.gitkeep
+*.out
+*.err
+slurm-*.out
+
+# macOS
+.DS_Store
