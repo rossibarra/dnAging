@@ -73,8 +73,9 @@ Output (.npz, --output)
     n_sample int                           n chromosomes (= 26)
     meta    (json)  parameters / provenance
 
-Numerics note: n=26 is comfortably within float64 for the alternating binomial
-sum; if you ever push n much higher, switch the conditioning sum to mpmath.
+Numerics note: the alternating binomial sums can lose all float64 precision for
+large diffusion times. Entries with fewer than two estimated significant decimal
+digits are written as NaN rather than clipped into apparently valid probabilities.
 """
 
 from __future__ import annotations
@@ -185,6 +186,11 @@ class MomentEngine:
             self.coeff[d0] = {m: comb(n - d0, m - d0) * (-1) ** (m - d0)
                               for m in range(d0, n + 1)}
 
+        # For a sum S of floating-point terms, eps * sum(abs(term)) / abs(S)
+        # estimates its relative roundoff amplification. This cutoff corresponds
+        # to only roughly 1--2 trustworthy decimal digits in float64.
+        self.max_cancellation = 1.25e14
+
     def _moms(self, u, eps):
         m0 = np.array([eps ** k for k in range(self.K + 2)], dtype=np.float64)
         m0[0] = 1.0
@@ -205,16 +211,32 @@ class MomentEngine:
         EjX = C[:, :self.K] @ Mu1[1:self.K + 1]
         EjX2 = C[:, :self.K] @ Mu1[2:self.K + 2]
         num = num2 = den = 0.0
+        abs_num = abs_num2 = abs_den = 0.0
         for m, c in self.coeff[d0].items():
-            den += c * Mpres[m]
-            num += c * EjX[m]; num2 += c * EjX2[m]
-        if den == 0.0:
+            td = c * Mpres[m]; t1 = c * EjX[m]; t2 = c * EjX2[m]
+            den += td; num += t1; num2 += t2
+            abs_den += abs(td); abs_num += abs(t1); abs_num2 += abs(t2)
+
+        def unreliable(total, absolute_total):
+            return (not np.isfinite(total) or total == 0.0 or
+                    absolute_total / abs(total) > self.max_cancellation)
+
+        if unreliable(den, abs_den) or unreliable(num, abs_num):
             return np.nan, np.nan
-        p1 = float(np.clip(num / den, 0.0, 1.0))
-        # X in [0,1] gives X^2 <= X, and Cauchy-Schwarz gives E[X^2] >= E[X]^2;
-        # clamping to those exact bounds keeps the genotype probabilities valid
-        # against the alternating-sum cancellation
-        return p1, float(np.clip(num2 / den, p1 * p1, p1))
+        p1 = float(num / den)
+        if unreliable(num2, abs_num2):
+            p2 = np.nan
+        else:
+            p2 = float(num2 / den)
+        # These are exact moment constraints. A violation is evidence of numerical
+        # failure, not something clipping can repair.
+        tol = 100.0 * np.finfo(np.float64).eps
+        if p1 < -tol or p1 > 1.0 + tol:
+            return np.nan, np.nan
+        p1 = float(np.clip(p1, 0.0, 1.0))
+        if np.isnan(p2) or p2 < p1 * p1 - tol or p2 > p1 + tol:
+            return p1, np.nan
+        return p1, float(np.clip(p2, p1 * p1, p1))
 
     def Efreq(self, d0, tau_i, tau_T, eps):
         """E[p_T | d0, t_i]; the first moment alone (haploid observations)."""
@@ -247,7 +269,12 @@ def build_table(args):
         if not args.quiet:
             print(f"[age {ia+1}/{args.n_age}] t_i={t_i:.3g}  tau_i={tau_i:.3g}",
                   file=sys.stderr)
-    return table, table2, np.arange(1, n + 1), age, Tgrid, windows
+    age_tau = np.array([tau_of_t(t_i) for t_i in age], dtype=np.float64)
+    if age_tau[-1] <= 3.0:
+        raise SystemExit(f"--age-max={args.age_max:g} reaches only tau={age_tau[-1]:.6g}; "
+                         "increase --age-max so the table extends beyond the default "
+                         "inference cutoff tau=3")
+    return table, table2, np.arange(1, n + 1), age, age_tau, Tgrid, windows
 
 
 def main(argv=None):
@@ -277,14 +304,15 @@ def main(argv=None):
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)
 
-    table, table2, d0, age, Tgrid, windows = build_table(args)
+    table, table2, d0, age, age_tau, Tgrid, windows = build_table(args)
     meta = {"n_sample": args.n_sample, "ne_file": str(args.ne),
             "ne_series": args.ne_series, "method": "neutral WF moment recursion",
             "ne_windows": int(len(windows[0])),
-            # format 2 adds the table2 plane; --ploidy 2 inference requires it
-            "format_version": 2, "planes": ["table (E[p_T])", "table2 (E[p_T^2])"]}
+            # format 3 adds age_tau for diffusion-time filtering during inference
+            "format_version": 3, "planes": ["table (E[p_T])", "table2 (E[p_T^2])"]}
     np.savez_compressed(args.output, table=table, table2=table2, d0=d0, age=age,
-                        Tgrid=Tgrid, n_sample=args.n_sample, meta=json.dumps(meta))
+                        age_tau=age_tau, Tgrid=Tgrid, n_sample=args.n_sample,
+                        meta=json.dumps(meta))
     if not args.quiet:
         print(f"[precompute-moments] wrote {args.output}  shape={table.shape}",
               file=sys.stderr)

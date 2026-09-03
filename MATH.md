@@ -256,14 +256,26 @@ $2^{n}$ while the moments are small, so the sum loses on the order of $0.3\,n$
 decimal digits. The loss also grows with $\tau_i$: once the allele is almost surely
 lost or fixed, the denominator of (9)/(9a) — the sampling weight of an intermediate
 $d_0$ — underflows to cancellation noise, and *both* moments become meaningless
-(clipping them to $[0,1]$ and to $[\bar p^{\,2},\bar p]$ keeps them usable but does
-not recover the information). At $n=26$ the relative error against a 60-digit
-reference is $\sim10^{-3}$ for $\tau_i\lesssim3$, reaches a few percent by
-$\tau_i\approx5$–$6$, and the values are noise by $\tau_i\approx10$ — so the
-`--age-max` end of the mutation-age grid should be read with that in mind. Double
-precision is therefore comfortable for panels up to a few tens of haplotypes (the
-ARG regime here) at moderate $\tau_i$, but the method degrades and eventually breaks
-beyond roughly $n \approx 40$–$50$; there one must switch to extended precision
+(clipping them into the mathematically valid range would hide the failure rather
+than recover the information). The implementation therefore measures
+$A=\sum|\mathrm{term}|/|\sum\mathrm{term}|$ for each conditioning sum and writes
+`NaN` once only roughly 1–2 significant decimal digits remain. Inference propagates
+the `NaN` and skips the affected draw, or the site if no reliable draws remain.
+
+At $n=26$ the relative error against a 60-digit reference is $\sim10^{-3}$ for
+$\tau_i\lesssim3$, reaches a few percent by $\tau_i\approx5$–$6$, and the values are
+noise by $\tau_i\approx10$. As an additional operational safeguard,
+`--mutation-age-max` defaults to a cutoff of $\tau_i=3$ in diffusion units and
+discards mutation-age mass beyond it. The table stores the diffusion time of every
+generation-age row, so inference translates the cutoff through the actual
+$\tau(t)=\int_0^t ds/(2N_e(s))$ curve. At constant $N_e=10{,}000$, $\tau=3$ is
+about 60,000 generations. Table construction requires `--age-max` to extend beyond
+$\tau=3$, and inference rejects insufficient table coverage. This is a numerical
+cutoff, not an assertion that all older
+mutations are biologically uninformative. Double precision is therefore comfortable
+for panels up to a few tens of haplotypes (the ARG regime here) at moderate
+$\tau_i$, but the method degrades and eventually breaks beyond roughly
+$n \approx 40$–$50$; there one must switch to extended precision
 (e.g. `mpmath`) or reformulate the conditioning in a numerically stable basis
 (orthogonal-polynomial / spectral moments rather than the raw power moments). The
 matrix-exponential cost itself is negligible ($(n+3)^3$).

@@ -115,6 +115,7 @@ python posterior_sample_age_infer.py \
     --vcf ancient.vcf.gz \
     --chrom chr1 \
     --ploidy 1 \
+    --mutation-age-max 3 \
     --epsilon 1e-3 \
     --output results/Tage/chr1
 ```
@@ -171,6 +172,14 @@ Ages are in **ARG generations**; convert to years with your generation time.
   needs only the first moment and works with either table.
 - `--epsilon` — symmetric **per-allele** genotype-error / robustness floor. Keep it
   `> 0` (default `1e-3`); it stops one bad call from dominating.
+- `--mutation-age-max` — hard cutoff on mutation age in diffusion units, defaulting
+  to $\tau=3$. Mutation-age intervals wholly above the corresponding generation-age
+  cutoff are discarded; intervals crossing it are truncated. The conversion uses
+  the `age_tau` axis stored in the frequency table, where
+  $\tau(t)=\int_0^t ds/(2N_e(s))$. For constant $N_e=10{,}000$, $\tau=3$ is about
+  60,000 generations. This is a
+  numerical-reliability cutoff, not a claim that every older mutation is biologically
+  uninformative.
 - `--include-positions` — restrict to a QC'd / approximately-neutral site set.
 - `--prior-file` — `T density` prior (two columns), interpolated onto the grid;
   default uniform.
@@ -184,6 +193,16 @@ Both moment planes of the table were checked against a forward Wright–Fisher M
 Carlo (agreement to MC noise, including rare present-counts —
 `validate_moments_vs_mc.py`), reproduce the $T \ge t_i \Rightarrow p_T=0$ boundary,
 and match Kimura's constant-$N_e$ limit. See MATH.md §5.
+
+The alternating conditioning sums become numerically unstable at large diffusion
+times. Table construction measures cancellation for each moment and writes `NaN`
+when only roughly 1–2 significant digits remain. Inference propagates that failure
+and skips the affected draw (or site if no reliable draws remain), rather than
+silently clipping a corrupted moment into the valid probability range. Inspect
+`sites_numerical_failure` and `sites_age_filtered` in `run.json`. Newly built tables
+must extend beyond $\tau=3$; precomputation exits if `--age-max` is too small, and
+the inference step likewise rejects a table that does not cover its requested
+cutoff.
 
 ## Sanity checks before trusting results
 

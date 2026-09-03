@@ -144,6 +144,8 @@ def load_table(path):
     d = np.load(path, allow_pickle=True)
     t = {"table": d["table"], "d0": d["d0"], "age": d["age"],
          "Tgrid": d["Tgrid"], "n_sample": int(d["n_sample"])}
+    if "age_tau" in d.files:
+        t["age_tau"] = d["age_tau"]
     if "table2" in d.files:                      # E[p_T^2|d0,t_i]: diploid only
         t["table2"] = d["table2"]
     return t
@@ -173,7 +175,7 @@ def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table"):
     def row_at(a):                               # table row at age a, log-age interp
         k = np.interp(np.log(max(a, 1e-9)), la, np.arange(len(age)))
         k0 = int(np.floor(k)); k1 = min(k0 + 1, len(age) - 1); w = k - k0
-        r = np.nan_to_num((1 - w) * T[k0] + w * T[k1], nan=0.0)
+        r = (1 - w) * T[k0] + w * T[k1]
         # blending a T>=t_i zero row with a nonzero one leaks probability across the
         # mutation-existence boundary, so re-impose p_T = 0 at the interpolated age
         return np.where(Tg >= a, 0.0, r)
@@ -263,6 +265,16 @@ def read_panel_alt(vcf_paths, chrom, chunk_records, quiet, n_expected):
 
 def run_chromosome(args, tab):
     grid = tab["Tgrid"]; n = tab["n_sample"]
+    if "age_tau" not in tab:
+        raise SystemExit("--freq-table lacks the age_tau axis required by the default "
+                         "diffusion-time mutation cutoff; rebuild it with the current "
+                         "precompute_freq_trajectory_moments.py")
+    age_tau = np.asarray(tab["age_tau"], float)
+    if age_tau[-1] <= args.mutation_age_max:
+        raise SystemExit(f"frequency table reaches tau={age_tau[-1]:.6g}, which does "
+                         f"not extend beyond --mutation-age-max={args.mutation_age_max:g}")
+    mutation_age_max_generations = float(np.interp(
+        args.mutation_age_max, age_tau, np.asarray(tab["age"], float)))
     need2 = args.ploidy == 2                     # diploid genotypes need E[p_T^2]
     if need2 and "table2" not in tab:
         raise SystemExit("--ploidy 2 needs the conditional second-moment plane "
@@ -294,7 +306,9 @@ def run_chromosome(args, tab):
     N = len(order); G = len(grid)
     ll = np.zeros((N, G))
     stats = {"n_samples": N, "sites_used": 0, "sites_no_panel": 0,
-             "sites_monomorphic": 0, "sites_allele_mismatch": 0, "chrom": args.chrom}
+             "sites_monomorphic": 0, "sites_allele_mismatch": 0,
+             "sites_age_filtered": 0, "sites_numerical_failure": 0,
+             "chrom": args.chrom}
 
     # resolve store rows for all ancient positions
     positions = np.array(sorted(calls), dtype=np.int64)
@@ -326,17 +340,27 @@ def run_chromosome(args, tab):
         anc = _ancestral_per_draw(polarity, row, n_draws)
 
         phi_sum = np.zeros(G); phi2_sum = np.zeros(G); cnt = 0
+        age_rejected = numerical_rejected = False
         for d in np.unique(draw_id):
             a = int(anc[d]) if d < len(anc) else _MISS
             if a == _MISS or a not in (rb, ab):
                 continue
             m = draw_id == d
             t_lo = float(below[m].min()); t_hi = float(above[m].max())
+            if t_lo >= mutation_age_max_generations:
+                age_rejected = True
+                continue
+            if t_hi > mutation_age_max_generations:
+                t_hi = mutation_age_max_generations
             d0 = ca if a == rb else n - ca    # ALT derived -> d0 = ALT count, else REF count
             phi = phi_lookup(tab, d0, t_lo, t_hi)
             if phi is None:
                 continue
             phi2 = phi_lookup(tab, d0, t_lo, t_hi, key="table2") if need2 else None
+            if not np.all(np.isfinite(phi)) or (phi2 is not None and
+                                                not np.all(np.isfinite(phi2))):
+                numerical_rejected = True
+                continue
             if a != rb:                        # REF is derived; ALT freq = 1 - E[p_T|c_ref]
                 if phi2 is not None:           # E[(1-X)^2] = 1 - 2 E[X] + E[X^2]
                     phi2 = 1.0 - 2.0 * phi + phi2
@@ -345,6 +369,10 @@ def run_chromosome(args, tab):
             if phi2 is not None:
                 phi2_sum += np.clip(phi2, 0.0, 1.0)
         if cnt == 0:
+            if age_rejected:
+                stats["sites_age_filtered"] += 1
+            if numerical_rejected:
+                stats["sites_numerical_failure"] += 1
             continue
         phibar = phi_sum / cnt
         eps = args.epsilon
@@ -430,7 +458,8 @@ def write_outputs(outdir, order, grid, log_prior, ll, stats, args):
             fh.write(f"{s}\t{m['map_T']:.6g}\t{m['mean_T']:.6g}\t{m['median_T']:.6g}\t"
                      f"{m['ci95_lower_T']:.6g}\t{m['ci95_upper_T']:.6g}\n")
     (outdir / "run.json").write_text(json.dumps({"counts": stats,
-        "settings": {"epsilon": args.epsilon, "chrom": args.chrom}}, indent=2))
+        "settings": {"epsilon": args.epsilon, "chrom": args.chrom,
+                     "mutation_age_max": args.mutation_age_max}}, indent=2))
     try:
         import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
         maps = np.array([m["map_T"] for _, m in rows])
@@ -473,12 +502,18 @@ def parse_args(argv=None):
                         "diploid, or 2 would double-count each site.")
     p.add_argument("--epsilon", type=float, default=1e-3,
                    help="per-ALLELE genotype-error probability [1e-3].")
+    p.add_argument("--mutation-age-max", type=float, default=3.0,
+                   help="maximum mutation age in diffusion units tau; older mutation-"
+                        "age mass is discarded and crossing intervals are truncated "
+                        "[3.0]. At constant Ne=10000, tau=3 is 60000 generations.")
     p.add_argument("--prior-file", type=Path, default=None)
     p.add_argument("--chunk-records", type=int, default=20000)
     p.add_argument("--merge", type=Path, nargs="+", default=None,
                    help="sum per-sample marginals across chromosome parts.")
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)
+    if args.mutation_age_max <= 0:
+        p.error("--mutation-age-max must be positive")
     if args.merge is None:
         need = [n for n in ("store", "draw_polarity", "chrom") if getattr(args, n) is None]
         if not args.vcf or not args.panel_vcf or need:
