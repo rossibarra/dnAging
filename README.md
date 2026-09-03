@@ -116,7 +116,7 @@ python posterior_sample_age_infer.py \
     --chrom chr1 \
     --ploidy 1 \
     --mutation-age-max 3 \
-    --epsilon 1e-3 \
+    --epsilon 0.01 \
     --output results/Tage/chr1
 ```
 
@@ -170,8 +170,9 @@ Ages are in **ARG generations**; convert to years with your generation time.
   script (it carries the `table2` plane); an older table makes `--ploidy 2` exit
   with a message rather than silently substituting the squared mean. `--ploidy 1`
   needs only the first moment and works with either table.
-- `--epsilon` — symmetric **per-allele** genotype-error / robustness floor. Keep it
-  `> 0` (default `1e-3`); it stops one bad call from dominating.
+- `--epsilon` — symmetric **per-allele ancient-VCF genotype-error** probability,
+  default `0.01`. It must satisfy $0\le\varepsilon<0.5$ and models VCF call error,
+  not ARG uncertainty.
 - `--mutation-age-max` — hard cutoff on mutation age in diffusion units, defaulting
   to $\tau=3$. Mutation-age intervals wholly above the corresponding generation-age
   cutoff are discarded; intervals crossing it are truncated. The conversion uses
@@ -203,6 +204,10 @@ silently clipping a corrupted moment into the valid probability range. Inspect
 must extend beyond $\tau=3$; precomputation exits if `--age-max` is too small, and
 the inference step likewise rejects a table that does not cover its requested
 cutoff.
+
+If the interval store reports more than one branch interval for a mutation in any
+ARG draw, that multiply mapped mutation is excluded completely. The number excluded
+is reported as `sites_multiple_mapped` in `run.json`.
 
 ## Sanity checks before trusting results
 

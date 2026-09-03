@@ -47,6 +47,10 @@ r_i(T) = (1-\varepsilon)\,X_i(T) + \varepsilon\,\bigl(1-X_i(T)\bigr)
        = \varepsilon + (1-2\varepsilon)\,X_i(T). \tag{2}
 $$
 
+Here $\varepsilon$ is fixed rather than estimated, defaults to $0.01$, and must
+satisfy $0\le\varepsilon<0.5$. It describes error in each ancient-VCF allele call;
+ARG uncertainty is handled separately through the posterior draws.
+
 *Given* $X_i(T)$, the sample's called alleles at a site are independent draws
 (Hardy–Weinberg — i.e. no recent inbreeding within the individual), so the observed
 derived count is $\text{Binomial}(c_i, r_i)$. The frequency itself must then be
@@ -328,6 +332,11 @@ $$
 = \frac{1}{\text{above}_g-\text{below}_g}
   \int_{\text{below}_g}^{\text{above}_g}\! \bar p(T\mid d_0, t)\,dt .
 $$
+
+Exactly one mapped branch interval is required per site and ARG draw. If any draw
+supplies multiple intervals, the mutation is treated as multiply mapped and the
+entire site is excluded rather than assigning weights among mappings that are not
+trusted.
 
 *Between* draws, averaging over the $M$ posterior draws (eq. 11) integrates the
 remaining posterior on $t_i$ — each draw places the mutation on a different branch.

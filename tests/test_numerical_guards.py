@@ -40,3 +40,20 @@ def test_mutation_age_max_validation():
 def test_mutation_age_max_defaults_to_tau_three():
     args = inf.parse_args(["--freq-table", "x", "--output", "y", "--merge", "z"])
     assert args.mutation_age_max == 3.0
+
+
+def test_epsilon_defaults_to_one_percent_and_is_validated():
+    base = ["--freq-table", "x", "--output", "y", "--merge", "z"]
+    assert inf.parse_args(base).epsilon == 0.01
+    for bad in ("-0.01", "0.5", "1"):
+        try:
+            inf.parse_args(base + ["--epsilon", bad])
+        except SystemExit as exc:
+            assert exc.code == 2
+        else:
+            raise AssertionError(f"invalid epsilon {bad} was accepted")
+
+
+def test_multiple_mapping_detection():
+    assert not inf._is_multiply_mapped(np.array([0, 1, 2]))
+    assert inf._is_multiply_mapped(np.array([0, 1, 1, 2]))

@@ -27,12 +27,16 @@ order:
    now documented in README.md (option text plus a sanity check). Making the haploid
    path fail safely when the assumption is violated — a het policy, a
    `sites_het_collapsed` counter, and a warning — is deferred to TODO.md.
-2. **Mutation ages outside the table are silently clipped and renormalised**,
-   changing the assumed age distribution instead of reporting insufficient table
-   coverage. Interacts with item 2.
-3. **Multiple interval records in one draw are collapsed to their overall min and
-   max**, potentially filling gaps and misweighting the branch quadrature.
-4. **`--epsilon` is unvalidated** — should require $0 \le \varepsilon < 0.5$.
+2. ~~Mutation ages outside the table are silently clipped and renormalised~~ —
+   **RESOLVED.** Tables now store the mutation-age grid in diffusion units;
+   inference defaults to `--mutation-age-max 3`, and both precomputation and
+   inference reject tables that do not extend beyond the requested cutoff.
+3. ~~Multiple interval records in one draw are collapsed to their overall min and
+   max~~ — **RESOLVED.** A mutation with multiple branch intervals in any ARG draw
+   is considered multiply mapped; the entire site is skipped and counted as
+   `sites_multiple_mapped`.
+4. ~~`--epsilon` is unvalidated~~ — **RESOLVED.** It is validated as
+   $0 \le \varepsilon < 0.5$ and defaults to `0.01` per ancient-VCF allele.
 5. **The prior file is unvalidated** — no check for two columns, sorted ages, finite
    values, or non-negative density.
 6. **`merge()` checks sample order but not the $T$ grids or array dimensions**, so

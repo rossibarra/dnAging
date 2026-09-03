@@ -135,6 +135,12 @@ def _row_intervals(store, row):
             np.asarray(b.draw_id, np.int64))
 
 
+def _is_multiply_mapped(draw_id):
+    """Whether any ARG draw supplies multiple branch intervals for one site."""
+    _draws, counts = np.unique(np.asarray(draw_id, np.int64), return_counts=True)
+    return bool(np.any(counts > 1))
+
+
 # =============================================================================
 # Frequency table + lookup
 # =============================================================================
@@ -308,6 +314,7 @@ def run_chromosome(args, tab):
     stats = {"n_samples": N, "sites_used": 0, "sites_no_panel": 0,
              "sites_monomorphic": 0, "sites_allele_mismatch": 0,
              "sites_age_filtered": 0, "sites_numerical_failure": 0,
+             "sites_multiple_mapped": 0,
              "chrom": args.chrom}
 
     # resolve store rows for all ancient positions
@@ -337,6 +344,9 @@ def run_chromosome(args, tab):
             stats["sites_monomorphic"] += 1; continue
 
         below, above, draw_id = _row_intervals(store, row)
+        if _is_multiply_mapped(draw_id):
+            stats["sites_multiple_mapped"] += 1
+            continue
         anc = _ancestral_per_draw(polarity, row, n_draws)
 
         phi_sum = np.zeros(G); phi2_sum = np.zeros(G); cnt = 0
@@ -500,8 +510,8 @@ def parse_args(argv=None):
                         "needs a freq table carrying the second-moment plane). "
                         "Use 1 for pseudo-haploid aDNA even if written as hom "
                         "diploid, or 2 would double-count each site.")
-    p.add_argument("--epsilon", type=float, default=1e-3,
-                   help="per-ALLELE genotype-error probability [1e-3].")
+    p.add_argument("--epsilon", type=float, default=0.01,
+                   help="per-ALLELE ancient-VCF genotype-error probability [0.01].")
     p.add_argument("--mutation-age-max", type=float, default=3.0,
                    help="maximum mutation age in diffusion units tau; older mutation-"
                         "age mass is discarded and crossing intervals are truncated "
@@ -512,6 +522,8 @@ def parse_args(argv=None):
                    help="sum per-sample marginals across chromosome parts.")
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)
+    if not 0.0 <= args.epsilon < 0.5:
+        p.error("--epsilon must satisfy 0 <= epsilon < 0.5")
     if args.mutation_age_max <= 0:
         p.error("--mutation-age-max must be positive")
     if args.merge is None:
