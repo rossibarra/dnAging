@@ -161,7 +161,8 @@ Ages are in **ARG generations**; convert to years with your generation time.
   (one allele per called site; homozygous calls collapsed — the right choice for
   pseudo-haploid aDNA, and the default), `2` = true diploid genotypes (ALT dosage
   0/1/2; keeps het-vs-homozygote information). Using `2` on pseudo-haploid data
-  written as homozygous diploid would double-count every site.
+  written as homozygous diploid would double-count every site. **`1` assumes the
+  ancient calls contain no true heterozygotes** — see the sanity check below.
   `2` builds the three genotype probabilities from the first **and second**
   conditional moments — Hardy–Weinberg holds only *given* the latent frequency, and
   $E[p_T^2]\neq E[p_T]^2$ — so it requires a table built by the current precompute
@@ -187,6 +188,14 @@ and match Kimura's constant-$N_e$ limit. See MATH.md §5.
 ## Sanity checks before trusting results
 
 - Confirm the ancient samples are **not** in the ARG/ascertainment panels.
+- **The ancient genotypes are assumed pseudo-haploid** under the default
+  `--ploidy 1`: one allele sampled per site and written as a homozygous diploid
+  call, so the ALT dosage is 0 or 2 and never 1. Under that assumption the haploid
+  collapse (`alt_ct >= 1` → derived) is exact. If the calls are genuinely diploid
+  and contain heterozygotes, `--ploidy 1` promotes **every het to a derived
+  observation**, inflating derived carriage and biasing $\hat T$ — silently, with no
+  counter to reveal it. Use `--ploidy 2` for true diploid genotypes. Het-aware
+  handling for the haploid path is deferred; see [TODO.md](./TODO.md).
 - Confirm the panel VCF has the 26 haplotypes fully called at the sites you use
   (partially-called sites are skipped when forming `d0`).
 - **Confirm the panel and ancient VCFs are on the same strand**, then check
