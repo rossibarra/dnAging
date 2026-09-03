@@ -6,7 +6,9 @@ model. Produces a per-sample posterior over age and a summary table.
 
 The statistical and population-genetic derivation — the model and how we compute
 it, with numbered equations — is in **[MATH.md](./MATH.md)**. Read that for the
-model; this file is how to run it.
+model; this file is how to run it. Modelling judgement calls — approximations we
+make deliberately and the conditions they rely on — are in
+**[NOTES.md](./NOTES.md)**.
 
 ---
 
@@ -18,7 +20,9 @@ $T$ (and not carrying it, $1-\text{that}$). We compute that frequency as its
 **expectation conditioned on the mutation's age $t_i$ and its present count $d_0$
 in the 26-haplotype panel** — exactly, from the neutral Wright–Fisher moment
 recursion under your $N_e(t)$ curve. Genotypes enter by allele dosage (ploidy-aware;
-see `--ploidy`). Multiply across sites, average over ARG draws, sum across
+see `--ploidy`); diploid genotype probabilities are nonlinear in the latent
+frequency, so they use the conditional **second** moment $E[p_T^2]$ as well, from
+the same recursion. Multiply across sites, average over ARG draws, sum across
 chromosomes → a posterior over $T$ per sample.
 
 ---
@@ -31,8 +35,9 @@ chromosomes → a posterior over $T$ per sample.
   store + polarity + panel VCF + ancient VCF ──────┘
 ```
 
-1. **Precompute** the frequency table `E[p_T | d0, t_i]` once (demography-specific,
-   independent of samples/sites).
+1. **Precompute** the frequency table `E[p_T | d0, t_i]` (and its second-moment
+   plane `E[p_T^2 | d0, t_i]`) once (demography-specific, independent of
+   samples/sites).
 2. **Infer** per chromosome: look up the table by `(t_i, d0)` for every
    site/draw, form the per-sample likelihood.
 3. **Merge** chromosomes into genome-wide per-sample posteriors.
@@ -43,7 +48,7 @@ chromosomes → a posterior over $T$ per sample.
 
 | file | role |
 |---|---|
-| `precompute_freq_trajectory_moments.py` | build `freq_table.npz` = `E[p_T \| d0, t_i]` (exact moment recursion) |
+| `precompute_freq_trajectory_moments.py` | build `freq_table.npz` = `E[p_T \| d0, t_i]` + `E[p_T^2 \| d0, t_i]` (exact moment recursion) |
 | `posterior_sample_age_infer.py` | per-chromosome inference for all samples; also does the merge |
 | `slurm/run_precompute.sbatch` | STEP 1 as a batch job |
 | `slurm/run_infer.sbatch` | STEP 2 (array over chromosomes) + STEP 3 (merge) |
@@ -155,8 +160,14 @@ Ages are in **ARG generations**; convert to years with your generation time.
 - `--ploidy` — ploidy of the **ancient** genotypes: `1` = haploid / pseudo-haploid
   (one allele per called site; homozygous calls collapsed — the right choice for
   pseudo-haploid aDNA, and the default), `2` = true diploid genotypes (ALT dosage
-  0/1/2, Hardy–Weinberg; keeps het-vs-homozygote information). Using `2` on
-  pseudo-haploid data written as homozygous diploid would double-count every site.
+  0/1/2; keeps het-vs-homozygote information). Using `2` on pseudo-haploid data
+  written as homozygous diploid would double-count every site.
+  `2` builds the three genotype probabilities from the first **and second**
+  conditional moments — Hardy–Weinberg holds only *given* the latent frequency, and
+  $E[p_T^2]\neq E[p_T]^2$ — so it requires a table built by the current precompute
+  script (it carries the `table2` plane); an older table makes `--ploidy 2` exit
+  with a message rather than silently substituting the squared mean. `--ploidy 1`
+  needs only the first moment and works with either table.
 - `--epsilon` — symmetric **per-allele** genotype-error / robustness floor. Keep it
   `> 0` (default `1e-3`); it stops one bad call from dominating.
 - `--include-positions` — restrict to a QC'd / approximately-neutral site set.
@@ -168,15 +179,23 @@ Ages are in **ARG generations**; convert to years with your generation time.
 
 ## Validation provenance
 
-The moment-recursion table was checked against a forward Wright–Fisher Monte Carlo
-(agreement to MC noise, including rare present-counts), reproduces the
-$T \ge t_i \Rightarrow p_T=0$ boundary, and matches Kimura's constant-$N_e$ limit.
-See MATH.md §5.
+Both moment planes of the table were checked against a forward Wright–Fisher Monte
+Carlo (agreement to MC noise, including rare present-counts —
+`validate_moments_vs_mc.py`), reproduce the $T \ge t_i \Rightarrow p_T=0$ boundary,
+and match Kimura's constant-$N_e$ limit. See MATH.md §5.
 
 ## Sanity checks before trusting results
 
 - Confirm the ancient samples are **not** in the ARG/ascertainment panels.
 - Confirm the panel VCF has the 26 haplotypes fully called at the sites you use
   (partially-called sites are skipped when forming `d0`).
+- Check `sites_allele_mismatch` in `run.json`. The panel and ancient VCFs are joined
+  on position; a site whose REF/ALT are exactly swapped between them is harmonised
+  (`c_alt → n-c_alt`), and one whose alleles cannot be matched is **skipped** and
+  counted there. A large count means the two VCFs are not normalised against the
+  same reference.
+- The $N_e$ TSV windows must **tile** the time axis: precompute exits if consecutive
+  windows leave a gap or overlap, since the diffusion-time integral assumes
+  contiguity.
 - Expect **broad** posteriors — array ascertainment limits the age information
   (MATH.md §2, §7). A tight interval on a single sample deserves suspicion.

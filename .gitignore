@@ -236,3 +236,6 @@ slurm-*.out
 
 # macOS
 .DS_Store
+
+# AGENTS.md rule 6 backups (git HEAD is the real backup)
+*.bak

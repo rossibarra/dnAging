@@ -17,11 +17,15 @@ both cheap:
 We look up phi = E[p_T | d0, t_i] (interpolated over the age grid and averaged
 over the store's age interval), track it as the ALT-allele frequency so polarity
 flips are handled consistently, average over draws -> phibar_alt(T), then form the
-two-sided likelihood for every sample. No D(T)/L(T), no tree walk.
+two-sided likelihood for every sample. No D(T)/L(T), no tree walk. With r the
+per-allele probability of OBSERVING ALT, r = eps + (1-2eps) p_T,
 
-    P(observe ALT carried)  = (1-eps) phibar + eps (1-phibar)
-    P(observe hom REF)      = (1-eps)(1-phibar) + eps phibar
+    haploid  (--ploidy 1): P(ALT) = E[r],  P(REF) = 1 - E[r]
+    diploid  (--ploidy 2): P(2) = E[r^2], P(1) = 2(E[r]-E[r^2]), P(0) = 1-2E[r]+E[r^2]
     log p(T | D_s) = log p(T) + sum_i log l_{s,i}(T)
+
+P(dosage) is quadratic in r, so --ploidy 2 also needs the conditional SECOND moment
+E[p_T^2 | d0, t_i] (the table's 'table2' plane): E[p_T^2] != E[p_T]^2.
 
 ARG draws are averaged into phibar per site; chromosomes are independent given T,
 so run one chromosome per invocation and combine chromosomes by summing per-sample
@@ -72,8 +76,21 @@ def _import_repo():
     return open_snp_age_store, open_draw_polarity, read_vcf_chunks, NO_CALL
 
 
+def _attr(obj, *names):
+    """First attribute of `obj` present among `names`.
+
+    A nested getattr(obj, "a", getattr(obj, "b")) evaluates the fallback EAGERLY,
+    so it raises even when "a" exists -- exactly the case the fallback is for.
+    """
+    for nm in names:
+        if hasattr(obj, nm):
+            return getattr(obj, nm)
+    raise AttributeError(f"{type(obj).__name__} has none of the attributes "
+                         f"{', '.join(map(repr, names))}")
+
+
 def _chunk_sites(chunk):
-    chrom = np.asarray(getattr(chunk, "chromosomes", getattr(chunk, "chrom")))
+    chrom = np.asarray(_attr(chunk, "chromosomes", "chrom"))
     pos = np.asarray(getattr(chunk, "positions"), dtype=np.int64)
     rb = np.array([_BASE.get(str(a), _MISS) for a in np.asarray(getattr(chunk, "ref"))],
                   dtype=np.int16)
@@ -94,7 +111,7 @@ def _resolve_rows(store, chrom, pos):
     from normalize_tes.snp_position_resolution import resolve_native_position_requests
     res = resolve_native_position_requests(store, np.asarray(chrom).astype(str),
                                            np.asarray(pos, dtype=np.int64), policy="skip")
-    rows = np.asarray(getattr(res, "rows", getattr(res, "row_indices")), dtype=np.int64)
+    rows = np.asarray(_attr(res, "rows", "row_indices"), dtype=np.int64)
     mask = getattr(res, "eligible", None)
     if mask is not None:
         out = np.full(len(pos), -1, dtype=np.int64)
@@ -125,11 +142,14 @@ def _row_intervals(store, row):
 
 def load_table(path):
     d = np.load(path, allow_pickle=True)
-    return {"table": d["table"], "d0": d["d0"], "age": d["age"],
-            "Tgrid": d["Tgrid"], "n_sample": int(d["n_sample"])}
+    t = {"table": d["table"], "d0": d["d0"], "age": d["age"],
+         "Tgrid": d["Tgrid"], "n_sample": int(d["n_sample"])}
+    if "table2" in d.files:                      # E[p_T^2|d0,t_i]: diploid only
+        t["table2"] = d["table2"]
+    return t
 
 
-def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16):
+def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table"):
     """E[p_T | d0, t_i] as a T-grid vector, marginalised over the mutation age t_i.
 
     Under the infinite-sites model the mutation age is UNIFORM on its branch
@@ -138,17 +158,25 @@ def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16):
     by trapezoidal quadrature at n_quad linearly-spaced ages. The table's age axis
     is log-spaced, so each node is interpolated in log-age. A degenerate branch
     (t_lo == t_hi) collapses to a single point.
+
+    key="table2" reads the second-moment plane E[p_T^2 | d0, t_i] instead; the
+    branch average is linear in the tabulated quantity, so the same quadrature
+    applies. (Nonzero values for T inside [t_lo, t_hi] are correct: the mutation
+    age is uncertain within the branch.)
     """
     if d0 < 1 or d0 > tab["n_sample"] - 1:      # monomorphic in panel -> no info
         return None
-    age = tab["age"]
+    age = tab["age"]; Tg = tab["Tgrid"]
     la = np.log(np.clip(age, 1e-9, None))
-    T = tab["table"][d0 - 1]                     # (n_age, n_T)
+    T = tab[key][d0 - 1]                         # (n_age, n_T)
 
     def row_at(a):                               # table row at age a, log-age interp
         k = np.interp(np.log(max(a, 1e-9)), la, np.arange(len(age)))
         k0 = int(np.floor(k)); k1 = min(k0 + 1, len(age) - 1); w = k - k0
-        return np.nan_to_num((1 - w) * T[k0] + w * T[k1], nan=0.0)
+        r = np.nan_to_num((1 - w) * T[k0] + w * T[k1], nan=0.0)
+        # blending a T>=t_i zero row with a nonzero one leaks probability across the
+        # mutation-existence boundary, so re-impose p_T = 0 at the interpolated age
+        return np.where(Tg >= a, 0.0, r)
 
     lo = max(float(min(t_lo, t_hi)), age[0])
     hi = min(max(float(max(t_lo, t_hi)), lo), age[-1])
@@ -199,7 +227,12 @@ def read_ancient(vcf_paths, samples, chrom, include, chunk_records, quiet):
 
 
 def read_panel_alt(vcf_paths, chrom, chunk_records, quiet, n_expected):
-    """pos -> ALT allele count among the panel (require n_expected called haplotypes)."""
+    """pos -> (ALT count, ref code, alt code) among the panel (n_expected called).
+
+    The ref/alt codes are kept so inference can check the panel's orientation
+    against the ancient VCF's: joining on position alone would silently read the
+    count as n-count wherever the two files disagree on which allele is REF.
+    """
     read_vcf_chunks = _import_repo()[2]
     c_alt = {}
     for vcf in vcf_paths:
@@ -219,7 +252,7 @@ def read_panel_alt(vcf_paths, chrom, chunk_records, quiet, n_expected):
                 if chrom is not None and str(_chrom[j]) != str(chrom):
                     continue
                 if int(tot_called[j]) == n_expected:      # full panel called
-                    c_alt[int(pos[j])] = int(tot_alt[j])
+                    c_alt[int(pos[j])] = (int(tot_alt[j]), int(rb[j]), int(ab[j]))
     return c_alt
 
 
@@ -230,6 +263,13 @@ def read_panel_alt(vcf_paths, chrom, chunk_records, quiet, n_expected):
 
 def run_chromosome(args, tab):
     grid = tab["Tgrid"]; n = tab["n_sample"]
+    need2 = args.ploidy == 2                     # diploid genotypes need E[p_T^2]
+    if need2 and "table2" not in tab:
+        raise SystemExit("--ploidy 2 needs the conditional second-moment plane "
+                         "'table2', absent from --freq-table (pre-format-2 table). "
+                         "Rebuild it with the current "
+                         "precompute_freq_trajectory_moments.py; the squared mean is "
+                         "NOT a valid substitute (E[p^2] != E[p]^2).")
     include = None
     if args.include_positions is not None:
         include = set()
@@ -254,7 +294,7 @@ def run_chromosome(args, tab):
     N = len(order); G = len(grid)
     ll = np.zeros((N, G))
     stats = {"n_samples": N, "sites_used": 0, "sites_no_panel": 0,
-             "sites_monomorphic": 0, "chrom": args.chrom}
+             "sites_monomorphic": 0, "sites_allele_mismatch": 0, "chrom": args.chrom}
 
     # resolve store rows for all ancient positions
     positions = np.array(sorted(calls), dtype=np.int64)
@@ -267,47 +307,72 @@ def run_chromosome(args, tab):
             continue
         if pos not in c_alt:
             stats["sites_no_panel"] += 1; continue
-        ca = c_alt[pos]
+        ca, p_rb, p_ab = c_alt[pos]
+        rb, ab, alt_ct, cl = calls[pos]
+        # harmonise the panel ALT count to the ANCIENT VCF's REF/ALT orientation
+        # BEFORE testing it: the two files are joined on position alone
+        if _MISS in (p_rb, p_ab, rb, ab):        # unknown base code on either side
+            stats["sites_allele_mismatch"] += 1; continue
+        if p_rb == rb and p_ab == ab:            # same orientation
+            pass
+        elif p_rb == ab and p_ab == rb:          # REF/ALT swapped between the VCFs
+            ca = n - ca
+        else:                                    # different alleles, or an unknown base
+            stats["sites_allele_mismatch"] += 1; continue
         if ca <= 0 or ca >= n:
             stats["sites_monomorphic"] += 1; continue
-        rb, ab, alt_ct, cl = calls[pos]
 
         below, above, draw_id = _row_intervals(store, row)
         anc = _ancestral_per_draw(polarity, row, n_draws)
 
-        phi_sum = np.zeros(G); cnt = 0
+        phi_sum = np.zeros(G); phi2_sum = np.zeros(G); cnt = 0
         for d in np.unique(draw_id):
             a = int(anc[d]) if d < len(anc) else _MISS
             if a == _MISS or a not in (rb, ab):
                 continue
             m = draw_id == d
             t_lo = float(below[m].min()); t_hi = float(above[m].max())
-            if a == rb:                       # ALT is derived; d0 = ALT count
-                phi = phi_lookup(tab, ca, t_lo, t_hi)
-            else:                              # REF is derived; ALT freq = 1 - E[p_T|c_ref]
-                phi = phi_lookup(tab, n - ca, t_lo, t_hi)
-                if phi is not None:
-                    phi = 1.0 - phi
+            d0 = ca if a == rb else n - ca    # ALT derived -> d0 = ALT count, else REF count
+            phi = phi_lookup(tab, d0, t_lo, t_hi)
             if phi is None:
                 continue
+            phi2 = phi_lookup(tab, d0, t_lo, t_hi, key="table2") if need2 else None
+            if a != rb:                        # REF is derived; ALT freq = 1 - E[p_T|c_ref]
+                if phi2 is not None:           # E[(1-X)^2] = 1 - 2 E[X] + E[X^2]
+                    phi2 = 1.0 - 2.0 * phi + phi2
+                phi = 1.0 - phi
             phi_sum += np.clip(phi, 0.0, 1.0); cnt += 1
+            if phi2 is not None:
+                phi2_sum += np.clip(phi2, 0.0, 1.0)
         if cnt == 0:
             continue
         phibar = phi_sum / cnt
         eps = args.epsilon
-        # per-ALT-allele observation probability q_alt = (1-eps) phibar + eps (1-phibar)
+        # per-ALT-allele observation probability r = (1-eps) X + eps (1-X); averaging
+        # it over the ALT frequency X needs only the first moment: E[r] = eps + (1-2eps) E[X]
         qA = np.clip((1 - eps) * phibar + eps * (1 - phibar), 1e-300, 1.0)
         logA = np.log(qA); logR = np.log(np.clip(1.0 - qA, 1e-300, 1.0))
-        # allele dosage a and ploidy c per sample; log-lik = a logqA + (c-a) log(1-qA)
         if args.ploidy == 1:
-            # haploid / pseudo-haploid: one allele per called site (collapse hom calls)
+            # haploid / pseudo-haploid: ONE Bernoulli(E[r]) per called site (collapse
+            # hom calls); log-lik = a logqA + (c-a) log(1-qA) with a,c in {0,1}
             a_eff = (alt_ct >= 1).astype(np.float64)
             c_eff = (cl >= 1).astype(np.float64)
+            ll += np.outer(a_eff, logA) + np.outer(c_eff - a_eff, logR)
         else:
-            # true diploid genotypes: observed ALT dosage (0/1/2) under Hardy-Weinberg
-            a_eff = alt_ct.astype(np.float64)
-            c_eff = cl.astype(np.float64)
-        ll += np.outer(a_eff, logA) + np.outer(c_eff - a_eff, logR)
+            # true diploid genotypes: the two alleles are iid Bernoulli(r) only GIVEN
+            # the latent frequency X, and P(dosage) is QUADRATIC in r, so plugging the
+            # mean in would be wrong (E[r^2] != E[r]^2); use the second moment.
+            phi2bar = phi2_sum / cnt
+            Er2 = np.clip(eps ** 2 + 2 * eps * (1 - 2 * eps) * phibar
+                          + (1 - 2 * eps) ** 2 * phi2bar, 0.0, 1.0)
+            lg = np.log(np.clip(np.stack([1.0 - 2.0 * qA + Er2,   # P(dosage=0) = E[(1-r)^2]
+                                          2.0 * (qA - Er2),       # P(dosage=1) = 2E[r(1-r)]
+                                          Er2]), 1e-300, 1.0))    # P(dosage=2) = E[r^2]
+            dip = cl >= 2                      # both alleles called: full genotype
+            ll[dip] += lg[np.clip(alt_ct[dip].astype(np.int64), 0, 2)]
+            half = cl == 1                     # partially-called: one Bernoulli(E[r])
+            if half.any():
+                ll[half] += np.where((alt_ct[half] >= 1)[:, None], logA, logR)
         stats["sites_used"] += 1
 
     return order, grid, ll, stats
@@ -402,7 +467,8 @@ def parse_args(argv=None):
                    help="ploidy of the ANCIENT-sample genotypes: 1 = haploid / "
                         "pseudo-haploid (one allele per called site; homozygous "
                         "calls collapsed to one observation) [default]; 2 = true "
-                        "diploid genotypes (ALT dosage 0/1/2 used, Hardy-Weinberg). "
+                        "diploid genotypes (ALT dosage 0/1/2 used, Hardy-Weinberg; "
+                        "needs a freq table carrying the second-moment plane). "
                         "Use 1 for pseudo-haploid aDNA even if written as hom "
                         "diploid, or 2 would double-count each site.")
     p.add_argument("--epsilon", type=float, default=1e-3,

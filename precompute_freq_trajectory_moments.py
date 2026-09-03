@@ -15,10 +15,11 @@ selection literature): the neutral moment hierarchy is closed,
 
     dM_k/dtau = (k(k-1)/2) (M_{k-1} - M_k),      M_k(tau) = E[X(tau)^k],
 
-so for a sample of n chromosomes we only need moments up to order n+1, one matrix
-exponential of an (n+2) x (n+2) bidiagonal generator, and the Binomial(n, x)
-sampling does the conditioning on the observed count d0. Validated against a
-forward WF-diffusion Monte Carlo (agreement to MC noise, rare bins included).
+so for a sample of n chromosomes we only need moments up to order n+2 (n+1 for the
+first moment, one more for the second), one matrix exponential of an (n+3) x (n+3)
+bidiagonal generator, and the Binomial(n, x) sampling does the conditioning on the
+observed count d0. Validated against a forward WF-diffusion Monte Carlo (agreement
+to MC noise for both moments, rare bins included; validate_moments_vs_mc.py).
 
 Time-varying Ne is handled EXACTLY by the diffusion-time change (the neutral
 diffusion has no drift, so Ne enters only through the clock):
@@ -40,7 +41,19 @@ map C(dt) = expm(B*dt) and moments M(u) = expm(B*u) m0,
     E[p_T | d0, t_i] = ( sum_m coeff_{d0}[m] E[X_T X_pres^m] )
                        / ( sum_m coeff_{d0}[m] M_pres[m] )
 
-For T >= t_i the allele does not yet exist, so p_T = 0.
+The SECOND moment comes from the same contraction shifted one index (each extra
+factor of X_T raises the power of x in E[X_pres^m | X_T = x] by one), so it costs
+nothing but one more moment order:
+
+    E[X_T^2 * X_pres^m] = sum_j C(tau_T)[m, j] * M(u1)[j+2]
+    E[p_T^2 | d0, t_i] = ( sum_m coeff_{d0}[m] E[X_T^2 X_pres^m] )
+                         / ( sum_m coeff_{d0}[m] M_pres[m] )      # same denominator
+
+It is required for DIPLOID genotype likelihoods, which are nonlinear in the latent
+frequency (E[X^2] != E[X]^2); the first moment alone suffices for one haploid
+Bernoulli observation.
+
+For T >= t_i the allele does not yet exist, so p_T = 0 (and p_T^2 = 0).
 
 Demography input
 ----------------
@@ -52,7 +65,8 @@ posterior_mean) as a step function.
 
 Output (.npz, --output)
 -----------------------
-    table   float32 (n_d0, n_age, n_T)   E[p_T | d0, t_i]  (0 where T>=t_i)
+    table   float32 (n_d0, n_age, n_T)   E[p_T | d0, t_i]    (0 where T>=t_i)
+    table2  float32 (n_d0, n_age, n_T)   E[p_T^2 | d0, t_i]  (0 where T>=t_i)
     d0      int     (n_d0,)               present counts 1..n
     age     float   (n_age,)              mutation ages t_i (generations)
     Tgrid   float   (n_T,)                sample ages T (generations)
@@ -113,6 +127,17 @@ def load_demography(path, series="posterior_mean"):
         raise SystemExit(f"No usable rows for series={series!r} in {path}")
     o = np.argsort(lefts)
     L = np.array(lefts)[o]; R = np.array(rights)[o]; NE = np.array(nes)[o]
+    # the cumsum below is tau at a window's LEFT edge only if the windows tile the
+    # axis: a gap or an overlap mis-scales tau for every later window (and a t in a
+    # gap would get a NEGATIVE elapsed term), so refuse rather than assume a demography
+    tol = 1e-6 * np.maximum(np.abs(R[:-1]), np.maximum(np.abs(L[1:]), 1.0))
+    bad = np.flatnonzero(np.abs(R[:-1] - L[1:]) > tol)
+    if bad.size:
+        i = int(bad[0]); kind = "gap" if L[i + 1] > R[i] else "overlap"
+        raise SystemExit(f"Ne windows are not contiguous for series={series!r} in {path}: "
+                         f"{kind} between window {i} [{L[i]:.10g},{R[i]:.10g}] and window "
+                         f"{i+1} [{L[i+1]:.10g},{R[i+1]:.10g}] "
+                         f"(time_right={R[i]:.10g} != time_left={L[i+1]:.10g})")
     # cumulative tau at each window's right edge
     seg = (R - L) / (2.0 * NE)
     cum_at_R = np.concatenate([[0.0], np.cumsum(seg)])   # cum_at_R[i] = tau(L[i])
@@ -128,7 +153,8 @@ def load_demography(path, series="posterior_mean"):
             return t / (2.0 * NE[0])
         i = int(np.clip(np.searchsorted(R, t, side="right"), 0, len(NE) - 1))
         base = cum_at_R[i]                    # tau at left edge of window i
-        return base + (t - L[i]) / (2.0 * NE[i])
+        # max(...,0): tau must never run backwards even if a window is degenerate
+        return base + max(t - L[i], 0.0) / (2.0 * NE[i])
 
     return tau_of_t, ne_of_t, (L, R, NE)
 
@@ -145,8 +171,11 @@ class MomentEngine:
         self.n = n
         self.K = n + 1                        # highest moment order needed
         K = self.K
-        B = np.zeros((K + 1, K + 1))
-        for k in range(1, K + 1):
+        # one power BEYOND K: E[X_T^2 X_pres^m] needs M(u1)_{j+2} (see Emoments).
+        # B is lower-bidiagonal, hence expm(B) lower-triangular, so the extra row
+        # leaves every entry the first-moment contraction uses untouched.
+        B = np.zeros((K + 2, K + 2))
+        for k in range(1, K + 2):
             B[k, k] = -k * (k - 1) / 2.0
             B[k, k - 1] = k * (k - 1) / 2.0   # dM_k/dtau = k(k-1)/2 (M_{k-1}-M_k)
         self.B = B
@@ -157,27 +186,39 @@ class MomentEngine:
                               for m in range(d0, n + 1)}
 
     def _moms(self, u, eps):
-        m0 = np.array([eps ** k for k in range(self.K + 1)], dtype=np.float64)
+        m0 = np.array([eps ** k for k in range(self.K + 2)], dtype=np.float64)
         m0[0] = 1.0
         return expm(self.B * u) @ m0
 
-    def Efreq(self, d0, tau_i, tau_T, eps):
-        """E[p_T | d0, t_i] with tau_i=tau(t_i), tau_T=tau(T), eps=1/(2Ne(t_i))."""
+    def Emoments(self, d0, tau_i, tau_T, eps):
+        """(E[p_T | d0, t_i], E[p_T^2 | d0, t_i]); tau_i=tau(t_i), tau_T=tau(T),
+        eps=1/(2Ne(t_i)). The SECOND moment is needed for a diploid genotype
+        likelihood, which is nonlinear in the latent frequency."""
         if tau_T >= tau_i:                    # sample older than the mutation
-            return 0.0
+            return 0.0, 0.0
         u1 = tau_i - tau_T
         Mu1 = self._moms(u1, eps)
         C = expm(self.B * tau_T)
         Mpres = self._moms(tau_i, eps)
-        # E[X_T * X_pres^m] = sum_j C[m,j] Mu1[j+1]
+        # E[X_T^k X_pres^m] = sum_j C[m,j] Mu1[j+k]: C[m,j] multiplies x^j in
+        # E[X_pres^m | X_T=x], so each extra factor of X_T shifts the index by one
         EjX = C[:, :self.K] @ Mu1[1:self.K + 1]
-        num = den = 0.0
+        EjX2 = C[:, :self.K] @ Mu1[2:self.K + 2]
+        num = num2 = den = 0.0
         for m, c in self.coeff[d0].items():
             den += c * Mpres[m]
-            num += c * EjX[m]
+            num += c * EjX[m]; num2 += c * EjX2[m]
         if den == 0.0:
-            return np.nan
-        return float(np.clip(num / den, 0.0, 1.0))
+            return np.nan, np.nan
+        p1 = float(np.clip(num / den, 0.0, 1.0))
+        # X in [0,1] gives X^2 <= X, and Cauchy-Schwarz gives E[X^2] >= E[X]^2;
+        # clamping to those exact bounds keeps the genotype probabilities valid
+        # against the alternating-sum cancellation
+        return p1, float(np.clip(num2 / den, p1 * p1, p1))
+
+    def Efreq(self, d0, tau_i, tau_T, eps):
+        """E[p_T | d0, t_i]; the first moment alone (haploid observations)."""
+        return self.Emoments(d0, tau_i, tau_T, eps)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -195,16 +236,18 @@ def build_table(args):
 
     tauT = np.array([tau_of_t(T) for T in Tgrid])
     table = np.full((n, args.n_age, len(Tgrid)), np.nan, dtype=np.float32)
+    table2 = np.full((n, args.n_age, len(Tgrid)), np.nan, dtype=np.float32)
     for ia, t_i in enumerate(age):
         tau_i = tau_of_t(t_i)
         eps = 1.0 / (2.0 * float(ne_of_t(t_i)[0]))
         for id0, d0 in enumerate(range(1, n + 1)):
-            row = np.array([eng.Efreq(d0, tau_i, tt, eps) for tt in tauT])
-            table[id0, ia] = row
+            # both moments per (d0, t_i, T) in one pass: they share the matrix exponentials
+            row = np.array([eng.Emoments(d0, tau_i, tt, eps) for tt in tauT])
+            table[id0, ia] = row[:, 0]; table2[id0, ia] = row[:, 1]
         if not args.quiet:
             print(f"[age {ia+1}/{args.n_age}] t_i={t_i:.3g}  tau_i={tau_i:.3g}",
                   file=sys.stderr)
-    return table, np.arange(1, n + 1), age, Tgrid, windows
+    return table, table2, np.arange(1, n + 1), age, Tgrid, windows
 
 
 def main(argv=None):
@@ -234,12 +277,14 @@ def main(argv=None):
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)
 
-    table, d0, age, Tgrid, windows = build_table(args)
+    table, table2, d0, age, Tgrid, windows = build_table(args)
     meta = {"n_sample": args.n_sample, "ne_file": str(args.ne),
             "ne_series": args.ne_series, "method": "neutral WF moment recursion",
-            "ne_windows": int(len(windows[0]))}
-    np.savez_compressed(args.output, table=table, d0=d0, age=age, Tgrid=Tgrid,
-                        n_sample=args.n_sample, meta=json.dumps(meta))
+            "ne_windows": int(len(windows[0])),
+            # format 2 adds the table2 plane; --ploidy 2 inference requires it
+            "format_version": 2, "planes": ["table (E[p_T])", "table2 (E[p_T^2])"]}
+    np.savez_compressed(args.output, table=table, table2=table2, d0=d0, age=age,
+                        Tgrid=Tgrid, n_sample=args.n_sample, meta=json.dumps(meta))
     if not args.quiet:
         print(f"[precompute-moments] wrote {args.output}  shape={table.shape}",
               file=sys.stderr)
