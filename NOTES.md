@@ -29,12 +29,13 @@ $$
 which is not constant in $X$. Since $X$ is linked to $p_T$ through the frequency
 trajectory, conditioning on the ascertained set can inform $T$.
 
-**Why it does not bite here.** Our sites are ascertained as polymorphic in a
-discovery panel of ~1500 haplotypes that **contains** the 26 ARG-panel haplotypes.
-Inference conditions on $1 \le d_0 \le 25$ — both alleles observed among the 26 —
-and because those 26 are a *subset* of the 1500, that implies the site is polymorphic
-in the discovery panel. So $A$ has probability 1 given conditioning we already
-perform, and
+**Why it does not bite here.** Our sites come from a discovery panel of **1500
+sequenced lines that contains the ARG panel's lines**, and **no frequency filter was
+applied** — any SNP present in that panel was used. Both facts are load-bearing.
+Inference conditions on $1 \le d_0 \le 25$ — both alleles observed among the 26 ARG
+haplotypes — and because those are a *subset* of the discovery panel, that implies
+the site is polymorphic in the discovery panel. So $A$ has probability 1 given
+conditioning we already perform, and
 
 $$
 E[p_T \mid d_0, t_i, A] \;=\; E[p_T \mid d_0, t_i]
@@ -71,3 +72,41 @@ factor must be modelled rather than ignored. Singletons are where it shows up fi
 rare-in-discovery alleles from the site set, and those are exactly the sites carrying
 the lower-bound age signal. That is a loss of *power*, not a bias — expect broad
 posteriors, and treat a tight interval on a single sample with suspicion.
+
+---
+
+## REF/ALT harmonisation is strand-blind
+
+Panel and ancient VCFs are joined on position, and the panel ALT count is harmonised
+to the ancient VCF's orientation (MATH.md §6): identical alleles are used as-is,
+exactly swapped alleles give $n - c_{\text{alt}}$, and anything else is skipped and
+counted in `sites_allele_mismatch`.
+
+That comparison is on base *identity* only — `_BASE` maps `A,C,G,T` with no
+complement operation — so for the **palindromic** classes **A/T** and **G/C** a
+strand flip is indistinguishable from a genuine REF/ALT swap:
+
+| ancient | panel | code concludes | correct |
+|---|---|---|---|
+| A/T | A/T, same strand | same → $c_{\text{alt}}$ | yes |
+| A/T | T/A, genuine swap | swapped → $n - c_{\text{alt}}$ | yes |
+| A/T | T/A, **strand flip** | swapped → $n - c_{\text{alt}}$ | **no** — should be $c_{\text{alt}}$ |
+| A/T | A/T, **flip + swap** | same → $c_{\text{alt}}$ | **no** — should be $n - c_{\text{alt}}$ |
+
+**Non-palindromic sites fail safe.** A strand flip on an A/G site yields T/C, which
+matches neither orientation, so it falls through to the skip branch. Losing a site
+costs power; inverting $d_0$ corrupts the likelihood, so this asymmetry is the
+behaviour we want.
+
+**The useful diagnostic.** Because non-palindromic sites are skipped and palindromic
+ones are not, a strand disagreement announces itself as a *large*
+`sites_allele_mismatch` count — and in exactly that situation the A/T and G/C sites
+that passed the check are the ones that are silently wrong. A high count is
+therefore not merely "these VCFs were normalised against different references"; it
+is a reason to distrust the palindromic sites that *did* match.
+
+**The condition.** Orientation harmonisation is sound iff both VCFs report on the
+same strand. That holds for this data set, so no strand handling is implemented. If
+strand provenance is ever uncertain, the standard mitigation is to drop A/T and G/C
+sites outright (via `--include-positions`) rather than to infer strand from allele
+frequencies.

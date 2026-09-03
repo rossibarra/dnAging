@@ -93,63 +93,129 @@ action unless you disagree.
 
 ---
 
-## 5. Two additions nobody asked for — **OPEN (low stakes)**
+## 5. Two additions nobody asked for — **CLOSED, keep them**
 
 Both tied to new behaviour, both in files you want kept clean:
 
 - a README sanity-check bullet for `sites_allele_mismatch` and Ne-window tiling;
 - a MATH.md section 6 sentence on REF/ALT harmonisation.
 
-I read both. They are HOWTO-appropriate and do not put modelling prose into README,
-so they seem consistent with the README-as-HOWTO split — but they were unrequested
-scope. **Keep or drop?**
+Both are correctly placed and stay. The README bullets are operational (check this
+counter, tile your Ne windows), which is HOWTO. The MATH.md sentence sits directly
+after eq. (10a), where $c_{\text{alt}}$ is defined, and states a precondition for
+that equation to mean what it says — so it belongs with the derivation rather than in
+NOTES.md, which is for approximations and their conditions. Reviewing this placement
+is what surfaced item 8.
 
 ---
 
-## 6. AGENTS.md rules 2/3 and 6 were not followed — **OPEN**
+## 6. AGENTS.md rules 2/3 and 6 were not followed — **CLOSED, rules amended**
 
-Rules 2/3 classify `*.md` as data files requiring an explicit ask before
-modification; rule 6 requires a `.bak` copy first. The fix agent edited MATH.md and
-README.md (which I had instructed) and skipped the `.bak` files, reasoning that git
-HEAD holds pristine copies. It was non-interactive and could not ask.
+The fix agent edited MATH.md and README.md (which I had instructed) without the
+permission request rules 2/3 required, and skipped rule 6's `.bak` copies. That
+instruction was mine, so the deviation was on me, not the agent.
 
-That instruction was mine, so the deviation is on me, not the agent. For my own two
-later edits I did create `MATH.md.bak` / `README.md.bak` and added `*.bak` to
-`.gitignore`.
+**Resolved by changing the rules rather than the behaviour.** AGENTS.md now says:
 
-**Decision: keep rule 6, or drop it?** My view: it is redundant now that everything
-is in git, and it will accumulate clutter. But it is your repo convention — say keep
-and I will comply going forward.
+- markdown is documentation, not data, so modifying `*.md` needs no permission
+  request (rule 3);
+- but **recoverability still applies to markdown** — modify a file only when it is
+  tracked-and-clean since the last commit, or after making a `.bak`. Not being a
+  data file waives the permission request, not the safety net;
+- `.bak` is required only when a file is not tracked-and-clean, since git otherwise
+  holds the pristine copy (rule 6), and `*.bak` is gitignored.
+
+Real data files (`*.vcf`, `*.tsv`, `*.npz`) are gitignored, hence untracked, so
+"clean since the last commit" is never true for them and they still require a `.bak`
+or an explicit ask. The relaxation only frees tracked text.
 
 ---
 
-## 7. Deliberately left alone — **CLOSED, scope record**
+## 7. REVIEW.md findings that were wrong, or code already correct — **CLOSED**
 
-Confirm this matches your intent:
+No action needed on any of these, now or later.
 
-- `_trapz` (`getattr(np, "trapezoid", None) or getattr(np, "trapz")`) — the `or`
-  short-circuits, so it never had the eager-fallback bug. REVIEW.md implied
-  otherwise and was wrong.
-- The `1.0 - phi` REF-derived branch, and quadrature clamping against
-  `t_lo`/`t_hi` — both correct as written.
+- **`_trapz` was never buggy.** REVIEW.md's finding 5 named three eager-`getattr`
+  sites; only two were real. `getattr(o, "a", getattr(o, "b"))` evaluates the
+  fallback as a function *argument*, so it always runs — the bug. But
+  `getattr(np, "trapezoid", None) or getattr(np, "trapz")` uses `or`, which
+  short-circuits and never evaluates its right side when the left is truthy. Same
+  idiom by eye, opposite behaviour.
+- **The `1.0 - phi` REF-derived branch is exact.** When the ancestral allele is ALT,
+  REF is derived, so the table is queried at `d0 = n - c_alt` and converted with
+  `1 - phi`. That is exact by linearity, $E[1-X] = 1 - E[X]$, and it composes
+  correctly with the existence boundary: at $T \ge t_i$ the lookup returns 0, so
+  $1-0=1$, i.e. ALT frequency is 1 before the derived REF allele arose. Correct —
+  everyone carried the ancestral (ALT) allele then.
+- **Quadrature is correctly *not* clamped against `t_lo`/`t_hi`.** A partial nonzero
+  value for a sample age inside the branch interval is the right answer, because the
+  mutation age is uncertain within the branch: it may be older than $T$ (allele
+  exists) or younger (it does not), and the average reflects that mixture. Only the
+  per-node interpolation needed a mask, which is fix 3.
 - REVIEW.md finding 1 (ARG-draw marginalisation order) — under separate
-  investigation with Codex.
+  investigation with Codex; a decision in its own right when it lands, not part of
+  this pass.
 - REVIEW.md finding 3 (ascertainment) — resolved as exactly ignorable under panel
   nesting; see NOTES.md.
-- Every remaining item in REVIEW.md's "Additional code concerns", including the
-  pseudo-haploid het-to-derived collapse I flagged as first-order, the missing
-  `slurm/slurm_conda_bootstrap.sh`, unvalidated `--epsilon` and prior file, the
-  `merge()` grid/dimension checks, and the absence of a test suite.
+
+---
+
+## 8. Orientation check is strand-blind at palindromic sites — **CLOSED**
+
+Found while reviewing item 5's placement. The REF/ALT harmonisation added in this
+pass compares bases without complementing them, so at A/T and G/C sites a strand
+flip is indistinguishable from an allele swap and $d_0$ can be silently inverted.
+Non-palindromic sites fail safe (skipped, not inverted).
+
+**Decided: documentation only, no code change.** Both VCFs are on the same strand
+here, so the condition holds. Recorded in NOTES.md with the failure table and the
+`sites_allele_mismatch` diagnostic; README gained a strand check pointing at it. No
+`--exclude-palindromic` flag — `--include-positions` already covers the mitigation
+if strand provenance ever becomes uncertain.
+
+---
+
+## 9. Deferred real work from REVIEW.md's "Additional code concerns" — **OPEN**
+
+Promoted out of item 7, where it was wrongly filed as a closed scope record. None of
+this is dismissed; it is simply out of scope for the first pass. Roughly in priority
+order:
+
+1. **Pseudo-haploid het-to-derived collapse — first-order bias, should be next.**
+   `a_eff = (alt_ct >= 1)` maps *every* heterozygous call to derived, systematically
+   inflating derived-allele carriage and biasing $\hat T$. This is in `--ploidy 1`,
+   the default, and the mode REVIEW.md calls the trustworthy foundation. Hets should
+   be treated as missing unless pseudo-haploid allele sampling already happened
+   upstream.
+2. **Mutation ages outside the table are silently clipped and renormalised**,
+   changing the assumed age distribution instead of reporting insufficient table
+   coverage. Interacts with item 2.
+3. **Multiple interval records in one draw are collapsed to their overall min and
+   max**, potentially filling gaps and misweighting the branch quadrature.
+4. **`--epsilon` is unvalidated** — should require $0 \le \varepsilon < 0.5$.
+5. **The prior file is unvalidated** — no check for two columns, sorted ages, finite
+   values, or non-negative density.
+6. **`merge()` checks sample order but not the $T$ grids or array dimensions**, so
+   mismatched chromosome parts can be summed silently.
+7. **`read_panel_alt` requires the panel fully called** (`tot_called == n_expected`)
+   and drops any partially-called site without counting it in `stats`.
+8. **Both SLURM scripts source a missing `slurm/slurm_conda_bootstrap.sh`** and
+   suppress the failure with `|| true`.
+9. **No automated test suite.** The first pass used throwaway verification scripts
+   in a scratchpad; only the second-moment check in `validate_moments_vs_mc.py` is
+   permanent.
 
 ---
 
 ## Also unresolved, not from the agent's list
 
-- **Discovery panel: plain polymorphism, or a MAC/MAF cutoff?** NOTES.md currently
-  asserts plain polymorphism as fact. With `n_B = 1500`, a `MAC >= 5` filter shifts
-  `E[X | d0=1]` by `+8.5%` and `MAF >= 1%` by `+25.5%`, which would invert that
-  entry's conclusion for singletons. Nesting gives no protection against a
-  frequency threshold.
+- ~~**Discovery panel: plain polymorphism, or a MAC/MAF cutoff?**~~ **RESOLVED:**
+  no filter. 1500 sequenced lines, and any SNP present in that panel was used. The
+  panel also contains the ARG lines, so ascertainment is exactly ignorable and
+  NOTES.md stands as written. (Had there been a cutoff, `MAC >= 5` would have shifted
+  `E[X | d0=1]` by `+8.5%` and `MAF >= 1%` by `+25.5%` — nesting gives no protection
+  against a frequency threshold, which is why the condition is recorded in NOTES.md
+  for any future site set.)
 - **Nothing is committed.** Five modified files plus `NOTES.md` and this file are
   sitting in the working tree.
 - **The adapter contract is unverified.** No part of the real `normalize_tes`

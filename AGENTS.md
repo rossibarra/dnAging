@@ -1,14 +1,19 @@
 1. Git repo check
 - If the current directory is not a git repository, ask the user whether they want to create one before making changes.
 
-2. Data-file permission (always ask for modifications)
-- Always request permission before modifying an existing data file.
+2. Data-file permission (ask unless the file is recoverable)
+- Every existing file you modify must be **recoverable** first (see also the markdown clause in rule 3). Request permission before modifying an existing data file, **unless** the file is recoverable — that is, either:
+  - it is tracked by git and **clean since the last commit** (so `git checkout -- <path>` restores it), or
+  - you create a `.bak` copy **before** modifying it.
+- If either condition holds, proceed without asking. If neither holds — the file is untracked, or already has uncommitted changes — ask first.
 - Permission is not required for creating a new data file.
-- User instructions such as “modify,” “remove,” “edit,” or similar do **not** count as permission for data-file modifications. You must still ask.
+- Where neither condition holds, user instructions such as “modify,” “remove,” “edit,” or similar do **not** by themselves count as permission. You must still ask.
 
 3. Data-file definition
 - A data file is any non-code project file, especially plain-text files used as inputs, outputs, configuration, or reference data.
-- Examples include: `*.txt`, `*.csv`, `*.tsv`, `*.fastq`, `*.fastq.gz`, `*.md`, `*.sam`, `*.maf`, `*.yaml`, `*.yml`, `*.json`, `*.map`, `*.bed`, `*.vcf`, `*.gvcf`, `*.fai`, and similar tabular or reference files.
+- Examples include: `*.txt`, `*.csv`, `*.tsv`, `*.fastq`, `*.fastq.gz`, `*.sam`, `*.maf`, `*.yaml`, `*.yml`, `*.json`, `*.map`, `*.bed`, `*.vcf`, `*.gvcf`, `*.fai`, and similar tabular or reference files.
+- **Markdown (`*.md`) is documentation, not data**, so no permission request is needed to modify it (README, MATH, NOTES and similar prose files).
+- The recoverability requirement in rule 2 still applies to markdown: modify a `*.md` file only when it is tracked by git and clean since the last commit, or after creating a `.bak` copy first. Not being a data file waives the *permission request*, not the *safety net*.
 - If unsure whether a file is a data file, treat it as a data file and ask permission first.
 
 4. Uncommitted changes check (target file only)
@@ -20,7 +25,9 @@
 - A single permission request is sufficient if the user clearly authorizes modifying multiple specific data files in the same task.
 
 6. Backups for data files
-- When modifying a data file (with permission), create a backup copy first using the `.bak` suffix (for example, `file.txt.bak`).
+- A `.bak` copy is required only when the data file is **not** tracked-and-clean. Create it before modifying, using the `.bak` suffix (for example, `file.txt.bak`).
+- When the file is tracked by git and clean since the last commit, git already holds the pristine copy and no `.bak` is needed.
+- `*.bak` is gitignored, so backups never enter a commit.
 
 7. Symlink write policy
 - If a path to be modified is a symbolic link, never modify the symlink target.

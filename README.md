@@ -189,11 +189,14 @@ and match Kimura's constant-$N_e$ limit. See MATH.md §5.
 - Confirm the ancient samples are **not** in the ARG/ascertainment panels.
 - Confirm the panel VCF has the 26 haplotypes fully called at the sites you use
   (partially-called sites are skipped when forming `d0`).
-- Check `sites_allele_mismatch` in `run.json`. The panel and ancient VCFs are joined
-  on position; a site whose REF/ALT are exactly swapped between them is harmonised
+- **Confirm the panel and ancient VCFs are on the same strand**, then check
+  `sites_allele_mismatch` in `run.json`. The two files are joined on position; a site
+  whose REF/ALT are exactly swapped between them is harmonised
   (`c_alt → n-c_alt`), and one whose alleles cannot be matched is **skipped** and
-  counted there. A large count means the two VCFs are not normalised against the
-  same reference.
+  counted there. That check compares bases only and never complements them, so a
+  large count is the signature of a **strand** disagreement, not just a different
+  reference — and if strands do disagree, the A/T and G/C sites that *did* match are
+  silently mis-oriented rather than skipped. See [NOTES.md](./NOTES.md).
 - The $N_e$ TSV windows must **tile** the time axis: precompute exits if consecutive
   windows leave a gap or overlap, since the diffusion-time integral assumes
   contiguity.
