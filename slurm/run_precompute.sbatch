@@ -8,10 +8,12 @@
 #SBATCH --output=logs/Tprecmp_%j.out
 #SBATCH --error=logs/Tprecmp_%j.err
 #
-# STEP 1 (once): build the age-conditioned frequency table E[p_T | d0, t_i] from
-# the coalescence-Ne curve, via the exact neutral WF moment recursion. Cheap and
-# demography-specific; independent of samples/sites, so it is built a single time
-# and reused for every chromosome and every ancient sample.
+# STEP 1 (once): build the age-conditioned frequency table E[p_T | d0, t_i, n] from
+# the coalescence-Ne curve, via the exact neutral WF moment recursion. Single core
+# and of order an hour at the default grid -- it issues ~8e6 small (23x23..29x29)
+# matrix exponentials, hence the 2 h reservation above -- but demography-specific and
+# independent of samples/sites, so it is built a single time and reused for every
+# chromosome and every ancient sample.
 #
 #   NE=coalescence-ne-estimates.tsv OUT=freq_table.npz \
 #     sbatch slurm/run_precompute.sbatch

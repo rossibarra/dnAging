@@ -169,6 +169,10 @@ def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table", n_called=None):
     is log-spaced, so each node is interpolated in log-age. A degenerate branch
     (t_lo == t_hi) collapses to a single point.
 
+    A branch reaching below the table's youngest age (the store's `below` can be 0)
+    is integrated only over the covered part but normalised by the TRUE branch
+    length, which is exact for T >= age[0]; see the comment at the renormalisation.
+
     key="table2" reads the second-moment plane E[p_T^2 | d0, t_i] instead; the
     branch average is linear in the tabulated quantity, so the same quadrature
     applies. (Nonzero values for T inside [t_lo, t_hi] are correct: the mutation
@@ -198,16 +202,29 @@ def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table", n_called=None):
         # mutation-existence boundary, so re-impose p_T = 0 at the interpolated age
         return np.where(Tg >= a, 0.0, r)
 
-    lo = max(float(min(t_lo, t_hi)), age[0])
-    hi = min(max(float(max(t_lo, t_hi)), lo), age[-1])
-    if hi <= lo:                                 # point age (degenerate branch)
-        return row_at(lo)
+    b_lo = float(min(t_lo, t_hi)); b_hi = float(max(t_lo, t_hi))   # true branch
+    lo = max(b_lo, age[0])
+    hi = min(max(b_hi, lo), age[-1])
+    if hi <= lo:                                 # point age, or branch wholly below
+        return row_at(lo)                        # age[0] (row_at zeroes T >= age[0])
     nodes = np.linspace(lo, hi, n_quad)          # UNIFORM in time along the branch
     wts = np.full(n_quad, 1.0); wts[0] = wts[-1] = 0.5   # trapezoidal weights
     acc = np.zeros(T.shape[1])
     for a, wt in zip(nodes, wts):
         acc += wt * row_at(a)
-    return acc / wts.sum()                        # = trapezoidal average over [lo,hi]
+    avg = acc / wts.sum()                        # mean over the COVERED part [lo,hi]
+    # Renormalise onto the TRUE branch length. Mutation ages in the uncovered
+    # [b_lo, age[0]) are younger than any sample age T >= age[0], so they contribute
+    # p_T = 0 exactly: the covered integral is already the whole numerator, and
+    # dividing by (hi-lo) instead of (b_hi-b_lo) inflates the site by
+    # (b_hi-b_lo)/(hi-lo). This is EXACT for T >= age[0] only; below age[0] the
+    # uncovered ages in (T, age[0]) do contribute and this underestimates.
+    # ASYMMETRIC ON PURPOSE -- do NOT mirror it at the upper end, where uncovered
+    # ages are OLDER than the sample and genuinely contribute; that end is handled
+    # by capping t_hi at --mutation-age-max before we are called.
+    if lo > b_lo and hi >= b_hi and b_hi > b_lo:
+        avg = avg * (hi - lo) / (b_hi - b_lo)
+    return avg
 
 
 # =============================================================================
@@ -295,6 +312,7 @@ def run_chromosome(args, tab):
                          f"not extend beyond --mutation-age-max={args.mutation_age_max:g}")
     mutation_age_max_generations = float(np.interp(
         args.mutation_age_max, age_tau, np.asarray(tab["age"], float)))
+    age_min_generations = float(np.asarray(tab["age"], float)[0])
     available_n = set(int(v) for v in np.asarray(tab["n_panel"]))
     needed_n = set(range(args.min_n, n + 1))
     if not needed_n.issubset(available_n):
@@ -334,7 +352,7 @@ def run_chromosome(args, tab):
     stats = {"n_samples": N, "sites_used": 0, "sites_no_panel": 0,
              "sites_monomorphic": 0, "sites_allele_mismatch": 0,
              "sites_age_filtered": 0, "sites_numerical_failure": 0,
-             "sites_multiple_mapped": 0,
+             "sites_multiple_mapped": 0, "sites_age_clipped_low": 0,
              "sites_panel_below_min_n": 0,
              "chrom": args.chrom}
 
@@ -374,7 +392,7 @@ def run_chromosome(args, tab):
         anc = _ancestral_per_draw(polarity, row, n_draws)
 
         phi_sum = np.zeros(G); phi2_sum = np.zeros(G); cnt = 0
-        age_rejected = numerical_rejected = False
+        age_rejected = numerical_rejected = low_clipped = False
         for d in np.unique(draw_id):
             a = int(anc[d]) if d < len(anc) else _MISS
             if a == _MISS or a not in (rb, ab):
@@ -386,6 +404,8 @@ def run_chromosome(args, tab):
                 continue
             if t_hi > mutation_age_max_generations:
                 t_hi = mutation_age_max_generations
+            if t_lo < age_min_generations:       # branch reaches below the table
+                low_clipped = True
             d0 = ca if a == rb else n_called - ca
             phi = phi_lookup(tab, d0, t_lo, t_hi, n_called=n_called)
             if phi is None:
@@ -409,6 +429,8 @@ def run_chromosome(args, tab):
             if numerical_rejected:
                 stats["sites_numerical_failure"] += 1
             continue
+        if low_clipped:            # site IS used; renormalised onto the true branch
+            stats["sites_age_clipped_low"] += 1
         phibar = phi_sum / cnt
         eps = args.epsilon
         # per-ALT-allele observation probability r = (1-eps) X + eps (1-X); averaging

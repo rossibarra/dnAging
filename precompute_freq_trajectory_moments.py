@@ -6,20 +6,27 @@ precompute_freq_trajectory_moments.py
 
 Build the age-conditioned frequency-trajectory table
 
-    table[d0, i_age, i_T] = E[ p_T | present sample count d0, mutation age t_i ]
+    table[i_n, d0, i_age, i_T]
+        = E[ p_T | called panel size n, present count d0, mutation age t_i ]
 
-EXACTLY, via the neutral Wright-Fisher moment recursion -- no Monte Carlo, no
-diffusion PDE, no rare-bin coverage problem. This is the established route
+via the neutral Wright-Fisher moment recursion -- no Monte Carlo, no diffusion
+PDE, no rare-bin coverage problem. The recursion and the binomial conditioning are
+EXACT within the neutral diffusion; the table itself is a numerical tabulation of
+them (float32 entries on a finite log-spaced age grid, read back by interpolation),
+so "exact" here always means exact as a statement about the model, never about the
+arithmetic -- see the numerics note at the end. This is the established route
 (Griffiths 2003; Song & Steinrucken 2012; used e.g. in the allele-age /
 selection literature): the neutral moment hierarchy is closed,
 
     dM_k/dtau = (k(k-1)/2) (M_{k-1} - M_k),      M_k(tau) = E[X(tau)^k],
 
 so for a sample of n chromosomes we only need moments up to order n+2 (n+1 for the
-first moment, one more for the second), one matrix exponential of an (n+3) x (n+3)
+first moment, one more for the second) from matrix exponentials of an (n+3) x (n+3)
 bidiagonal generator, and the Binomial(n, x) sampling does the conditioning on the
-observed count d0. Validated against a forward WF-diffusion Monte Carlo (agreement
-to MC noise for both moments, rare bins included; validate_moments_vs_mc.py).
+observed count d0. Emoments() takes THREE such exponentials per (n, d0, t_i, T)
+entry -- see the cost note at the end. Validated against a forward WF-diffusion
+Monte Carlo (agreement to MC noise for both moments, rare bins included;
+validate_moments_vs_mc.py).
 
 Time-varying Ne is handled EXACTLY by the diffusion-time change (the neutral
 diffusion has no drift, so Ne enters only through the clock):
@@ -77,6 +84,16 @@ Output (.npz, --output)
 Numerics note: the alternating binomial sums can lose all float64 precision for
 large diffusion times. Entries with fewer than two estimated significant decimal
 digits are written as NaN rather than clipped into apparently valid probabilities.
+
+Cost note: one exponential of this size is trivial, but build_table() loops over
+every panel size n, every d0 in 1..n, every mutation age and every sample age, and
+Emoments() recomputes all three of expm(B*u1), expm(B*tau_T) and expm(B*tau_i) on
+each call (entries with T >= t_i return 0 before doing any work). The default grid
+(n = 20..26, 100 log-spaced ages, 300 sample ages) therefore issues ~7.8e6
+exponentials of dimension 23..29 -- of order an hour on one core, and the dominant
+cost of the build. All three depend only on (n, tau_i, tau_T) and NOT on d0, so
+hoisting them out of the d0 loop would cut that to ~3.4e5. That reuse is NOT
+implemented; it is the obvious optimisation if this grid is ever refined.
 """
 
 from __future__ import annotations

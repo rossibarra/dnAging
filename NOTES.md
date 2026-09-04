@@ -75,6 +75,52 @@ posteriors, and treat a tight interval on a single sample with suspicion.
 
 ---
 
+## Panel missingness is ignorable only if it is allele-blind
+
+**The concern.** $d_0$ is counted over however many of the 26 ARG-panel haplotypes
+are *called* at a site, and the likelihood uses the moment plane built for that
+exact $n$ (MATH.md §5, eq. 7). Choosing the plane by $n$ makes the binomial
+sampling term right for the number of haplotypes observed, but it is **not** a
+correction for missingness. What eq. (7) needs is that the called subset $R$ is an
+allele-blind sample of the panel,
+
+$$
+P(d_0 \mid n, x_0, R) \;=\; \binom{n}{d_0} x_0^{\,d_0}(1-x_0)^{\,n-d_0},
+$$
+
+i.e. missing at random with respect to the allele a haplotype carries, given $n$.
+
+**Why conditioning on $n$ is not enough.** The $n$-specific plane conditions on
+*how many* haplotypes were called, never on *which*. If one allele is systematically
+harder to call — reference bias in mapping or genotyping, an ALT-specific filter,
+low depth correlated with the derived haplotype background — then within the called
+subset that allele is under-represented, $E[d_0 \mid n] \neq n\,x_0$, and the bias
+passes straight through into $d_0$. The plane is then the correct likelihood for the
+wrong count: a downward-biased $d_0$ presents as a rarer allele, which the
+age-conditioned trajectory reads as a different frequency history.
+
+**Direction is not established, and is not simply signed.** Reference bias acts on
+the REF/ALT axis, but the trajectory is conditioned on the *derived* count, and
+polarity flips between draws ($d_0 = c_{\text{alt}}$ or $n - c_{\text{alt}}$,
+MATH.md eq. 10). The same ALT under-calling therefore pushes $d_0$ down at
+ALT-derived sites and up at ALT-ancestral ones, so it does not translate into a
+uniform shift in $\hat T$. Do not quote a direction without measuring it.
+
+**The condition.** Sound when panel dropout is allele-blind — uniform low depth,
+random per-haplotype missingness, a filter applied on position rather than on
+genotype. Not sound when calling success depends on the allele itself. Nothing in
+the pipeline can detect the difference: `sites_panel_below_min_n` counts only the
+sites that fell *below* `--min-n`, and says nothing about whether the calls that
+survived above it are allele-blind.
+
+**The check, and the mitigation.** The check is upstream in the panel VCF: compare
+the panel ALT fraction across called counts $n$, and look for a systematic drift as
+$n$ falls. If there is one, the mitigation is `--min-n 26` — use only fully called
+panel sites, where there is no missingness left to be non-ignorable — at a cost in
+sites, and therefore in power, exactly where ascertainment already costs power.
+
+---
+
 ## REF/ALT harmonisation is strand-blind
 
 Panel and ancient VCFs are joined on position, and the panel ALT count is harmonised
@@ -110,3 +156,52 @@ same strand. That holds for this data set, so no strand handling is implemented.
 strand provenance is ever uncertain, the standard mitigation is to drop A/T and G/C
 sites outright (via `--include-positions`) rather than to infer strand from allele
 frequencies.
+
+---
+
+## The lower table boundary is exact only for $T \ge t_{\min}$
+
+The mutation-age table starts at a strictly positive age $t_{\min}$ (`--age-min`,
+default 10 generations) because the age axis is log-spaced and cannot include zero.
+The store's branch intervals have no such floor: `below` is $0$ for a branch reaching
+the present.
+
+**Why that is not a problem for $T \ge t_{\min}$.** Branch intervals extending below
+$t_{\min}$ are integrated only over the covered part but normalised by the true
+branch length, which is exact — every uncovered mutation age is younger than the
+sample, so it contributes $p_T = 0$ (MATH.md, eq. 10b). Sites are therefore **not**
+dropped for reaching below the table. Dropping them would be actively harmful: it
+would discard the youngest mutations, which are precisely the sites carrying the
+lower-bound age signal, manufacturing the same power loss ascertainment causes.
+
+**The residual, and its size.** For $T < t_{\min}$ the identity fails, because
+uncovered ages in $(T, t_{\min})$ do contribute. The posterior below $t_{\min}$ is
+therefore biased low. With the default `--t-min 0 --t-max 30000 --n-t 300` the grid
+step is ~100 generations, so exactly one grid point ($T=0$, a present-day sample)
+falls below $t_{\min}=10$. Lower `--age-min`, or raise `--t-min`, if sample ages
+that young are ever of interest.
+
+**What the earlier behaviour cost.** Before the renormalisation, a straddling branch
+was inflated by $(\text{above}-\text{below})/(\text{above}-t_{\min})$:
+
+| branch | inflation of $\bar p$ |
+|---|---|
+| $[0, 50]$ | $1.25\times$ |
+| $[0, 1000]$ | $1.010\times$ |
+| $[0, 10000]$ | $1.001\times$ |
+
+Since $\bar p$ is nonzero only when $T < \text{above}$, the large errors required a
+sample younger than a few tens of generations; for ancient samples at $T$ in the
+thousands only branches with $\text{above} > T$ contribute, so the old error stayed
+under 1%. It was worth fixing exactly rather than bounding, because the fix is a
+single factor.
+
+**Diagnostic.** `sites_age_clipped_low` in `run.json` counts sites where some draw's
+branch reached below $t_{\min}$. These sites are *used*, not skipped — the counter
+records how often the renormalisation is doing work, so a large value is expected
+for young-mutation-rich site sets and is not a warning.
+
+**Do not mirror the correction at the upper boundary.** Uncovered ages above the
+table are *older* than the sample and do contribute, so the same rescaling there
+would be wrong. That end is handled by capping at `--mutation-age-max`. The code
+comment in `phi_lookup` says so; the natural instinct is to symmetrise it.

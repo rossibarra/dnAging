@@ -9,11 +9,12 @@ for reference.
 ## 1. Setup and goal
 
 We have one ancestral recombination graph (ARG) inferred by SINGER (Deng, Nielsen
-& Song 2025) on **a panel of $n$ haplotypes**, summarised per site per
+& Song 2025) on **a panel of 26 haplotypes** (`--n-sample`; at a site, $n$ is
+however many of them are *called* there — §5), summarised per site per
 posterior draw as a **SNP age interval store** of mutation-age intervals, built by
 the normalizeTEs pipeline (github.com/rossibarra/normalizeTEs). We have a set of
 **ancient samples** (in one multi-sample VCF) genotyped at SNPs that were
-**ascertained as polymorphic in a discovery panel that *contains* the $n$ ARG
+**ascertained as polymorphic in a discovery panel that *contains* those ARG
 haplotypes** — that panel supplies only the *site positions* and is used nowhere
 else in the model, and the containment is what makes ascertainment exactly
 ignorable ([NOTES.md](./NOTES.md)).
@@ -38,8 +39,8 @@ at time $T$, derived with probability $X_i(T)$ = the **derived-allele population
 frequency** at time $T$ (§3). Crucially $X_i(T)$ is a *random variable*: the
 trajectory is unobserved, and we know only its conditional law given the site's
 present count and mutation age. Adding a symmetric **per-allele** genotype-error
-probability $\varepsilon$ (aDNA damage, sequencing/genotyping error, recurrent
-mutation, mis-polarisation), the per-allele probability of *observing* the derived
+probability $\varepsilon$ (aDNA damage and sequencing/genotyping error in the
+ancient allele calls), the per-allele probability of *observing* the derived
 state, **given** the frequency, is
 
 $$
@@ -48,8 +49,11 @@ r_i(T) = (1-\varepsilon)\,X_i(T) + \varepsilon\,\bigl(1-X_i(T)\bigr)
 $$
 
 Here $\varepsilon$ is fixed rather than estimated, defaults to $0.01$, and must
-satisfy $0\le\varepsilon<0.5$. It describes error in each ancient-VCF allele call;
-ARG uncertainty is handled separately through the posterior draws.
+satisfy $0\le\varepsilon<0.5$. It describes error in each ancient-VCF allele call
+and nothing else. In particular it does **not** stand in for polarity uncertainty —
+which allele is derived is resolved per draw from the polarity table (§6) — nor for
+recurrent mutation, which alters the evolutionary process rather than the
+observation of it and is outside this model.
 
 *Given* $X_i(T)$, the sample's called alleles at a site are independent draws
 (Hardy–Weinberg — i.e. no recent inbreeding within the individual), so the observed
@@ -203,9 +207,11 @@ P(d_0 \mid n, x_0) = \binom{n}{d_0}\sum_{m=d_0}^{n}
 $$
 
 so conditioning on $d_0$ needs frequency moments only up to order $n$ — **moments
-to order $n+2$, one $(n+3)\times(n+3)$ matrix exponential** ($n+1$ for the first
-conditional moment, one further order for the second, eq. 9a) — tiny for the modest
-$n$ of an ARG panel.
+to order $n+2$, from $(n+3)\times(n+3)$ matrix exponentials** ($n+1$ for the first
+conditional moment, one further order for the second, eq. 9a) — each one tiny for
+the modest $n$ of an ARG panel. The implementation evaluates **three** per table
+entry ($e^{Bu_1}$, $e^{B\tau_T}$ and $e^{B\tau_i}$; eqs. 8–9), which is where the
+build's cost actually sits — see the end of this section.
 
 **Trajectory (bridge).** Let $u_1 = \tau_i - \tau_T$ be the diffusion time from
 origin to sample age. With the conditional-moment map $C(\Delta)=e^{B\Delta}$
@@ -254,8 +260,18 @@ Wright–Fisher Monte Carlo — agreement to MC noise for **both** moments, incl
 the rare $d_0=2$ bin (0.22 vs 0.23 for $\bar p$; 0.066 vs 0.067 for
 $\bar p^{(2)}$), the $T\ge t_i$ boundary, and Kimura's constant-$N_e$ limit
 (`validate_moments_vs_mc.py`). The tables $\bar p(T\mid d_0,t_i)$ and
-$\bar p^{(2)}(T\mid d_0,t_i)$ over $(d_0, t_i, T)$ are built once and shared across
-all sites and all samples.
+$\bar p^{(2)}(T\mid d_0,t_i)$ are built over $(n, d_0, t_i, T)$ — a separate plane
+for each called-panel size $n$, as above — once, and shared across all sites and
+all samples.
+
+**Exact in the model, numerical in the table.** Equations (6)–(10b) are exact
+within the neutral diffusion, but what inference reads is a *tabulation* of them:
+entries are stored in `float32`, the mutation-age axis is a finite log-spaced grid
+recovered by interpolation in $\log t_i$, the branch integral (10b) is a 16-node
+trapezoidal quadrature, mutation-age mass beyond $\tau_i=3$ is truncated (below),
+and the conditioning sums lose precision as described next. Where this note calls
+something exact, it means exact *as an identity of the model*, never that the
+pipeline's arithmetic is.
 
 **Numerics / scaling with $n$.** The alternating-sign conditioning sums in (7), (9)
 and (9a) are prone to catastrophic cancellation: the binomial weights grow like
@@ -273,19 +289,36 @@ At $n=26$ the relative error against a 60-digit reference is $\sim10^{-3}$ for
 $\tau_i\lesssim3$, reaches a few percent by $\tau_i\approx5$–$6$, and the values are
 noise by $\tau_i\approx10$. As an additional operational safeguard,
 `--mutation-age-max` defaults to a cutoff of $\tau_i=3$ in diffusion units and
-discards mutation-age mass beyond it. The table stores the diffusion time of every
-generation-age row, so inference translates the cutoff through the actual
-$\tau(t)=\int_0^t ds/(2N_e(s))$ curve. At constant $N_e=10{,}000$, $\tau=3$ is
-about 60,000 generations. Table construction requires `--age-max` to extend beyond
-$\tau=3$, and inference rejects insufficient table coverage. This is a numerical
-cutoff, not an assertion that all older
-mutations are biologically uninformative. Double precision is therefore comfortable
-for panels up to a few tens of haplotypes (the ARG regime here) at moderate
-$\tau_i$, but the method degrades and eventually breaks beyond roughly
-$n \approx 40$–$50$; there one must switch to extended precision
+discards mutation-age mass beyond it. The table stores the diffusion time
+$\tau(t)=\int_0^t ds/(2N_e(s))$ of every generation-age row, and inference recovers
+the cutoff *in generations* by **linear interpolation between those log-spaced
+rows**; it does not re-evaluate $N_e(t)$. For a piecewise-constant $N_e$, $\tau(t)$
+is piecewise linear in $t$, so the inverse would be exact whenever the bracketing
+pair of rows lies inside a single demographic window — but a window boundary
+falling between two neighbouring rows leaves the recovered cutoff age approximate,
+by up to the spacing of the age grid (100 log-spaced rows by default, i.e. ~17% in
+$t$ per step). At constant $N_e=10{,}000$, $\tau=3$ is about 60,000 generations.
+Table construction requires `--age-max` to extend beyond $\tau=3$, and inference
+rejects insufficient table coverage. This is a numerical cutoff, not an assertion
+that all older mutations are biologically uninformative. Double precision is
+therefore comfortable for panels up to a few tens of haplotypes (the ARG regime
+here) at moderate $\tau_i$, but the method degrades and eventually breaks beyond
+roughly $n \approx 40$–$50$; there one must switch to extended precision
 (e.g. `mpmath`) or reformulate the conditioning in a numerically stable basis
-(orthogonal-polynomial / spectral moments rather than the raw power moments). The
-matrix-exponential cost itself is negligible ($(n+3)^3$).
+(orthogonal-polynomial / spectral moments rather than the raw power moments).
+
+**Cost of the build.** A *single* matrix exponential is cheap ($O((n+3)^3)$ on a
+matrix this small), but the number of them is not negligible: `Emoments()`
+recomputes all three per $(n,d_0,t_i,T)$ entry, and the build loops over every
+panel size $n$, every $d_0\in\{1,\ldots,n\}$, every mutation age and every sample
+age (entries with $T\ge t_i$ return $0$ before doing any work). The default grid
+($n=20\ldots26$, $d_0$ up to $n$, 100 log-spaced ages, 300 sample ages) issues
+$\approx7.8\times10^{6}$ exponentials of dimension 23–29, of order an hour on one
+core — that is the dominant term in precomputation, not a rounding error. All three
+depend only on $(n,\tau_i,\tau_T)$ and **not** on $d_0$, so hoisting them out of the
+$d_0$ loop would cut the count by a factor of $n$, to $\approx3.4\times10^{5}$.
+That reuse is **not** implemented; it is the obvious optimisation should the grid
+ever be refined.
 
 ---
 
@@ -334,7 +367,25 @@ $$
 \bar p\big(T \mid d_0,\,[\text{below}_g,\text{above}_g]\big)
 = \frac{1}{\text{above}_g-\text{below}_g}
   \int_{\text{below}_g}^{\text{above}_g}\! \bar p(T\mid d_0, t)\,dt .
+\tag{10b}
 $$
+
+**The lower limit may fall outside the table, and this costs nothing.**
+$\text{below}_g$ can lie below the youngest tabulated mutation age $t_{\min}$ — it
+is $0$ for a branch reaching the present. The integral is then evaluated only over
+the covered part $[t_{\min},\text{above}_g]$, but normalised by the **true** branch
+length $\text{above}_g-\text{below}_g$. That is *exact* for $T \ge t_{\min}$:
+every uncovered age satisfies $t < t_{\min} \le T$, so the mutation postdates the
+sample, $\bar p(T\mid d_0,t)=0$, and the uncovered region contributes nothing to
+the numerator of (10b). Normalising by the covered width instead would inflate the
+site by $(\text{above}_g-\text{below}_g)/(\text{above}_g-t_{\min})$.
+
+The correction is **asymmetric by construction**: it is not applied at the upper
+limit, where uncovered ages are *older* than the sample and genuinely contribute.
+That end is bounded instead by the `--mutation-age-max` cutoff, which caps
+$\text{above}_g$ and rejects tables that do not reach it. For $T < t_{\min}$ the
+identity fails — uncovered ages in $(T,t_{\min})$ do contribute — so the posterior
+below $t_{\min}$ is biased low; see NOTES.md.
 
 Exactly one mapped branch interval is required per site and ARG draw. If any draw
 supplies multiple intervals, the mutation is treated as multiply mapped and the
@@ -396,6 +447,15 @@ skipped.
 6. **Only two moments.** Eq. (3a) is exact for $c_i\le 2$. A likelihood over three
    or more alleles drawn from the same latent frequency would need moments of $X$ up
    to that order; the table carries only the first two.
+7. **Panel missingness is allele-blind**, hence ignorable given the called count
+   (§5). Eq. (7) treats the $n$ called panel haplotypes as a binomial sample of the
+   population, i.e. as an allele-blind subset of the 26: choosing the moment plane
+   for the site's exact $n$ makes the sampling distribution right for that $n$, but
+   it conditions on *how many* haplotypes were called, not on *which*.
+   Allele-dependent missingness (reference bias making one allele harder to call)
+   therefore biases $d_0$ and is
+   **not** removed by the $n$-specific plane. See [NOTES.md](./NOTES.md) for the
+   condition and the mitigation.
 
 ---
 
@@ -405,10 +465,10 @@ skipped.
 |---|---|
 | $T$ | age of the ancient sample, generations before present (inferred) |
 | $t_i$ | age of the mutation at site $i$ (interval $[\text{below},\text{above}]$ per draw, from the store) |
-| $n$ | number of ARG-panel haplotypes |
+| $n$ | number of ARG-panel haplotypes **called at the site** (`--min-n` $\le n\le 26$; the full panel size only where the panel is fully called — §5) |
 | $C$ | number of chromosomes (independent given $T$) |
-| $d_0$ | present count of the derived allele among the $n$ panel haplotypes |
-| $c_{\text{alt}}$ | present count of the ALT allele among the $n$ panel haplotypes (from the panel VCF) |
+| $d_0$ | present count of the derived allele among the $n$ *called* panel haplotypes |
+| $c_{\text{alt}}$ | present count of the ALT allele among the $n$ *called* panel haplotypes (from the panel VCF) |
 | $x_0$ | present *population* derived frequency (unobserved; $d_0\sim\text{Binom}(n,x_0)$) |
 | $a_i$ | number of derived (ALT) alleles the ancient sample shows at site $i$ |
 | $c_i$ | number of called alleles at site $i$ (ploidy: 1 haploid/pseudo-haploid, 2 diploid, 0 missing) |

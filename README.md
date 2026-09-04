@@ -18,12 +18,15 @@ For each ancient sample and each ascertained site, carrying the derived allele
 has probability equal to the derived-allele **frequency at the sample's age**
 $T$ (and not carrying it, $1-\text{that}$). We compute that frequency as its
 **expectation conditioned on the mutation's age $t_i$ and its present count $d_0$
-in the 26-haplotype panel** — exactly, from the neutral Wright–Fisher moment
-recursion under your $N_e(t)$ curve. Genotypes enter by allele dosage (ploidy-aware;
-see `--ploidy`); diploid genotype probabilities are nonlinear in the latent
-frequency, so they use the conditional **second** moment $E[p_T^2]$ as well, from
-the same recursion. Multiply across sites, average over ARG draws, sum across
-chromosomes → a posterior over $T$ per sample.
+in the ARG panel** — counted over the $n$ panel haplotypes **called at that site**,
+anywhere from `--min-n` to 26 and not necessarily all 26 — from the neutral
+Wright–Fisher moment recursion under your $N_e(t)$ curve (exact in the diffusion
+model; the table you run against is a numerical tabulation of it — MATH.md §5).
+Genotypes enter by allele dosage (ploidy-aware; see `--ploidy`); diploid genotype
+probabilities are nonlinear in the latent frequency, so they use the
+conditional **second** moment $E[p_T^2]$ as well, from the same recursion. Multiply
+across sites, average over ARG draws, sum across chromosomes → a posterior over $T$
+per sample.
 
 ---
 
@@ -35,11 +38,12 @@ chromosomes → a posterior over $T$ per sample.
   store + polarity + panel VCF + ancient VCF ──────┘
 ```
 
-1. **Precompute** the frequency table `E[p_T | d0, t_i]` (and its second-moment
-   plane `E[p_T^2 | d0, t_i]`) once (demography-specific, independent of
-   samples/sites).
-2. **Infer** per chromosome: look up the table by `(t_i, d0)` for every
-   site/draw, form the per-sample likelihood.
+1. **Precompute** the frequency table `E[p_T | d0, t_i, n]` (and its second-moment
+   plane `E[p_T^2 | d0, t_i, n]`) once, with a separate plane for every called-panel
+   size `n` (demography-specific, independent of samples/sites).
+2. **Infer** per chromosome: look up the table by `(t_i, d0, n)` for every
+   site/draw — `n` = the panel haplotypes called at that site — form the per-sample
+   likelihood.
 3. **Merge** chromosomes into genome-wide per-sample posteriors.
 
 ---
@@ -48,7 +52,7 @@ chromosomes → a posterior over $T$ per sample.
 
 | file | role |
 |---|---|
-| `precompute_freq_trajectory_moments.py` | build `freq_table.npz` = `E[p_T \| d0, t_i]` + `E[p_T^2 \| d0, t_i]` (exact moment recursion) |
+| `precompute_freq_trajectory_moments.py` | build the first- and second-moment planes in `freq_table.npz`, one per called-panel size $n$ |
 | `posterior_sample_age_infer.py` | per-chromosome inference for all samples; also does the merge |
 | `slurm/run_precompute.sbatch` | STEP 1 as a batch job |
 | `slurm/run_infer.sbatch` | STEP 2 (array over chromosomes) + STEP 3 (merge) |
@@ -62,13 +66,13 @@ chromosomes → a posterior over $T$ per sample.
 | `--ne` | a **piecewise-constant `N_e(t)`** as a TSV of time windows (columns `time_left`, `time_right`, `effective_population_size`; optional `series`) | any demographic inference in that form — e.g. ARGtest `coalescence_ne_plots_from_ts.py --num_bins ~50` |
 | `--store` | interval store (`snp-age-interval-v1`) giving `t_i` per site/draw | your normalizeTEs build |
 | `--draw-polarity` | per-draw polarity table (ancestral base per site×draw) | `build_draw_polarity` |
-| `--panel-vcf` | VCF of the **26 ARG-panel haplotypes** (gives `d0` = ALT count) | the panel the ARG was built on |
+| `--panel-vcf` | VCF of the **26 ARG-panel haplotypes** (gives `d0` = ALT count, and the called count `n` at each site) | the panel the ARG was built on |
 | `--vcf` | the **multi-sample ancient VCF** (all ancient samples, e.g. 430) | your aDNA calls |
 | `--include-positions` *(optional)* | `chrom pos` site list (e.g. an approximately-neutral set) | your QC |
 
 Notes:
 - The **panel VCF** and the **ancient VCF** are different files. The panel gives
-  present allele counts in the 26; the ancient VCF gives each sample's genotype.
+  present allele counts in the panel; the ancient VCF gives each sample's genotype.
 - Chromosome labels must match across the store, both VCFs, and the ARG.
 - The model is **neutral** (see MATH.md §7); restrict to a neutral site set with
   `--include-positions` if selection is a worry.
@@ -137,6 +141,10 @@ or `NE=... OUT=freq_table.npz sbatch slurm/run_precompute.sbatch`.
 The `--t-*` grid is the **sample-age grid** and becomes THE grid the whole
 analysis uses (inference reads it back from the table). Set `--t-max` above any
 plausible sample age; `--age-*` should span your store's mutation ages.
+
+It runs once per $N_e(t)$ curve and is reused for every chromosome and sample. The
+default grid takes roughly an hour on one core; refining `--n-age`, `--n-t`, or the
+panel-size span increases that cost. See MATH.md §5 for the computational details.
 
 ### 2. Infer, per chromosome (all samples at once)
 
@@ -214,17 +222,21 @@ Ages are in **ARG generations**; convert to years with your generation time.
   not ARG uncertainty.
 - `--mutation-age-max` — hard cutoff on mutation age in diffusion units, defaulting
   to $\tau=3$. Mutation-age intervals wholly above the corresponding generation-age
-  cutoff are discarded; intervals crossing it are truncated. The conversion uses
-  the `age_tau` axis stored in the frequency table, where
-  $\tau(t)=\int_0^t ds/(2N_e(s))$. For constant $N_e=10{,}000$, $\tau=3$ is about
-  60,000 generations. This is a
+  cutoff are discarded; intervals crossing it are truncated. The corresponding
+  generation age is interpolated from the table's demographic time axis. For
+  constant $N_e=10{,}000$, $\tau=3$ is about 60,000 generations; see MATH.md §5 for
+  numerical details. This is a
   numerical-reliability cutoff, not a claim that every older mutation is biologically
   uninformative.
 - `--include-positions` — restrict to a QC'd / approximately-neutral site set.
 - `--min-n` — minimum number of called ARG-panel haplotypes required at a site,
-  default `20`. Precomputation builds separate moment planes for every
-  $n=20,\ldots,26$; inference uses the plane matching the site's exact called count
-  and reports smaller panels as `sites_panel_below_min_n`.
+  default `20`. Sites with **at least** that many calls are used, not only fully
+  called ones: precomputation builds a separate moment plane for every called-panel
+  size from `--min-n` to `--n-sample`, inference uses the plane matching the site's
+  exact called count, and sites below the threshold are skipped and reported as
+  `sites_panel_below_min_n`. At inference it must be **at least** the `--min-n` the
+  table was built with — a larger value simply leaves the lowest planes unused,
+  while a smaller one exits with the missing panel sizes listed.
 - `--prior-file` — `T density` prior with exactly two columns and at least two rows,
   interpolated onto the grid; ages must be finite, unique, and strictly increasing,
   while densities must be finite, non-negative, and not all zero. Default uniform.
@@ -249,6 +261,10 @@ must extend beyond $\tau=3$; precomputation exits if `--age-max` is too small, a
 the inference step likewise rejects a table that does not cover its requested
 cutoff.
 
+Intervals reaching below `--age-min` are retained and counted in
+`sites_age_clipped_low`. This is valid for sample ages at or above `--age-min`; use a
+lower `--age-min` if younger samples matter. See [NOTES.md](./NOTES.md).
+
 If the interval store reports more than one branch interval for a mutation in any
 ARG draw, that multiply mapped mutation is excluded completely. The number excluded
 is reported as `sites_multiple_mapped` in `run.json`.
@@ -264,8 +280,12 @@ is reported as `sites_multiple_mapped` in `run.json`.
   observation**, inflating derived carriage and biasing $\hat T$ — silently, with no
   counter to reveal it. Use `--ploidy 2` for true diploid genotypes. Het-aware
   handling for the haploid path is deferred; see [TODO.md](./TODO.md).
-- Confirm the panel VCF has the 26 haplotypes fully called at the sites you use
-  (partially-called sites are skipped when forming `d0`).
+- **The panel VCF does not have to be fully called**, so check
+  `sites_panel_below_min_n` in `run.json`. `d0` is formed from however many of the 26
+  haplotypes are called at a site, and the moment plane for that exact count is used;
+  only sites with fewer than `--min-n` calls are skipped, and they are counted there.
+  A large count means many sites carry too few called panel haplotypes — either the
+  panel VCF is poorly called over your site set, or `--min-n` is set too high for it.
 - **Confirm the panel and ancient VCFs are on the same strand**, then check
   `sites_allele_mismatch` in `run.json`. The two files are joined on position; a site
   whose REF/ALT are exactly swapped between them is harmonised

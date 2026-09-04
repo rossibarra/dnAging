@@ -6,7 +6,9 @@ itself is out of scope for the current pass.
 
 ---
 
-## Heterozygote handling under `--ploidy 1`
+## Genotype-ploidy work
+
+### Heterozygote handling under `--ploidy 1`
 
 **Decision made:** the ancient genotypes are *assumed* pseudo-haploid, and that
 assumption is now documented in README.md. This item covers making the code robust
@@ -50,6 +52,37 @@ haploid path fail safely rather than about adding missing capability.
 
 **Where:** `run_chromosome` in `posterior_sample_age_infer.py`; the `--ploidy`
 documentation in README.md; MATH.md §2 if the policy changes the likelihood.
+
+### Probability-invariant checks under `--ploidy 2`
+
+**Scope:** this does not affect the expected pseudo-haploid analysis. It matters
+only while true diploid inference remains an advertised and supported feature.
+
+**Current behaviour.** The moment engine rejects unreliable raw first and second
+moments, but downstream diploid inference independently clips the interpolated
+`phi`, `phi2`, $E[r]$, $E[r^2]$, and each of the three genotype probabilities. If
+interpolation, polarity conversion, or draw averaging materially violates
+
+$$
+E[r]^2 \le E[r^2] \le E[r],
+$$
+
+the heterozygote probability can become negative and is silently replaced by the
+numerical floor. Independently clipped genotype probabilities also need not sum
+exactly to one, contrary to equation 3b in MATH.md.
+
+**What to implement.** After interpolation, ALT/REF transformation, and draw
+averaging, validate the moment inequalities and the three genotype probabilities.
+Allow a small floating-point tolerance, but turn material violations into a counted
+and skipped draw/site rather than clipping them into plausibility. Add tests covering
+both polarity branches and the full diploid probability vector.
+
+**Independent validation.** The msprime task below should directly validate the
+second moment by sampling two ancient lineages and measuring the probability that
+both carry the derived allele. That is the key end-to-end check for `--ploidy 2`.
+
+**Where:** the diploid branch of `run_chromosome`; `phi_lookup` interpolation;
+MATH.md equations 3a--3b and 10a.
 
 ---
 
