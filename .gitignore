@@ -239,3 +239,7 @@ slurm-*.out
 
 # AGENTS.md rule 6 backups (git HEAD is the real backup)
 *.bak
+
+# large simulation result bundles (multi-GB, not for version control)
+simarg-results.tar.gz
+*.tar.gz
