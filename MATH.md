@@ -137,10 +137,11 @@ that arose 20,000 generations ago has expected frequency 3.5%, while one that ar
 120,000 generations ago has 9.8%: nearly three times higher at the same present
 frequency, purely from having had to survive longer. This is a
 classical object: Griffiths (2003, eq. 27) gives the joint density of a mutation's
-population frequency and its age, conditioned on the sample count: $b$ copies out
-of $n$ genes, which is exactly our conditioning with $b=d_0$. What we need is one step further: the
-frequency at an intermediate time $T$ rather than at the present, which we obtain
-from the same diffusion via its moments ([section 5](#5-exact-computation-via-the-neutral-moment-recursion)).
+population frequency and its age, conditioned on its count in a sample of $n$
+genes — exactly the conditioning we use, with that count being $d_0$. What we need
+is one step further: the frequency at an intermediate time $T$ rather than at the
+present, which we obtain from the same diffusion via its moments
+([section 5](#5-exact-computation-via-the-neutral-moment-recursion)).
 
 ---
 
