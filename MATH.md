@@ -149,9 +149,11 @@ where $X(\cdot)$ is the neutral population-frequency trajectory. The second mome
 is tabulated alongside the first (it costs one extra moment order, [section 5](#5-exact-computation-via-the-neutral-moment-recursion)) and is what
 makes the diploid likelihood (3b) correct. In simulation the first moment
 captures the survival bias. At a present count of $d_0=1$ in $n=26$ (3.85%) and a
-constant $N_e=1000$, an allele of age 200 generations sits at 3.6% halfway back to
-its origin, while one of age 1200 generations sits at 15.4% — four times higher at
-the same present frequency, purely from having had to survive longer. This is a
+constant $N_e=100{,}000$ — the size simulated in
+[ANCIENT_TEST.md](./ANCIENT_TEST.md) — an allele of age 20,000 generations sits at
+3.5% halfway back to its origin, while one of age 120,000 generations sits at
+15.3%: more than four times higher at the same present frequency, purely from
+having had to survive longer. This is a
 classical object: Griffiths (2003, eq. 27) gives the joint density of a mutation's
 population frequency and its age, conditioned on the sample count: $b$ copies out
 of $n$ genes, which is exactly our conditioning with $b=d_0$. What we need is one step further: the
@@ -315,7 +317,7 @@ is piecewise linear in $t$, so the inverse would be exact whenever the bracketin
 pair of rows lies inside a single demographic window — but a window boundary
 falling between two neighbouring rows leaves the recovered cutoff age approximate,
 by up to the spacing of the age grid (100 log-spaced rows by default, i.e. ~17% in
-$t$ per step). At constant $N_e=10{,}000$, $\tau=3$ is about 60,000 generations.
+$t$ per step). At constant $N_e=100{,}000$, $\tau=3$ is about 600,000 generations.
 Table construction requires `--age-max` to extend beyond $\tau=3$, and inference
 rejects insufficient table coverage. This is a numerical cutoff, not an assertion
 that all older mutations are biologically uninformative. Double precision is
