@@ -76,8 +76,8 @@ $\bar p^{(2)}_i(T)=\mathbb{E}[X_i(T)^2]$ ([section 3](#3-what-we-compute-the-age
 $$
 \mathbb{E}[r_i] = \varepsilon + (1-2\varepsilon)\bar p_i,
 \qquad
-\mathbb{E}[r_i^2] = \varepsilon^2 + 2\varepsilon(1-2\varepsilon)\bar p_i
-                    + (1-2\varepsilon)^2\bar p^{(2)}_i. \tag{3a}
+\mathbb{E}[r_i^2] = \varepsilon^2 + 2\varepsilon(1-2\varepsilon)\bar p_i +
+                    (1-2\varepsilon)^2\bar p^{(2)}_i. \tag{3a}
 $$
 
 **Ploidy.** $c_i$ is set by a `--ploidy` flag matching the ancient genotype calls:
@@ -366,8 +366,8 @@ $$
 \varphi^{(2,g)}_{\text{alt}}(T) =
 \begin{cases}
 \bar p^{(2)}(T \mid c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived},\\[3pt]
-1 - 2\bar p(T \mid n-c_{\text{alt}}, t_i^{(g)})
-  + \bar p^{(2)}(T \mid n-c_{\text{alt}}, t_i^{(g)}), & \text{ALT ancestral}.
+1 - 2\bar p(T \mid n-c_{\text{alt}}, t_i^{(g)}) +
+  \bar p^{(2)}(T \mid n-c_{\text{alt}}, t_i^{(g)}), & \text{ALT ancestral}.
 \end{cases}
 \tag{10a}
 $$
