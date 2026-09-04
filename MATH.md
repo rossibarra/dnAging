@@ -196,8 +196,8 @@ $$
 
 $M_1$ is conserved (the frequency is a martingale). Writing $B$ for the
 lower-bidiagonal generator of (6), the moment vector propagates by a matrix
-exponential, $M(\tau) = e^{B\tau}M(0)$; a new mutation starts from a single copy,
-$M_k(0) = \varepsilon_0^{k}$ with $\varepsilon_0 = 1/(2N_e(t_i))$.
+exponential, $M(\tau) = e^{B\tau}M(0)$. A new mutation starts from a single copy,
+i.e. at frequency $1/(2N_e(t_i))$, so $M_k(0) = \bigl(1/(2N_e(t_i))\bigr)^{k}$.
 
 **Sampling to the observed count.** We observe not $x_0$ but a **count**
 $d_0 \sim \text{Binom}(n, x_0)$ among the $n$ called panel haplotypes. Because $n$
@@ -594,7 +594,6 @@ since young, rare-in-discovery alleles are under-ascertained.
 | $N_e(t)$ | diploid effective population size at time $t$, equal to $1/(2\text{ rate})$ |
 | $\tau(t)$ | diffusion time, $\int_0^t dt'/(2N_e(t'))$ |
 | $\tau_T,\tau_i$ | $\tau(T)$ and $\tau(t_i)$ |
-| $\varepsilon_0$ | frequency of a single new copy at origin, $1/(2N_e(t_i))$ |
 | $M_k(\tau)$ | $k$-th moment $\mathbb{E}[X(\tau)^k]$ of the neutral diffusion |
 | $B$ | generator of the closed moment recursion (eq. 6) |
 | $C(\Delta)=e^{B\Delta}$ | conditional-moment map over diffusion-time $\Delta$ |
