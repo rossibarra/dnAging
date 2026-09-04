@@ -35,7 +35,7 @@ marginalised as a *mixture over draws* rather than site by site ([section 6](#6-
 
 ---
 
-## 2. The per-site likelihood (with ploidy)
+## 2. The per-site likelihood
 
 At site $i$ the ancient sample contributes $c_i$ **called alleles**, of which $a_i$
 are the derived allele. Each called allele is a lineage drawn from the population
@@ -130,12 +130,12 @@ $$
 where $X(\cdot)$ is the neutral population-frequency trajectory. The second moment
 is tabulated alongside the first (it costs one extra moment order, [section 5](#5-exact-computation-via-the-neutral-moment-recursion)) and is what
 makes the diploid likelihood (A1) correct. In simulation the first moment
-captures the survival bias. At a present count of $d_0=1$ in $n=26$ (3.85%) and a
+captures the survival bias. Take a present count of $d_0=1$ in $n=26$ (3.85%) and a
 constant $N_e=100{,}000$ — the size simulated in
-[ANCIENT_TEST.md](./ANCIENT_TEST.md) — an allele of age 20,000 generations sits at
-3.5% halfway back to its origin, while one of age 120,000 generations sits at
-15.3%: more than four times higher at the same present frequency, purely from
-having had to survive longer. This is a
+[ANCIENT_TEST.md](./ANCIENT_TEST.md). Looking back 10,000 generations, an allele
+that arose 20,000 generations ago has expected frequency 3.5%, while one that arose
+120,000 generations ago has 9.8%: nearly three times higher at the same present
+frequency, purely from having had to survive longer. This is a
 classical object: Griffiths (2003, eq. 27) gives the joint density of a mutation's
 population frequency and its age, conditioned on the sample count: $b$ copies out
 of $n$ genes, which is exactly our conditioning with $b=d_0$. What we need is one step further: the
@@ -516,7 +516,7 @@ skipped.
 
 ## Appendix: the diploid genotype likelihood
 
-Not used for the pseudo-haploid aDNA above ([section 2](#2-the-per-site-likelihood-with-ploidy)),
+Not used for the pseudo-haploid aDNA above ([section 2](#2-the-per-site-likelihood)),
 but implemented as `--ploidy 2` for genuine diploid genotype calls, and the reason
 the second-moment machinery of (9a) and (10a) exists at all.
 
@@ -546,7 +546,7 @@ $c_i=1$ form of (3b), which needs the first moment only.
 ## Appendix: ascertainment
 
 Why conditioning on the ascertained site set does not bias $\hat T$ here
-([section 2](#2-the-per-site-likelihood-with-ploidy)).
+([section 2](#2-the-per-site-likelihood)).
 
 A site absent from a sample's VCF is missing data, not an observation of "does not
 carry." Conditioning on the ascertained set does not bias $\hat T$ **for this site
