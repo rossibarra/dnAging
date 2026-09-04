@@ -1,0 +1,3 @@
+[submodule "normalizeTEs"]
+	path = normalizeTEs
+	url = https://github.com/rossibarra/normalizeTEs.git

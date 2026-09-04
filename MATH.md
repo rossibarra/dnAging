@@ -104,7 +104,7 @@ likelihood — i.e. using $\bar q^2,2\bar q(1-\bar q),(1-\bar q)^2$ with
 $\bar q = \varepsilon+(1-2\varepsilon)\bar p_i$ — is **wrong**, because the
 genotype probabilities are nonlinear in the latent frequency and in general
 $\mathbb{E}[X^2]\neq\mathbb{E}[X]^2$; it understates *each* homozygote
-probability by $(1-2\varepsilon)^2\operatorname{Var}(X_i(T))$ and overstates the
+probability by $(1-2\varepsilon)^2\mathrm{Var}(X_i(T))$ and overstates the
 heterozygote probability by twice that. Using the full three-genotype form
 also keeps the heterozygote-vs-homozygote information rather than collapsing to
 presence/absence. A diploid site with only **one** allele called falls back to the
@@ -252,7 +252,7 @@ $$
 **The conditional second moment** required by the diploid likelihood (3a–3b) comes
 from the *same* contraction shifted one index. The $(m,j)$ entry of $C(\tau_T)$ is
 the coefficient of $x^j$ in the conditional moment
-$\mathbb{E}[X^m_{\rm pres}\mid X_T=x]$, so each extra factor of $X_T$ raises that
+$\mathbb{E}[X^m_{\mathrm{pres}}\mid X_T=x]$, so each extra factor of $X_T$ raises that
 power by one:
 
 $$
@@ -447,7 +447,7 @@ where the expectation is the one in (3), evaluated through (3a) with draw $g$'s
 moments $\varphi^{(g)}$ and $\varphi^{(2,g)}$. The
 implementation accumulates this in logs, keeping a chromosome's $M$ per-draw
 log-likelihoods separate until every site has been multiplied in and only then
-$\log\mathcal L_c = \operatorname{logsumexp}_g \sum_i \log\ell^{(g)}_i - \log M$.
+$\log\mathcal L_c = \mathrm{logsumexp}_g \sum_i \log\ell^{(g)}_i - \log M$.
 
 **Across-site composite likelihood.** Equation (11) is a PRF-style composite
 likelihood, not a claim that linked SNPs are literally independent. This is the
