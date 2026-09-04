@@ -9,8 +9,9 @@ for reference.
 ## 1. Setup and goal
 
 We have one ancestral recombination graph (ARG) inferred by SINGER (Deng, Nielsen
-& Song 2025) on **a panel of 26 haplotypes** (`--n-sample`; at a site, $n$ is
-however many of them are *called* there — [section 5](#5-exact-computation-via-the-neutral-moment-recursion)), summarised per site per
+& Song 2025) on **a panel of $n_{\text{sam}}$ haplotypes** (`--n-sample`; $n_{\text{sam}}=26$ in this
+analysis, and at a site $n$ is however many of them are *called* —
+[section 5](#5-exact-computation-via-the-neutral-moment-recursion)), summarised per site per
 posterior draw as a **SNP age interval store** of mutation-age intervals, built by
 the normalizeTEs pipeline (github.com/rossibarra/normalizeTEs). We have a set of
 **ancient samples** (in one multi-sample VCF) genotyped at SNPs that were
@@ -202,7 +203,7 @@ i.e. at frequency $1/(2N_e(t_i))$, so $M_k(0) = \bigl(1/(2N_e(t_i))\bigr)^{k}$.
 **Sampling to the observed count.** We observe not $x_0$ but a **count**
 $d_0 \sim \text{Binom}(n, x_0)$ among the $n$ called panel haplotypes. Because $n$
 can vary with panel missingness, the implementation tabulates each
-$n\in\{n_{\min},\ldots,26\}$ separately and drops sites below `--min-n` (default
+$n\in\{n_{\min},\ldots,n_{\text{sam}}\}$ separately and drops sites below `--min-n` (default
 20). The binomial pmf is a
 polynomial in $x_0$ of degree $n$,
 
@@ -292,10 +293,10 @@ $\sum|\mathrm{term}|/|\sum\mathrm{term}|$ for each conditioning sum and writes
 `NaN` in **any** ARG draw as disqualifying the whole site: the mixture in eq. (11)
 is defined over all $G$ draws, so a single draw cannot simply be dropped ([section 6](#6-draws-polarity-chromosomes)).
 
-At $n=26$ the relative error against an 80-digit `mpmath` reference
-(`tests/_reference.py`, `dps=80`) is $\sim10^{-3}$ for
-$\tau_i\lesssim3$, reaches a few percent by $\tau_i\approx 5$ to $6$, and the values are
-noise by $\tau_i\approx10$. As an additional operational safeguard,
+At the full panel size ($n=n_{\text{sam}}=26$ here) the relative error against an 80-digit
+`mpmath` reference (`tests/_reference.py`, `dps=80`) is $\sim10^{-3}$ for
+$\tau_i\lesssim3$, reaches a few percent by $\tau_i\approx 5$ to $6$, and the
+values are noise by $\tau_i\approx10$. As an additional operational safeguard,
 `--mutation-age-max` defaults to a cutoff of $\tau_i=3$ in diffusion units and
 discards mutation-age mass beyond it. The table stores the diffusion time
 $\tau(t)=\int_0^t ds/(2N_e(s))$ of every generation-age row, and inference recovers
@@ -320,9 +321,9 @@ matrix this small), but the number of them is not negligible: `Emoments()`
 recomputes all three per $(n,d_0,t_i,T)$ entry, and the build loops over every
 panel size $n$, every $d_0\in\{1,\ldots,n\}$, every mutation age and every sample
 age (entries with $T\ge t_i$ return $0$ before doing any work). The default grid
-($n=20\ldots26$, $d_0$ up to $n$, 100 log-spaced ages, 300 sample ages) issues
-$\approx7.8\times10^{6}$ exponentials of dimension 23–29, of order an hour on one
-core — that is the dominant term in precomputation, not a rounding error. All three
+($n=20\ldots n_{\text{sam}}$, $d_0$ up to $n$, 100 log-spaced ages, 300 sample ages) issues, at
+$n_{\text{sam}}=26$, $\approx7.8\times10^{6}$ exponentials of dimension 23–29, of order an hour
+on one core — that is the dominant term in precomputation, not a rounding error. All three
 depend only on $(n,\tau_i,\tau_T)$ and **not** on $d_0$, so hoisting them out of the
 $d_0$ loop would cut the count by a factor of $n$, to $\approx3.4\times10^{5}$.
 That reuse is **not** implemented; it is the obvious optimisation should the grid
@@ -510,7 +511,7 @@ skipped.
    to that order; the table carries only the first two.
 7. **Panel missingness is allele-blind**, hence ignorable given the called count
    ([section 5](#5-exact-computation-via-the-neutral-moment-recursion)). Eq. (7) treats the $n$ called panel haplotypes as a binomial sample of the
-   population, i.e. as an allele-blind subset of the 26: choosing the moment plane
+   population, i.e. as an allele-blind subset of the $n_{\text{sam}}$: choosing the moment plane
    for the site's exact $n$ makes the sampling distribution right for that $n$, but
    it conditions on *how many* haplotypes were called, not on *which*.
    Allele-dependent missingness (reference bias making one allele harder to call)
@@ -578,7 +579,8 @@ since young, rare-in-discovery alleles are under-ascertained.
 |---|---|
 | $T$ | age of the ancient sample, generations before present (inferred) |
 | $t_i$ | age of the mutation at site $i$ (interval $[\text{below},\text{above}]$ per draw, from the store) |
-| $n$ | number of ARG-panel haplotypes **called at the site** (`--min-n` $\le n\le 26$; the full panel size only where the panel is fully called — [section 5](#5-exact-computation-via-the-neutral-moment-recursion)) |
+| $n_{\text{sam}}$ | number of haplotypes in the ARG panel (`--n-sample`; $n_{\text{sam}}=26$ here) |
+| $n$ | number of ARG-panel haplotypes **called at the site** (`--min-n` $\le n\le n_{\text{sam}}$; equal to $n_{\text{sam}}$ only where the panel is fully called — [section 5](#5-exact-computation-via-the-neutral-moment-recursion)) |
 | $C$ | number of chromosomes (independent given $T$) |
 | $d_0$ | present count of the derived allele among the $n$ *called* panel haplotypes |
 | $c_{\text{alt}}$ | present count of the ALT allele among the $n$ *called* panel haplotypes (from the panel VCF) |
