@@ -147,30 +147,28 @@ present, which we obtain from the same diffusion via its moments
 
 ## 4. Time-varying $N_e$: the diffusion-time change
 
-Under the neutral Wright–Fisher diffusion $X$ has **no drift**; its only dependence
-on population size is the *rate* of drift, with infinitesimal variance
-$X(1-X)/(2N_e(t))$ per generation. A time-varying $N_e(t)$ is therefore absorbed
-exactly by rescaling to **diffusion time**
+The neutral diffusion has **no drift**: population size sets only the *rate* of
+drift, through the infinitesimal variance $X(1-X)/(2N_e(t))$ per generation.
+Measuring time in units of $2N_e$ generations therefore removes $N_e$ from the
+process altogether, and a time-varying $N_e(t)$ is absorbed exactly by the same
+change of clock, to **diffusion time**
 
 $$
 \tau(t) = \int_0^{t} \frac{dt'}{2N_e(t')}. \tag{5}
 $$
 
-In $\tau$-time the process is the *standard*, parameter-free neutral diffusion
-(Ewens 2009 lecture notes, eqs. 268–269 and 273: unit diffusion time is $2N$
-generations, with drift $a(x)=0$ and variance $b(x)=x(1-x)$ — so every
-constant-size result applies verbatim;
-for time-varying $N_e$ this same rescaling — measuring time in units of
-$\int^t dt'/2N_e$ — is the one used by Griffiths (2003, eq. 49), whose transformed
-time $\int_0^t \nu(u)du$ with $\nu = N_e(0)/N_e(u)$ is $2N_e(0)\tau(t)$: the same
-time change, in units of the present size rather than of the standard diffusion. The method
-requires a **piecewise-constant** $N_e(t)$ — a step function of the diploid
-effective size over time windows; any demographic inference expressed in that form
+In $\tau$-time the process is the *standard*, parameter-free neutral diffusion, so
+every constant-size result applies verbatim (Ewens 2009 lecture notes,
+eqs. 268–269 and 273; Griffiths 2003, eq. 49 applies the same rescaling to
+variable size).
+
+The method requires a **piecewise-constant** $N_e(t)$ — a step function of the
+diploid effective size over time windows; any demographic inference expressed in that form
 works. Here we use the ~50 log-spaced windows inferred by ARGtest's
 `coalescence_ne_plots_from_ts.py`, where $N_e = 1/(2\text{ rate})$. Note $N_e(t)$
 enters *only* through the integral (5), which for a step function is a cumulative
-sum over the windows (each window contributes its width divided by $2N_e$), so each
-site/draw needs just $\tau_T=\tau(T)$ and $\tau_i=\tau(t_i)$.
+sum over the windows — each contributes its width divided by $2N_e$ — so each site
+and draw needs just $\tau_T=\tau(T)$ and $\tau_i=\tau(t_i)$.
 
 ---
 
