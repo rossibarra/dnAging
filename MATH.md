@@ -96,23 +96,16 @@ so **the first moment alone suffices** and the second-moment plane is never
 touched. The implementation exposes this as `--ploidy 1` (the default), and also
 carries a true-diploid path for genuine genotype calls, which is quadratic in
 $r_i$ and does need the conditional second moment; it is derived in the
-[appendix](#appendix-the-diploid-genotype-likelihood) and is not used for the
-aDNA analyses here.
+[diploid appendix](#appendix-the-diploid-genotype-likelihood) and is not used for
+the aDNA analyses here.
 
 A missing/uncalled site has $c_i = 0$ and contributes $\log\ell_i = 0$.
 
-**Ascertainment.** A site absent from a sample's VCF is missing data, not an
-observation of "does not carry." Conditioning on the ascertained set does not bias
-$\hat T$ **for this site set**, because the discovery panel *contains* the ARG panel:
-we condition on $1 \le d_0 \le n-1$, i.e. both alleles seen among the $n$ ARG
-haplotypes, which implies the site is polymorphic in the discovery panel — so the
-ascertainment event has probability 1 given what we already condition on, and
-$E[p_T \mid d_0, t_i, A] = E[p_T \mid d_0, t_i]$ holds identically. This is a
-property of *these* data, not of ascertainment in general: a discovery panel
-applying a frequency cutoff, or one not containing the ARG panel, would require the
-ascertainment factor to be modelled. See [NOTES.md](./NOTES.md) for the condition
-and what breaks it. Ascertainment does still cost power — and most where the
-lower-bound signal lives (young, rare-in-discovery alleles are under-ascertained).
+**Ascertainment.** We assume the SNPs were ascertained in a way that does not bias
+the age posterior — which holds exactly for these data, because the discovery panel
+*contains* the ARG panel. A site absent from a sample's VCF is therefore missing
+data, not an observation of "does not carry." The condition, the proof, and what
+would break it are in the [ascertainment appendix](#appendix-ascertainment).
 
 Everything now hinges on the conditional law of one quantity: $X_i(T)$, the
 derived-allele frequency at time $T$ — and, by (3a), only on its first two moments.
@@ -493,7 +486,7 @@ skipped.
 1. **Neutrality.** Eq. (4) is the *neutral* trajectory — right for the vast
    majority of sites; strongly selected sites are not neutral. Guard with an
    approximately-neutral `--include-positions` set if selection is a concern.
-2. **Ascertainment caps power** ([section 2](#2-the-per-site-likelihood-with-ploidy)): expect broad posteriors on array-ascertained
+2. **Ascertainment caps power** ([appendix](#appendix-ascertainment)): expect broad posteriors on array-ascertained
    SNPs.
 3. **The ancient sample must not be in the ARG/ascertainment panels.** Otherwise
    its own alleles are among the $n$ that produced $d_0$, and the independence
@@ -547,6 +540,29 @@ heterozygote probability by twice that. Using the full three-genotype form also
 keeps the heterozygote-vs-homozygote information rather than collapsing to
 presence/absence. A diploid site with only **one** allele called falls back to the
 $c_i=1$ form of (3b), which needs the first moment only.
+
+---
+
+## Appendix: ascertainment
+
+Why conditioning on the ascertained site set does not bias $\hat T$ here
+([section 2](#2-the-per-site-likelihood-with-ploidy)).
+
+A site absent from a sample's VCF is missing data, not an observation of "does not
+carry." Conditioning on the ascertained set does not bias $\hat T$ **for this site
+set**, because the discovery panel *contains* the ARG panel: we condition on
+$1 \le d_0 \le n-1$, i.e. both alleles seen among the $n$ ARG haplotypes, which
+implies the site is polymorphic in the discovery panel — so the ascertainment event
+has probability 1 given what we already condition on, and
+$E[p_T \mid d_0, t_i, A] = E[p_T \mid d_0, t_i]$ holds identically.
+
+This is a property of *these* data, not of ascertainment in general: a discovery
+panel applying a frequency cutoff, or one not containing the ARG panel, would
+require the ascertainment factor to be modelled. See [NOTES.md](./NOTES.md) for the
+condition and what breaks it.
+
+Ascertainment does still cost power — and most where the lower-bound signal lives,
+since young, rare-in-discovery alleles are under-ascertained.
 
 ---
 
