@@ -219,13 +219,13 @@ entry ($e^{Bu_1}$, $e^{B\tau_T}$ and $e^{B\tau_i}$; eqs. 8–9), which is where 
 build's cost actually sits — see the end of this section.
 
 **Trajectory (bridge).** Let $u_1 = \tau_i - \tau_T$ be the diffusion time from
-origin to sample age. With the conditional-moment map $C(\Delta)=e^{B\Delta}$
-(so $\mathbb{E}[X(\Delta)^m\mid X_0=y]=\sum_j C(\Delta)_{m,j}y^{j}$), the joint
+origin to sample age. With the conditional-moment map $K(\Delta)=e^{B\Delta}$
+(so $\mathbb{E}[X(\Delta)^m\mid X_0=y]=\sum_j K(\Delta)_{m,j}y^{j}$), the joint
 moments across the two times are
 
 $$
 \mathbb{E}\left[X_TX_{\text{pres}}^{m}\right]
-= \sum_j C(\tau_T)_{m,j} M(u_1)_{j+1}, \tag{8}
+= \sum_j K(\tau_T)_{m,j} M(u_1)_{j+1}, \tag{8}
 $$
 
 and the age-conditioned expected frequency is the sampling-weighted ratio
@@ -240,14 +240,14 @@ $$
 $$
 
 **The conditional second moment** required by the diploid likelihood (3a, A1) comes
-from the *same* contraction shifted one index. The $(m,j)$ entry of $C(\tau_T)$ is
+from the *same* contraction shifted one index. The $(m,j)$ entry of $K(\tau_T)$ is
 the coefficient of $x^j$ in the conditional moment
 $\mathbb{E}[X^m_{\mathrm{pres}}\mid X_T=x]$, so each extra factor of $X_T$ raises that
 power by one:
 
 $$
 \mathbb{E}\left[X_T^2X_{\text{pres}}^{m}\right]
-= \sum_j C(\tau_T)_{m,j} M(u_1)_{j+2},
+= \sum_j K(\tau_T)_{m,j} M(u_1)_{j+2},
 \qquad
 \bar p^{(2)}(T\mid d_0,t_i) =
 \frac{\sum_{m} \binom{n-d_0}{m-d_0}(-1)^{m-d_0}
@@ -286,11 +286,11 @@ decimal digits. The loss also grows with $\tau_i$: once the allele is almost sur
 lost or fixed, the denominator of (9)/(9a) — the sampling weight of an intermediate
 $d_0$ — underflows to cancellation noise, and *both* moments become meaningless
 (clipping them into the mathematically valid range would hide the failure rather
-than recover the information). The implementation therefore measures
-$A=\sum|\mathrm{term}|/|\sum\mathrm{term}|$ for each conditioning sum and writes
+than recover the information). The implementation therefore measures the cancellation ratio
+$\sum|\mathrm{term}|/|\sum\mathrm{term}|$ for each conditioning sum and writes
 `NaN` once only roughly 1–2 significant decimal digits remain. Inference treats a
 `NaN` in **any** ARG draw as disqualifying the whole site: the mixture in eq. (11)
-is defined over all $M$ draws, so a single draw cannot simply be dropped ([section 6](#6-draws-polarity-chromosomes)).
+is defined over all $G$ draws, so a single draw cannot simply be dropped ([section 6](#6-draws-polarity-chromosomes)).
 
 At $n=26$ the relative error against an 80-digit `mpmath` reference
 (`tests/_reference.py`, `dps=80`) is $\sim10^{-3}$ for
@@ -402,16 +402,16 @@ below $t_0$ is biased low; see NOTES.md.
 Exactly one mapped branch interval is required per site and ARG draw. If any draw
 supplies multiple intervals, the mutation is treated as multiply mapped and the
 entire site is excluded rather than assigning weights among mappings that are not
-trusted. The requirement is symmetric: **every** one of the $M$ draws must supply
+trusted. The requirement is symmetric: **every** one of the $G$ draws must supply
 an interval and pass the polarity, age-cutoff, table-coverage and numerical checks,
 or the site is dropped. Because eq. (11) below is an equal-weight mixture over all
-$M$ draws, keeping a site that survives in only a subset would silently replace the
+$G$ draws, keeping a site that survives in only a subset would silently replace the
 estimand with an expectation conditional on that subset, and the missing terms
 cannot be imputed (a missing polarity call is not evidence of zero ALT frequency).
 `run.json` counts such sites under `sites_incomplete_draws`, with per-cause draw
 tallies alongside.
 
-*Between* draws, averaging over the $M$ posterior draws integrates the remaining
+*Between* draws, averaging over the $G$ posterior draws integrates the remaining
 posterior on $t_i$ — each draw places the mutation on a different branch — so
 together with (10b) this marginalises the full ARG posterior over the mutation age,
 within-branch and between-draw. But that average is taken **at the level of the
@@ -427,7 +427,7 @@ giving a per-draw per-site likelihood $\ell^{(g)}_i(T)$, and the draws are avera
 only *after* the site product:
 
 $$
-\mathcal{L}_c(T) = \frac{1}{M}\sum_{g=1}^{M}\ \prod_i\ \ell^{(g)}_i(T),
+\mathcal{L}_c(T) = \frac{1}{G}\sum_{g=1}^{G}\ \prod_i\ \ell^{(g)}_i(T),
 \qquad
 \ell^{(g)}_i(T) = \mathbb{E}\left[r^{(g)}_i(T)^{a_i}
       \bigl(1-r^{(g)}_i(T)\bigr)^{c_i-a_i}\right], \tag{11}
@@ -435,9 +435,9 @@ $$
 
 where the expectation is the one in (3), evaluated through (3a) with draw $g$'s
 moments $\varphi^{(g)}$ and $\varphi^{(2,g)}$. The
-implementation accumulates this in logs, keeping a chromosome's $M$ per-draw
+implementation accumulates this in logs, keeping a chromosome's $G$ per-draw
 log-likelihoods separate until every site has been multiplied in and only then
-$\log\mathcal L_c = \mathrm{logsumexp}_g \sum_i \log\ell^{(g)}_i - \log M$.
+$\log\mathcal L_c = \mathrm{logsumexp}_g \sum_i \log\ell^{(g)}_i - \log G$.
 
 **Across-site composite likelihood.** Equation (11) is a PRF-style composite
 likelihood, not a claim that linked SNPs are literally independent. This is the
@@ -453,7 +453,7 @@ than impose arbitrary physical thinning; block bootstrap or simulation calibrati
 is the appropriate route if coverage itself is a target.
 
 Averaging the *frequency* per site instead — using
-$\bar\varphi_{\text{alt}} = \frac1M\sum_g \varphi^{(g)}_{\text{alt}}$ in (3a) and
+$\bar\varphi_{\text{alt}} = \frac1G\sum_g \varphi^{(g)}_{\text{alt}}$ in (3a) and
 then taking $\prod_i$ — is a **different and wrong** quantity: it discards the
 across-site coupling an ARG draw carries, treating each site's age as if it were
 redrawn independently at every site. The site product is nonlinear in the per-draw
@@ -596,12 +596,12 @@ since young, rare-in-discovery alleles are under-ascertained.
 | $\tau_T,\tau_i$ | $\tau(T)$ and $\tau(t_i)$ |
 | $M_k(\tau)$ | $k$-th moment $\mathbb{E}[X(\tau)^k]$ of the neutral diffusion |
 | $B$ | generator of the closed moment recursion (eq. 6) |
-| $C(\Delta)=e^{B\Delta}$ | conditional-moment map over diffusion-time $\Delta$ |
+| $K(\Delta)=e^{B\Delta}$ | conditional-moment map over diffusion-time $\Delta$ |
 | $\varepsilon$ | symmetric per-allele genotype-error probability |
 | $\ell_i(T),\mathcal L(T)$ | per-site and total likelihood |
 | $\ell^{(g)}_i(T)$ | per-site likelihood in draw $g$ — (3) with draw $g$'s moments (eq. 11) |
 | $\mathcal L_c(T)$ | within-chromosome likelihood: draw mixture of site products (eq. 11, 12) |
-| $g,M$ | ARG posterior draw index and number of draws |
+| $g,G$ | ARG posterior draw index and number of draws |
 
 ---
 
