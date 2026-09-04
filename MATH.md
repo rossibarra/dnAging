@@ -347,19 +347,8 @@ $$
 \tag{10}
 $$
 
-and, for the diploid likelihood, the matching **second** moment of the same ALT
-frequency — where the ALT-ancestral branch must transform *both* moments, since
-$\mathbb{E}[(1-X)^2] = 1-2\mathbb{E}[X]+\mathbb{E}[X^2]$:
-
-$$
-\varphi^{(2,g)}_{\text{alt}}(T) =
-\begin{cases}
-\bar p^{(2)}(T \mid c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived},\cr
-1 - 2\bar p(T \mid n-c_{\text{alt}}, t_i^{(g)}) +
-  \bar p^{(2)}(T \mid n-c_{\text{alt}}, t_i^{(g)}), & \text{ALT ancestral}.
-\end{cases}
-\tag{10a}
-$$
+The diploid path needs the matching **second** moment of the same ALT frequency;
+it is given in the [diploid appendix](#appendix-the-diploid-genotype-likelihood).
 
 Because $c_{\text{alt}}$ comes from the panel VCF while $a_i, c_i$ come from the
 ancient VCF, the two files' REF/ALT representations must agree: the implementation
@@ -420,12 +409,11 @@ likelihood, not of the frequency.** One ARG draw is a single chromosome-wide
 genealogy: it fixes the mutation age at *every* site at once, so the sites' ages are
 dependent, and that dependence is carried by the draw index. Conditional on a draw,
 the PRF composite likelihood *models* the remaining per-site observations as
-independent. So (10) and (10a) enter (3a) **within** a draw —
-$\bar p_i\to\varphi^{(g)}(T)$ and $\bar p^{(2)}\to\varphi^{(2,g)}(T)$ — writing
-$\varphi^{(g)}$ for $\varphi^{(g)}_{\text{alt}}$ from here on — with $a_i,c_i$ the
-sample's ALT dosage and ploidy at the site (ALT carriage is polarity-independent) —
-giving a per-draw per-site likelihood $\ell^{(g)}_i(T)$, and the draws are averaged
-only *after* the site product:
+independent. So (10) enters (3a) **within** a draw — $\bar p_i\to\varphi^{(g)}(T)$,
+writing $\varphi^{(g)}$ for $\varphi^{(g)}_{\text{alt}}$ from here on, with $a_i$
+the sample's ALT count at the site (ALT carriage is polarity-independent) — giving
+a per-draw per-site likelihood $\ell^{(g)}_i(T)$, and the draws are averaged only
+*after* the site product:
 
 $$
 \mathcal{L}_c(T) = \frac{1}{G}\sum_{g=1}^{G}\ \prod_i\ \ell^{(g)}_i(T),
@@ -435,7 +423,7 @@ $$
 $$
 
 where the expectation is the one in (3), evaluated through (3a) with draw $g$'s
-moments $\varphi^{(g)}$ and $\varphi^{(2,g)}$. The
+moment $\varphi^{(g)}$. The
 implementation accumulates this in logs, keeping a chromosome's $G$ per-draw
 log-likelihoods separate until every site has been multiplied in and only then
 $\log\mathcal L_c = \mathrm{logsumexp}_g \sum_i \log\ell^{(g)}_i - \log G$.
@@ -458,15 +446,11 @@ $\bar\varphi_{\text{alt}} = \frac1G\sum_g \varphi^{(g)}_{\text{alt}}$ in (3a) an
 then taking $\prod_i$ — is a **different and wrong** quantity: it discards the
 across-site coupling an ARG draw carries, treating each site's age as if it were
 redrawn independently at every site. The site product is nonlinear in the per-draw
-likelihood, so the two disagree as soon as a chromosome has more than one site (and
-under `--ploidy 2` already at a single site, since (A1) is nonlinear in the
-frequency; under `--ploidy 1` a lone site is the one case where they coincide). Two
+likelihood, so the two disagree as soon as a chromosome has more than one site; a
+lone site is the one case where they coincide. Two
 sites whose per-draw frequencies share the same draw *means* but differ in their
 *pairing across draws* have different likelihoods under (11) and identical ones
-under the per-site average (`tests/test_draw_marginalization.py`). Each draw's
-$\varphi^{(g)}$ and $\varphi^{(2,g)}$ come from the same
-conditional law, so $(\varphi^{(g)})^2\le\varphi^{(2,g)}\le\varphi^{(g)}$ holds
-draw by draw, and the `--ploidy 1` path never touches the second moment.
+under the per-site average (`tests/test_draw_marginalization.py`).
 
 **Chromosomes.** ARG draws are sampled independently per chromosome, and the $C$
 chromosomes are unlinked — hence conditionally independent given $T$ — so the joint
@@ -525,7 +509,7 @@ skipped.
 
 Not used for the pseudo-haploid aDNA above ([section 2](#2-the-per-site-likelihood)),
 but implemented as `--ploidy 2` for genuine diploid genotype calls, and the reason
-the second-moment machinery of (9a) and (10a) exists at all.
+the second-moment machinery of (9a) and (A2) exists at all.
 
 With $c_i = 2$ the observation is the true genotype, $a_i\in\{0,1,2\}$, and (3) is
 *quadratic* in $r_i$, so the three genotype probabilities are
@@ -547,6 +531,30 @@ heterozygote probability by twice that. Using the full three-genotype form also
 keeps the heterozygote-vs-homozygote information rather than collapsing to
 presence/absence. A diploid site with only **one** allele called falls back to the
 $c_i=1$ form of (3b), which needs the first moment only.
+
+**The ALT-frequency second moment.** The polarity convention of
+[section 6](#6-draws-polarity-chromosomes) tracks the ALT-allele frequency, so the
+diploid path needs the second moment of *that* quantity, not of $\bar p$. The
+ALT-ancestral branch must transform **both** moments, since
+$\mathbb{E}[(1-X)^2] = 1-2\mathbb{E}[X]+\mathbb{E}[X^2]$:
+
+$$
+\varphi^{(2,g)}_{\text{alt}}(T) =
+\begin{cases}
+\bar p^{(2)}(T \mid c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived},\cr
+1 - 2\bar p(T \mid n-c_{\text{alt}}, t_i^{(g)}) +
+  \bar p^{(2)}(T \mid n-c_{\text{alt}}, t_i^{(g)}), & \text{ALT ancestral}.
+\end{cases}
+\tag{A2}
+$$
+
+This enters (3a) alongside (10) within a draw, giving $\ell^{(g)}_i(T)$ for
+$c_i=2$; the draw mixture of eq. (11) is otherwise unchanged. Both moments come
+from the same conditional law, so
+$(\varphi^{(g)})^2\le\varphi^{(2,g)}\le\varphi^{(g)}$ holds draw by draw. Under
+`--ploidy 2` the per-site average of the frequency is wrong even for a *single*
+site, since (A1) is nonlinear in the frequency, whereas under `--ploidy 1` a lone
+site is the one case where the two agree.
 
 ---
 
@@ -592,7 +600,7 @@ since young, rare-in-discovery alleles are under-ascertained.
 | $\bar p^{(2)}(T\mid d_0,t_i)$ | expected *squared* frequency — the second table plane (eq. 4, 9a) |
 | $r_i(T)$ | per-allele probability of *observing* derived given the frequency, with error $\varepsilon$ (eq. 2) |
 | $\varphi_{\text{alt}}^{(g)}$ | ALT-allele frequency at $T$ in draw $g$ (eq. 10) |
-| $\varphi^{(2,g)}_{\text{alt}}$ | the corresponding second moment (eq. 10a) |
+| $\varphi^{(2,g)}_{\text{alt}}$ | the corresponding second moment (eq. A2) |
 | $N_e(t)$ | diploid effective population size at time $t$, equal to $1/(2\text{ rate})$ |
 | $\tau(t)$ | diffusion time, $\int_0^t dt'/(2N_e(t'))$ |
 | $\tau_T,\tau_i$ | $\tau(T)$ and $\tau(t_i)$ |
