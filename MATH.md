@@ -171,13 +171,23 @@ and draw needs just $\tau_T=\tau(T)$ and $\tau_i=\tau(t_i)$.
 
 ## 5. Exact computation via the neutral moment recursion
 
-The standard neutral diffusion has (backward) generator
-$\mathcal{L}f = \tfrac{x(1-x)}{2}f''(x)$ — the case $\mu=0$ with
-$\sigma^2(x)=x(1-x)$ of the general diffusion generator of Griffiths (2003,
-eq. 1); see also Ewens (2009 lecture notes, eq. 218) and Kimura (1955). Applying
-it to $f(x)=x^k$ gives
-$\mathcal{L}x^k = \tfrac{k(k-1)}{2}\bigl(x^{k-1}-x^k\bigr)$, so the moments
-$M_k(\tau) = \mathbb{E}[X(\tau)^k]$ obey a **closed** linear system:
+What we need are the **moments** of the frequency,
+$M_k(\tau) = \mathbb{E}[X(\tau)^k]$: the likelihood uses the first two
+([section 2](#2-the-per-site-likelihood)), and conditioning on the observed count
+below uses them up to order $n$.
+
+These are reachable because, for a diffusion, the expected value of a smooth
+function $h$ of the frequency changes at a rate fixed by the process's *backward
+generator*. For the standard neutral diffusion of
+[section 4](#4-time-varying-n_e-the-diffusion-time-change) — no drift,
+infinitesimal variance $X(1-X)$ — that rate is
+$\mathbb{E}\bigl[\tfrac{1}{2}X(1-X)h''(X)\bigr]$ (Griffiths 2003, eq. 1;
+Ewens 2009 lecture notes, eq. 218; Kimura 1955).
+
+Choosing $h(x)=x^k$ is what turns this into a statement about the moments, since
+$\mathbb{E}[h(X)]$ is then $M_k$ by definition. With $h''(x)=k(k-1)x^{k-2}$ the
+rate becomes $\tfrac{k(k-1)}{2}\bigl(M_{k-1}-M_k\bigr)$, so the moments obey a
+**closed** linear system:
 
 $$
 \frac{dM_k}{d\tau} = \frac{k(k-1)}{2}\bigl(M_{k-1} - M_k\bigr),
