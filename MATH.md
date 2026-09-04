@@ -172,12 +172,12 @@ and draw needs just $\tau_T=\tau(T)$ and $\tau_i=\tau(t_i)$.
 ## 5. Exact computation via the neutral moment recursion
 
 The standard neutral diffusion has (backward) generator
-$\mathcal{L}f = \tfrac{x(1-x)}{2}f''(x)$ — the drift-free case
-the drift-free case $\mu=0$ with $\sigma^2(x)=x(1-x)$, taken from the general
-diffusion generator of Griffiths (2003, eq. 1); see also Ewens (2009 lecture notes,
-eq. 218) and Kimura (1955). Applying it to $f(x)=x^k$
-gives $\mathcal{L}x^k = \tfrac{k(k-1)}{2}\bigl(x^{k-1}-x^k\bigr)$, so the
-moments $M_k(\tau) = \mathbb{E}[X(\tau)^k]$ obey a **closed** linear system:
+$\mathcal{L}f = \tfrac{x(1-x)}{2}f''(x)$ — the case $\mu=0$ with
+$\sigma^2(x)=x(1-x)$ of the general diffusion generator of Griffiths (2003,
+eq. 1); see also Ewens (2009 lecture notes, eq. 218) and Kimura (1955). Applying
+it to $f(x)=x^k$ gives
+$\mathcal{L}x^k = \tfrac{k(k-1)}{2}\bigl(x^{k-1}-x^k\bigr)$, so the moments
+$M_k(\tau) = \mathbb{E}[X(\tau)^k]$ obey a **closed** linear system:
 
 $$
 \frac{dM_k}{d\tau} = \frac{k(k-1)}{2}\bigl(M_{k-1} - M_k\bigr),
