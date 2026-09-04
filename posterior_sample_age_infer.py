@@ -468,10 +468,21 @@ def load_prior(args, grid):
 def merge(args, tab):
     grid = tab["Tgrid"]
     order = (Path(args.merge[0]) / "samples.txt").read_text().split()
-    for p in args.merge[1:]:
-        if (Path(p) / "samples.txt").read_text().split() != order:
-            raise SystemExit("sample order differs across parts.")
-    ll = np.sum([np.load(Path(p) / "ll_marginal.npy") for p in args.merge], axis=0)
+    expected_shape = (len(order), len(grid))
+    arrays = []
+    for p in args.merge:
+        part = Path(p)
+        if (part / "samples.txt").read_text().split() != order:
+            raise SystemExit(f"sample order differs in merge part {part}")
+        part_grid = np.load(part / "grid.npy", allow_pickle=False)
+        if part_grid.shape != grid.shape or not np.array_equal(part_grid, grid):
+            raise SystemExit(f"sample-age grid differs in merge part {part}")
+        part_ll = np.load(part / "ll_marginal.npy", allow_pickle=False)
+        if part_ll.shape != expected_shape:
+            raise SystemExit(f"likelihood shape in merge part {part} is {part_ll.shape}; "
+                             f"expected {expected_shape}")
+        arrays.append(part_ll)
+    ll = np.stack(arrays, axis=0).sum(axis=0)
     return order, grid, ll, {"mode": "merge-chroms", "n_parts": len(args.merge)}
 
 

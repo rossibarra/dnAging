@@ -106,3 +106,43 @@ def test_variable_panel_size_lookup_selects_exact_n():
 def test_min_n_defaults_to_twenty():
     args = inf.parse_args(["--freq-table", "x", "--output", "y", "--merge", "z"])
     assert args.min_n == 20
+
+
+def _write_merge_part(path, samples, grid, ll):
+    path.mkdir()
+    (path / "samples.txt").write_text("\n".join(samples) + "\n")
+    np.save(path / "grid.npy", grid)
+    np.save(path / "ll_marginal.npy", ll)
+
+
+def test_merge_validates_grid_and_likelihood_shape(tmp_path):
+    grid = np.array([0.0, 10.0, 20.0])
+    tab = {"Tgrid": grid}
+    good = tmp_path / "good"
+    _write_merge_part(good, ["a", "b"], grid, np.ones((2, 3)))
+    args = type("Args", (), {"merge": [good]})()
+    order, got_grid, ll, _stats = inf.merge(args, tab)
+    assert order == ["a", "b"]
+    assert np.array_equal(got_grid, grid)
+    assert np.array_equal(ll, np.ones((2, 3)))
+
+    bad_grid = tmp_path / "bad-grid"
+    _write_merge_part(bad_grid, ["a", "b"], np.array([0.0, 11.0, 20.0]),
+                      np.ones((2, 3)))
+    args.merge = [good, bad_grid]
+    try:
+        inf.merge(args, tab)
+    except SystemExit as exc:
+        assert "grid differs" in str(exc)
+    else:
+        raise AssertionError("mismatched merge grid was accepted")
+
+    bad_shape = tmp_path / "bad-shape"
+    _write_merge_part(bad_shape, ["a", "b"], grid, np.ones((1, 3)))
+    args.merge = [good, bad_shape]
+    try:
+        inf.merge(args, tab)
+    except SystemExit as exc:
+        assert "likelihood shape" in str(exc)
+    else:
+        raise AssertionError("broadcastable likelihood shape was accepted")
