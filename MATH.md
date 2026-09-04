@@ -80,35 +80,24 @@ $$
                     (1-2\varepsilon)^2\bar p^{(2)}_i. \tag{3a}
 $$
 
-**Ploidy.** $c_i$ is set by a `--ploidy` flag matching the ancient genotype calls:
-
-- **Haploid / pseudo-haploid** ($c_i = 1$): one allele per called site, $a_i\in\{0,1\}$.
-  A homozygous call is collapsed to a single observation (crucial for pseudo-haploid
-  aDNA written as `0/0` or `1/1`, so it is not counted twice). Equation (3) is
-  *linear* in $r_i$, so it reduces to $\ell_i = \mathbb{E}[r_i]$ if the allele is
-  derived and $1-\mathbb{E}[r_i]$ if ancestral: **the first moment alone suffices.**
-- **Diploid** ($c_i = 2$): the true genotype, $a_i\in\{0,1,2\}$. Equation (3) is now
-  *quadratic* in $r_i$, so the conditional second moment is required — see below.
-
-For the diploid case the three genotype probabilities are
+**Ploidy.** The ancient calls are **pseudo-haploid**, so we take $c_i = 1$
+throughout: one allele per called site, $a_i\in\{0,1\}$. A single read is sampled
+per site, and although it is written as `0/0` or `1/1` the homozygous call is
+collapsed to one observation rather than counted twice. Equation (3) is then
+*linear* in $r_i$ and collapses to
 
 $$
-P(a_i=2) = \mathbb{E}[r_i^2],\quad
-P(a_i=1) = 2\bigl(\mathbb{E}[r_i]-\mathbb{E}[r_i^2]\bigr),\quad
-P(a_i=0) = 1-2\mathbb{E}[r_i]+\mathbb{E}[r_i^2], \tag{3b}
+\ell_i(T) = \mathbb{E}[r_i] \quad \text{if the observed allele is derived},
+\qquad
+\ell_i(T) = 1-\mathbb{E}[r_i] \quad \text{if it is ancestral}, \tag{3b}
 $$
 
-which sum to one and require the conditional **second** moment through (3a).
-Substituting the plug-in mean $\bar p_i$ into a Hardy–Weinberg genotype
-likelihood — i.e. using $\bar q^2,2\bar q(1-\bar q),(1-\bar q)^2$ with
-$\bar q = \varepsilon+(1-2\varepsilon)\bar p_i$ — is **wrong**, because the
-genotype probabilities are nonlinear in the latent frequency and in general
-$\mathbb{E}[X^2]\neq\mathbb{E}[X]^2$; it understates *each* homozygote
-probability by $(1-2\varepsilon)^2\mathrm{Var}(X_i(T))$ and overstates the
-heterozygote probability by twice that. Using the full three-genotype form
-also keeps the heterozygote-vs-homozygote information rather than collapsing to
-presence/absence. A diploid site with only **one** allele called falls back to the
-$c_i=1$ form, which needs the first moment only.
+so **the first moment alone suffices** and the second-moment plane is never
+touched. The implementation exposes this as `--ploidy 1` (the default), and also
+carries a true-diploid path for genuine genotype calls, which is quadratic in
+$r_i$ and does need the conditional second moment; it is derived in the
+[appendix](#appendix-the-diploid-genotype-likelihood) and is not used for the
+aDNA analyses here.
 
 A missing/uncalled site has $c_i = 0$ and contributes $\log\ell_i = 0$.
 
@@ -147,7 +136,7 @@ $$
 
 where $X(\cdot)$ is the neutral population-frequency trajectory. The second moment
 is tabulated alongside the first (it costs one extra moment order, [section 5](#5-exact-computation-via-the-neutral-moment-recursion)) and is what
-makes the diploid likelihood (3b) correct. In simulation the first moment
+makes the diploid likelihood (A1) correct. In simulation the first moment
 captures the survival bias. At a present count of $d_0=1$ in $n=26$ (3.85%) and a
 constant $N_e=100{,}000$ — the size simulated in
 [ANCIENT_TEST.md](./ANCIENT_TEST.md) — an allele of age 20,000 generations sits at
@@ -251,7 +240,7 @@ $$
 \qquad M_{\text{pres}} = e^{B\tau_i}M(0). \tag{9}
 $$
 
-**The conditional second moment** required by the diploid likelihood (3a–3b) comes
+**The conditional second moment** required by the diploid likelihood (3a, A1) comes
 from the *same* contraction shifted one index. The $(m,j)$ entry of $C(\tau_T)$ is
 the coefficient of $x^j$ in the conditional moment
 $\mathbb{E}[X^m_{\mathrm{pres}}\mid X_T=x]$, so each extra factor of $X_T$ raises that
@@ -470,7 +459,7 @@ then taking $\prod_i$ — is a **different and wrong** quantity: it discards the
 across-site coupling an ARG draw carries, treating each site's age as if it were
 redrawn independently at every site. The site product is nonlinear in the per-draw
 likelihood, so the two disagree as soon as a chromosome has more than one site (and
-under `--ploidy 2` already at a single site, since (3b) is nonlinear in the
+under `--ploidy 2` already at a single site, since (A1) is nonlinear in the
 frequency; under `--ploidy 1` a lone site is the one case where they coincide). Two
 sites whose per-draw frequencies share the same draw *means* but differ in their
 *pairing across draws* have different likelihoods under (11) and identical ones
@@ -512,7 +501,7 @@ skipped.
    sample would partly be conditioned on itself.
 4. **Hardy–Weinberg** within a diploid individual assumes no recent inbreeding —
    the two alleles are independent *given* the population frequency, which is why
-   (3b) needs $\mathbb{E}[r^2]$ rather than $\mathbb{E}[r]^2$; for
+   (A1) needs $\mathbb{E}[r^2]$ rather than $\mathbb{E}[r]^2$; for
    haploid/pseudo-haploid data this is moot ($c_i=1$).
 5. **Effective-size convention.** The curve is a diploid effective size
    with $N_e = 1/(2\text{ rate})$,
@@ -529,6 +518,35 @@ skipped.
    therefore biases $d_0$ and is
    **not** removed by the $n$-specific plane. See [NOTES.md](./NOTES.md) for the
    condition and the mitigation.
+
+---
+
+## Appendix: the diploid genotype likelihood
+
+Not used for the pseudo-haploid aDNA above ([section 2](#2-the-per-site-likelihood-with-ploidy)),
+but implemented as `--ploidy 2` for genuine diploid genotype calls, and the reason
+the second-moment machinery of (9a) and (10a) exists at all.
+
+With $c_i = 2$ the observation is the true genotype, $a_i\in\{0,1,2\}$, and (3) is
+*quadratic* in $r_i$, so the three genotype probabilities are
+
+$$
+P(a_i=2) = \mathbb{E}[r_i^2],\quad
+P(a_i=1) = 2\bigl(\mathbb{E}[r_i]-\mathbb{E}[r_i^2]\bigr),\quad
+P(a_i=0) = 1-2\mathbb{E}[r_i]+\mathbb{E}[r_i^2], \tag{A1}
+$$
+
+which sum to one and require the conditional **second** moment through (3a).
+Substituting the plug-in mean $\bar p_i$ into a Hardy–Weinberg genotype
+likelihood — i.e. using $\bar q^2,2\bar q(1-\bar q),(1-\bar q)^2$ with
+$\bar q = \varepsilon+(1-2\varepsilon)\bar p_i$ — is **wrong**, because the
+genotype probabilities are nonlinear in the latent frequency and in general
+$\mathbb{E}[X^2]\neq\mathbb{E}[X]^2$; it understates *each* homozygote
+probability by $(1-2\varepsilon)^2\mathrm{Var}(X_i(T))$ and overstates the
+heterozygote probability by twice that. Using the full three-genotype form also
+keeps the heterozygote-vs-homozygote information rather than collapsing to
+presence/absence. A diploid site with only **one** allele called falls back to the
+$c_i=1$ form of (3b), which needs the first moment only.
 
 ---
 
