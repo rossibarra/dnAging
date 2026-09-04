@@ -352,7 +352,7 @@ ancestral base from the polarity table,
 $$
 \varphi_{\text{alt}}^{(g)}(T) =
 \begin{cases}
-\bar p(T \mid d_0=c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived in draw }g,\\[3pt]
+\bar p(T \mid d_0=c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived in draw }g,\cr
 1 - \bar p(T \mid d_0=n-c_{\text{alt}}, t_i^{(g)}), & \text{ALT ancestral in draw }g,
 \end{cases}
 \tag{10}
@@ -365,7 +365,7 @@ $\mathbb{E}[(1-X)^2] = 1-2\mathbb{E}[X]+\mathbb{E}[X^2]$:
 $$
 \varphi^{(2,g)}_{\text{alt}}(T) =
 \begin{cases}
-\bar p^{(2)}(T \mid c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived},\\[3pt]
+\bar p^{(2)}(T \mid c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived},\cr
 1 - 2\bar p(T \mid n-c_{\text{alt}}, t_i^{(g)}) +
   \bar p^{(2)}(T \mid n-c_{\text{alt}}, t_i^{(g)}), & \text{ALT ancestral}.
 \end{cases}
