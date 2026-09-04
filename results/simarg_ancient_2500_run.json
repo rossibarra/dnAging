@@ -1,0 +1,28 @@
+{
+  "counts": {
+    "n_samples": 1,
+    "sites_used": 125109,
+    "sites_no_panel": 0,
+    "sites_monomorphic": 0,
+    "sites_allele_mismatch": 0,
+    "sites_age_filtered": 3516,
+    "sites_numerical_failure": 17518,
+    "sites_incomplete_draws": 20592,
+    "sites_bad_polarity": 0,
+    "draws_missing_interval": 0,
+    "draws_unexpected_interval": 0,
+    "draws_bad_polarity": 0,
+    "draws_age_filtered": 10998,
+    "draws_table_unavailable": 0,
+    "draws_numerical_failure": 461446,
+    "sites_multiple_mapped": 3940,
+    "sites_age_clipped_low": 39745,
+    "sites_panel_below_min_n": 0,
+    "chrom": "simulation"
+  },
+  "settings": {
+    "epsilon": 0.01,
+    "chrom": "simulation",
+    "mutation_age_max": 3.0
+  }
+}

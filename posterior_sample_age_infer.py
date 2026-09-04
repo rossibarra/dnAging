@@ -105,11 +105,16 @@ def _attr(obj, *names):
 
 def _chunk_sites(chunk):
     chrom = np.asarray(_attr(chunk, "chromosomes", "chrom"))
-    pos = np.asarray(getattr(chunk, "positions"), dtype=np.int64)
-    rb = np.array([_BASE.get(str(a), _MISS) for a in np.asarray(getattr(chunk, "ref"))],
-                  dtype=np.int16)
-    ab = np.array([_BASE.get(str(a), _MISS) for a in np.asarray(getattr(chunk, "alt"))],
-                  dtype=np.int16)
+    pos = np.asarray(_attr(chunk, "positions", "position"), dtype=np.int64)
+    if hasattr(chunk, "ref_index") and hasattr(chunk, "alt_index"):
+        # Current normalizeTE VcfChunk objects expose already-encoded bases.
+        rb = np.asarray(chunk.ref_index, dtype=np.int16)
+        ab = np.asarray(chunk.alt_index, dtype=np.int16)
+    else:
+        rb = np.array([_BASE.get(str(a), _MISS)
+                       for a in np.asarray(getattr(chunk, "ref"))], dtype=np.int16)
+        ab = np.array([_BASE.get(str(a), _MISS)
+                       for a in np.asarray(getattr(chunk, "alt"))], dtype=np.int16)
     return chrom, pos, rb, ab
 
 
@@ -124,7 +129,7 @@ def _chunk_codes(chunk, names, want):
 def _resolve_rows(store, chrom, pos):
     from normalize_tes.snp_position_resolution import resolve_native_position_requests
     res = resolve_native_position_requests(store, np.asarray(chrom).astype(str),
-                                           np.asarray(pos, dtype=np.int64), policy="skip")
+                                           np.asarray(pos, dtype=np.int64), policy="drop")
     rows = np.asarray(_attr(res, "rows", "row_indices"), dtype=np.int64)
     mask = getattr(res, "eligible", None)
     if mask is not None:
@@ -254,6 +259,8 @@ def read_ancient(vcf_paths, samples, chrom, include, chunk_records, quiet):
         for names, chunk, _c, _d in read_vcf_chunks(
                 Path(vcf), sample_filter=(list(samples) if samples else None),
                 chunk_records=chunk_records, multiallelic="skip", progress=not quiet):
+            if chunk is None:                  # normalizeTE header/final-summary event
+                continue
             names = list(names)
             want = list(samples) if samples else names
             if order is None:
@@ -290,6 +297,8 @@ def read_panel_alt(vcf_paths, chrom, chunk_records, quiet, n_expected):
         for names, chunk, _c, _d in read_vcf_chunks(
                 Path(vcf), sample_filter=None, chunk_records=chunk_records,
                 multiallelic="skip", progress=not quiet):
+            if chunk is None:                  # normalizeTE header/final-summary event
+                continue
             _chrom, pos, rb, ab = _chunk_sites(chunk)
             codes = np.asarray(getattr(chunk, "codes"))
             # sum ALT alleles and called alleles across all panel samples
