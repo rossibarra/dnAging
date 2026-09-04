@@ -76,6 +76,11 @@ Notes:
 - Chromosome labels must match across the store, both VCFs, and the ARG.
 - The model is **neutral** (see MATH.md §7); restrict to a neutral site set with
   `--include-positions` if selection is a worry.
+- The across-site product is a PRF-style **composite likelihood**: it retains all
+  quality-controlled SNPs and does not pretend that local LD is absent. Point
+  estimates use the one-site marginal model, while posterior intervals are nominal
+  unless calibrated by genome-scale simulation or a linkage-aware block bootstrap.
+  See MATH.md §6.
 
 ---
 

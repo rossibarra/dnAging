@@ -15,26 +15,40 @@ both cheap:
           VCF), oriented by the per-draw polarity
 
 We look up phi = E[p_T | d0, t_i] (interpolated over the age grid and averaged
-over the store's age interval), track it as the ALT-allele frequency so polarity
-flips are handled consistently, average over draws -> phibar_alt(T), then form the
-two-sided likelihood for every sample. No D(T)/L(T), no tree walk. With r the
+over the store's age interval) and track it as the ALT-allele frequency so polarity
+flips are handled consistently. Draws are NOT averaged into a per-site phibar: one
+ARG draw is a chromosome-wide genealogy, so it fixes the mutation age at every site
+at once, and the sites are conditionally independent only GIVEN the draw. We
+therefore carry a separate log-likelihood per draw, multiply every site into it,
+and marginalise the draws only at the end. No D(T)/L(T), no tree walk. With r the
 per-allele probability of OBSERVING ALT, r = eps + (1-2eps) p_T,
 
     haploid  (--ploidy 1): P(ALT) = E[r],  P(REF) = 1 - E[r]
     diploid  (--ploidy 2): P(2) = E[r^2], P(1) = 2(E[r]-E[r^2]), P(0) = 1-2E[r]+E[r^2]
-    log p(T | D_s) = log p(T) + sum_i log l_{s,i}(T)
+    log L_g(T)     = sum_i log l_{s,i}^(g)(T)         # within one draw g
+    log L(T)       = logsumexp_g log L_g(T) - log M   # marginalise the M draws
+    log p(T | D_s) = log p(T) + log L(T)
+
+Averaging phi over draws per site and then multiplying over sites is a DIFFERENT
+and wrong quantity -- it discards the across-site coupling an ARG draw carries.
+See tests/test_draw_marginalization.py and MATH.md eq. (11).
 
 P(dosage) is quadratic in r, so --ploidy 2 also needs the conditional SECOND moment
 E[p_T^2 | d0, t_i] (the table's 'table2' plane): E[p_T^2] != E[p_T]^2.
 
-ARG draws are averaged into phibar per site; chromosomes are independent given T,
-so run one chromosome per invocation and combine chromosomes by summing per-sample
-log-marginals (--merge).
+A site is used only if EVERY draw supplies exactly one branch interval and passes
+the polarity, age-cutoff, table-coverage and numerical checks. The mixture above is
+over all M draws with equal weight, so keeping a site that survived in only a
+subset would silently change the estimand to an expectation conditional on that
+subset (such sites are counted as sites_incomplete_draws). Chromosomes are
+independent given T, so run one chromosome per invocation and combine chromosomes
+by summing per-sample log-marginals (--merge).
 
 The T grid is taken from the frequency table (so precompute and inference share
 one grid). Only sites present+called in the ancient VCF contribute for a sample;
-the (1-phibar) term only on confident homozygous-REF calls. Sites monomorphic in
-the 26 panel (d0 = 0 or n) are skipped (no informative trajectory).
+the REF term (1 - E[r]) enters only where the site is called and carries no ALT.
+Sites monomorphic in the panel (d0 = 0 or n) are skipped (no informative
+trajectory).
 
 Outputs (into --output/)
 ------------------------
@@ -348,10 +362,18 @@ def run_chromosome(args, tab):
     polarity, _pm = open_pol(args.draw_polarity, store)
 
     N = len(order); G = len(grid)
-    ll = np.zeros((N, G))
+    # Each ARG draw is one chromosome-wide genealogy.  Preserve that joint draw
+    # identity while multiplying site likelihoods; marginalising site by site
+    # would destroy the across-site dependence carried by an ARG draw.
+    ll_by_draw = np.zeros((N, n_draws, G))
     stats = {"n_samples": N, "sites_used": 0, "sites_no_panel": 0,
              "sites_monomorphic": 0, "sites_allele_mismatch": 0,
              "sites_age_filtered": 0, "sites_numerical_failure": 0,
+             "sites_incomplete_draws": 0, "sites_bad_polarity": 0,
+             "draws_missing_interval": 0, "draws_unexpected_interval": 0,
+             "draws_bad_polarity": 0,
+             "draws_age_filtered": 0, "draws_table_unavailable": 0,
+             "draws_numerical_failure": 0,
              "sites_multiple_mapped": 0, "sites_age_clipped_low": 0,
              "sites_panel_below_min_n": 0,
              "chrom": args.chrom}
@@ -391,15 +413,36 @@ def run_chromosome(args, tab):
             continue
         anc = _ancestral_per_draw(polarity, row, n_draws)
 
-        phi_sum = np.zeros(G); phi2_sum = np.zeros(G); cnt = 0
-        age_rejected = numerical_rejected = low_clipped = False
-        for d in np.unique(draw_id):
-            a = int(anc[d]) if d < len(anc) else _MISS
+        # A posterior expectation is defined over all requested ARG draws.  Do
+        # not silently change it to an expectation conditional on the subset
+        # for which this site survived mapping/filtering.  Missing contributions
+        # also cannot safely be imputed as zero (e.g. missing polarity does not
+        # imply zero ALT frequency), so use only complete-draw sites.
+        present_draws = set(int(d) for d in np.unique(draw_id)
+                            if 0 <= int(d) < n_draws)
+        missing_draws = n_draws - len(present_draws)
+        unexpected_draws = len(set(int(d) for d in np.unique(draw_id)
+                                   if int(d) < 0 or int(d) >= n_draws))
+        if missing_draws or unexpected_draws:
+            stats["sites_incomplete_draws"] += 1
+            stats["draws_missing_interval"] += missing_draws
+            stats["draws_unexpected_interval"] += unexpected_draws
+            continue
+
+        phi_by_draw = np.zeros((n_draws, G))
+        phi2_by_draw = np.zeros((n_draws, G))
+        age_rejected = polarity_rejected = table_rejected = False
+        numerical_rejected = low_clipped = False
+        for d in range(n_draws):
+            a = int(anc[d])
             if a == _MISS or a not in (rb, ab):
+                stats["draws_bad_polarity"] += 1
+                polarity_rejected = True
                 continue
             m = draw_id == d
             t_lo = float(below[m].min()); t_hi = float(above[m].max())
             if t_lo >= mutation_age_max_generations:
+                stats["draws_age_filtered"] += 1
                 age_rejected = True
                 continue
             if t_hi > mutation_age_max_generations:
@@ -409,57 +452,67 @@ def run_chromosome(args, tab):
             d0 = ca if a == rb else n_called - ca
             phi = phi_lookup(tab, d0, t_lo, t_hi, n_called=n_called)
             if phi is None:
+                stats["draws_table_unavailable"] += 1
+                table_rejected = True
                 continue
             phi2 = (phi_lookup(tab, d0, t_lo, t_hi, key="table2", n_called=n_called)
                     if need2 else None)
             if not np.all(np.isfinite(phi)) or (phi2 is not None and
                                                 not np.all(np.isfinite(phi2))):
+                stats["draws_numerical_failure"] += 1
                 numerical_rejected = True
                 continue
             if a != rb:                        # REF is derived; ALT freq = 1 - E[p_T|c_ref]
                 if phi2 is not None:           # E[(1-X)^2] = 1 - 2 E[X] + E[X^2]
                     phi2 = 1.0 - 2.0 * phi + phi2
                 phi = 1.0 - phi
-            phi_sum += np.clip(phi, 0.0, 1.0); cnt += 1
+            phi_by_draw[d] = np.clip(phi, 0.0, 1.0)
             if phi2 is not None:
-                phi2_sum += np.clip(phi2, 0.0, 1.0)
-        if cnt == 0:
+                phi2_by_draw[d] = np.clip(phi2, 0.0, 1.0)
+        if age_rejected or polarity_rejected or table_rejected or numerical_rejected:
             if age_rejected:
                 stats["sites_age_filtered"] += 1
+            if polarity_rejected:
+                stats["sites_bad_polarity"] += 1
             if numerical_rejected:
                 stats["sites_numerical_failure"] += 1
+            stats["sites_incomplete_draws"] += 1
             continue
         if low_clipped:            # site IS used; renormalised onto the true branch
             stats["sites_age_clipped_low"] += 1
-        phibar = phi_sum / cnt
         eps = args.epsilon
-        # per-ALT-allele observation probability r = (1-eps) X + eps (1-X); averaging
-        # it over the ALT frequency X needs only the first moment: E[r] = eps + (1-2eps) E[X]
-        qA = np.clip((1 - eps) * phibar + eps * (1 - phibar), 1e-300, 1.0)
+        # Per-ALT-allele observation probability r = (1-eps) X + eps (1-X).
+        # Keep its likelihood separate by draw until all sites are accumulated.
+        qA = np.clip((1 - eps) * phi_by_draw + eps * (1 - phi_by_draw),
+                     1e-300, 1.0)
         logA = np.log(qA); logR = np.log(np.clip(1.0 - qA, 1e-300, 1.0))
         if args.ploidy == 1:
             # haploid / pseudo-haploid: ONE Bernoulli(E[r]) per called site (collapse
             # hom calls); log-lik = a logqA + (c-a) log(1-qA) with a,c in {0,1}
             a_eff = (alt_ct >= 1).astype(np.float64)
             c_eff = (cl >= 1).astype(np.float64)
-            ll += np.outer(a_eff, logA) + np.outer(c_eff - a_eff, logR)
+            ll_by_draw += (a_eff[:, None, None] * logA[None, :, :]
+                           + (c_eff - a_eff)[:, None, None] * logR[None, :, :])
         else:
             # true diploid genotypes: the two alleles are iid Bernoulli(r) only GIVEN
             # the latent frequency X, and P(dosage) is QUADRATIC in r, so plugging the
             # mean in would be wrong (E[r^2] != E[r]^2); use the second moment.
-            phi2bar = phi2_sum / cnt
-            Er2 = np.clip(eps ** 2 + 2 * eps * (1 - 2 * eps) * phibar
-                          + (1 - 2 * eps) ** 2 * phi2bar, 0.0, 1.0)
+            Er2 = np.clip(eps ** 2 + 2 * eps * (1 - 2 * eps) * phi_by_draw
+                          + (1 - 2 * eps) ** 2 * phi2_by_draw, 0.0, 1.0)
             lg = np.log(np.clip(np.stack([1.0 - 2.0 * qA + Er2,   # P(dosage=0) = E[(1-r)^2]
                                           2.0 * (qA - Er2),       # P(dosage=1) = 2E[r(1-r)]
                                           Er2]), 1e-300, 1.0))    # P(dosage=2) = E[r^2]
             dip = cl >= 2                      # both alleles called: full genotype
-            ll[dip] += lg[np.clip(alt_ct[dip].astype(np.int64), 0, 2)]
+            ll_by_draw[dip] += lg[np.clip(alt_ct[dip].astype(np.int64), 0, 2)]
             half = cl == 1                     # partially-called: one Bernoulli(E[r])
             if half.any():
-                ll[half] += np.where((alt_ct[half] >= 1)[:, None], logA, logR)
+                ll_by_draw[half] += np.where(
+                    (alt_ct[half] >= 1)[:, None, None],
+                    logA[None, :, :], logR[None, :, :])
         stats["sites_used"] += 1
 
+    peak = np.max(ll_by_draw, axis=1)
+    ll = peak + np.log(np.mean(np.exp(ll_by_draw - peak[:, None, :]), axis=1))
     return order, grid, ll, stats
 
 

@@ -8,7 +8,7 @@ are deliberately not renumbered.
 
 ## A. Likelihood composition — **OPEN, the only genuine decision left**
 
-`review_2.md` findings 1, 2 and 3 are three faces of one question: how the
+`review_2.md` findings 1 and 3 are two faces of one question: how the
 per-site, per-draw quantities are combined into a chromosome likelihood. They
 should be decided together, because a fix to any one changes the others.
 
@@ -35,12 +35,6 @@ so a logsumexp mixture over draws collapses onto a single dominant draw — effe
 sample size approaching 1. A naive fix trades bias for variance. `TODO.md`'s msprime
 harness would supply real correlated draws to measure both.
 
-**2. The across-site product is an unstated composite likelihood.** Eq. (1) takes
-$\prod_i$ over ascertained sites, which assumes independence given $T$. Linked sites
-are not independent. Unlike finding 1, this error has a *known* direction: a
-composite likelihood over positively correlated data yields overly narrow
-posteriors. This needs saying in MATH.md whatever is decided about the ordering.
-
 **3. The average is over *surviving* draws, not $M$.** `cnt` counts only draws that
 pass polarity, age-cutoff, table-coverage and numerical-stability filters, and the
 result is divided by `cnt` — an expectation conditional on retention, not eq. (11)'s
@@ -49,8 +43,8 @@ explicitly age- and frequency-dependent, so the filters correlate with the quant
 being averaged. Partial draw loss is also invisible: `sites_age_filtered` and
 `sites_numerical_failure` increment only when *no* draw survives.
 
-**The decision.** Either (a) accept all three as a documented composite/conditional
-likelihood, stating the approximations and their known or unknown directions, or
-(b) restructure to per-draw accumulation — which requires solving the ESS problem
+**The decision.** Either (a) accept both as a documented conditional likelihood,
+stating the approximations and their known or unknown directions, or (b) restructure
+to per-draw accumulation — which requires solving the ESS problem
 and deciding whether a site with any invalid draw is dropped entirely. At minimum,
 record per-reason draw-rejection fractions so the conditioning is measurable.
