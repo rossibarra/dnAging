@@ -128,19 +128,16 @@ $$
 $$
 
 where $X(\cdot)$ is the neutral population-frequency trajectory. The second moment
-is tabulated alongside the first (it costs one extra moment order, [section 5](#5-exact-computation-via-the-neutral-moment-recursion)) and is what
-makes the diploid likelihood (A1) correct. In simulation the first moment
-captures the survival bias. Take a present count of $d_0=1$ in $n=26$ (3.85%) and a
-constant $N_e=100{,}000$ — the size simulated in
-[ANCIENT_TEST.md](./ANCIENT_TEST.md). Looking back 10,000 generations, an allele
-that arose 20,000 generations ago has expected frequency 3.5%, while one that arose
-120,000 generations ago has 9.8%: nearly three times higher at the same present
-frequency, purely from having had to survive longer. This is a
-classical object: Griffiths (2003, eq. 27) gives the joint density of a mutation's
-population frequency and its age, conditioned on its count in a sample of $n$
-genes — exactly the conditioning we use, with that count being $d_0$. What we need
-is one step further: the frequency at an intermediate time $T$ rather than at the
-present, which we obtain from the same diffusion via its moments
+is tabulated alongside the first (it costs one extra moment order,
+[section 5](#5-exact-computation-via-the-neutral-moment-recursion)) and is what
+makes the diploid likelihood (A1) correct.
+
+The conditional law in (4) is a classical object: Griffiths (2003, eq. 27) gives
+the joint density of a mutation's population frequency and its age, conditioned on
+its count in a sample of $n$ genes — exactly the conditioning we use, with that
+count being $d_0$. What we need is one step further: the frequency at an
+intermediate time $T$ rather than at the present, which we obtain from the same
+diffusion via its moments
 ([section 5](#5-exact-computation-via-the-neutral-moment-recursion)).
 
 ---
