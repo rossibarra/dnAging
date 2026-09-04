@@ -37,12 +37,15 @@ order:
    `sites_multiple_mapped`.
 4. ~~`--epsilon` is unvalidated~~ — **RESOLVED.** It is validated as
    $0 \le \varepsilon < 0.5$ and defaults to `0.01` per ancient-VCF allele.
-5. **The prior file is unvalidated** — no check for two columns, sorted ages, finite
-   values, or non-negative density.
+5. ~~The prior file is unvalidated~~ — **RESOLVED.** It now requires exactly two
+   columns, at least two rows, finite strictly increasing unique ages, finite
+   non-negative densities, and at least one positive density.
 6. **`merge()` checks sample order but not the $T$ grids or array dimensions**, so
    mismatched chromosome parts can be summed silently.
-7. **`read_panel_alt` requires the panel fully called** (`tot_called == n_expected`)
-   and drops any partially-called site without counting it in `stats`.
+7. ~~`read_panel_alt` requires the panel fully called~~ — **RESOLVED.** The table
+   contains separate moment planes for every called-panel size from `--min-n`
+   (default 20) through 26. Inference selects the exact $n$ and drops smaller panels,
+   counted as `sites_panel_below_min_n`.
 8. **Both SLURM scripts source a missing `slurm/slurm_conda_bootstrap.sh`** and
    suppress the failure with `|| true`.
 9. **No automated test suite** — **IN PROGRESS.** A `tests/` suite is being built

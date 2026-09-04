@@ -191,7 +191,10 @@ exponential, $M(\tau) = e^{B\tau}\,M(0)$; a new mutation starts from a single co
 $M_k(0) = \varepsilon_0^{\,k}$ with $\varepsilon_0 = 1/(2N_e(t_i))$.
 
 **Sampling to the observed count.** We observe not $x_0$ but a **count**
-$d_0 \sim \text{Binom}(n, x_0)$ in the $n$-haplotype panel. The binomial pmf is a
+$d_0 \sim \text{Binom}(n, x_0)$ among the $n$ called panel haplotypes. Because $n$
+can vary with panel missingness, the implementation tabulates each
+$n\in\{n_{\min},\ldots,26\}$ separately and drops sites below `--min-n` (default
+20). The binomial pmf is a
 polynomial in $x_0$ of degree $n$,
 
 $$

@@ -57,3 +57,52 @@ def test_epsilon_defaults_to_one_percent_and_is_validated():
 def test_multiple_mapping_detection():
     assert not inf._is_multiply_mapped(np.array([0, 1, 2]))
     assert inf._is_multiply_mapped(np.array([0, 1, 1, 2]))
+
+
+def test_prior_validation_accepts_valid_zero_density(tmp_path):
+    prior = tmp_path / "prior.tsv"
+    np.savetxt(prior, [[0, 0], [10, 1], [20, 0]])
+    args = type("Args", (), {"prior_file": prior})()
+    got = inf.load_prior(args, np.array([0.0, 10.0, 20.0]))
+    assert np.isfinite(got).all()
+    assert got[1] == 0.0
+
+
+def test_prior_validation_rejects_malformed_input(tmp_path):
+    bad_arrays = (
+        [[0, 1]],                         # fewer than two rows
+        [[0, 1, 2], [1, 1, 2]],          # wrong number of columns
+        [[0, 1], [np.nan, 1]],           # non-finite
+        [[10, 1], [0, 1]],               # unsorted ages
+        [[0, 1], [0, 2]],                # duplicate ages
+        [[0, 1], [10, -1]],              # negative density
+        [[0, 0], [10, 0]],               # no positive mass
+    )
+    args = type("Args", (), {})()
+    for i, values in enumerate(bad_arrays):
+        prior = tmp_path / f"bad-{i}.tsv"
+        np.savetxt(prior, values)
+        args.prior_file = prior
+        try:
+            inf.load_prior(args, np.array([0.0, 10.0]))
+        except SystemExit:
+            pass
+        else:
+            raise AssertionError(f"malformed prior {i} was accepted")
+
+
+def test_variable_panel_size_lookup_selects_exact_n():
+    age = np.array([100.0, 1000.0])
+    # n_panel=20 returns 0.2; n_panel=21 returns 0.8 for every d0/T.
+    table = np.empty((2, 21, 2, 2), dtype=float)
+    table[0].fill(0.2); table[1].fill(0.8)
+    tab = {"table": table, "d0": np.arange(1, 22), "age": age,
+           "Tgrid": np.array([0.0, 10.0]), "n_sample": 21,
+           "n_panel": np.array([20, 21])}
+    assert np.allclose(inf.phi_lookup(tab, 5, 200, 200, n_called=20), 0.2)
+    assert np.allclose(inf.phi_lookup(tab, 5, 200, 200, n_called=21), 0.8)
+
+
+def test_min_n_defaults_to_twenty():
+    args = inf.parse_args(["--freq-table", "x", "--output", "y", "--merge", "z"])
+    assert args.min_n == 20

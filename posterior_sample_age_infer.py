@@ -150,6 +150,8 @@ def load_table(path):
     d = np.load(path, allow_pickle=True)
     t = {"table": d["table"], "d0": d["d0"], "age": d["age"],
          "Tgrid": d["Tgrid"], "n_sample": int(d["n_sample"])}
+    t["n_panel"] = (d["n_panel"] if "n_panel" in d.files else
+                    np.array([t["n_sample"]], dtype=np.int64))
     if "age_tau" in d.files:
         t["age_tau"] = d["age_tau"]
     if "table2" in d.files:                      # E[p_T^2|d0,t_i]: diploid only
@@ -157,7 +159,7 @@ def load_table(path):
     return t
 
 
-def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table"):
+def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table", n_called=None):
     """E[p_T | d0, t_i] as a T-grid vector, marginalised over the mutation age t_i.
 
     Under the infinite-sites model the mutation age is UNIFORM on its branch
@@ -172,11 +174,21 @@ def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table"):
     applies. (Nonzero values for T inside [t_lo, t_hi] are correct: the mutation
     age is uncertain within the branch.)
     """
-    if d0 < 1 or d0 > tab["n_sample"] - 1:      # monomorphic in panel -> no info
+    n_called = tab["n_sample"] if n_called is None else int(n_called)
+    if d0 < 1 or d0 > n_called - 1:             # monomorphic in called panel -> no info
         return None
     age = tab["age"]; Tg = tab["Tgrid"]
     la = np.log(np.clip(age, 1e-9, None))
-    T = tab[key][d0 - 1]                         # (n_age, n_T)
+    plane = tab[key]
+    if plane.ndim == 4:
+        matches = np.flatnonzero(np.asarray(tab["n_panel"]) == n_called)
+        if matches.size != 1:
+            return None
+        T = plane[int(matches[0]), d0 - 1]
+    else:                                        # legacy fixed-n table
+        if n_called != tab["n_sample"]:
+            return None
+        T = plane[d0 - 1]                        # (n_age, n_T)
 
     def row_at(a):                               # table row at age a, log-age interp
         k = np.interp(np.log(max(a, 1e-9)), la, np.arange(len(age)))
@@ -235,7 +247,7 @@ def read_ancient(vcf_paths, samples, chrom, include, chunk_records, quiet):
 
 
 def read_panel_alt(vcf_paths, chrom, chunk_records, quiet, n_expected):
-    """pos -> (ALT count, ref code, alt code) among the panel (n_expected called).
+    """pos -> (ALT count, called count, ref code, alt code) among the panel.
 
     The ref/alt codes are kept so inference can check the panel's orientation
     against the ancient VCF's: joining on position alone would silently read the
@@ -259,8 +271,10 @@ def read_panel_alt(vcf_paths, chrom, chunk_records, quiet, n_expected):
             for j in range(len(pos)):
                 if chrom is not None and str(_chrom[j]) != str(chrom):
                     continue
-                if int(tot_called[j]) == n_expected:      # full panel called
-                    c_alt[int(pos[j])] = (int(tot_alt[j]), int(rb[j]), int(ab[j]))
+                nc = int(tot_called[j])
+                if 0 < nc <= n_expected:
+                    c_alt[int(pos[j])] = (int(tot_alt[j]), nc,
+                                          int(rb[j]), int(ab[j]))
     return c_alt
 
 
@@ -281,6 +295,12 @@ def run_chromosome(args, tab):
                          f"not extend beyond --mutation-age-max={args.mutation_age_max:g}")
     mutation_age_max_generations = float(np.interp(
         args.mutation_age_max, age_tau, np.asarray(tab["age"], float)))
+    available_n = set(int(v) for v in np.asarray(tab["n_panel"]))
+    needed_n = set(range(args.min_n, n + 1))
+    if not needed_n.issubset(available_n):
+        missing = sorted(needed_n - available_n)
+        raise SystemExit(f"--freq-table lacks called-panel sizes required by "
+                         f"--min-n={args.min_n}: {missing}; rebuild the table")
     need2 = args.ploidy == 2                     # diploid genotypes need E[p_T^2]
     if need2 and "table2" not in tab:
         raise SystemExit("--ploidy 2 needs the conditional second-moment plane "
@@ -315,6 +335,7 @@ def run_chromosome(args, tab):
              "sites_monomorphic": 0, "sites_allele_mismatch": 0,
              "sites_age_filtered": 0, "sites_numerical_failure": 0,
              "sites_multiple_mapped": 0,
+             "sites_panel_below_min_n": 0,
              "chrom": args.chrom}
 
     # resolve store rows for all ancient positions
@@ -328,7 +349,10 @@ def run_chromosome(args, tab):
             continue
         if pos not in c_alt:
             stats["sites_no_panel"] += 1; continue
-        ca, p_rb, p_ab = c_alt[pos]
+        ca, n_called, p_rb, p_ab = c_alt[pos]
+        if n_called < args.min_n:
+            stats["sites_panel_below_min_n"] += 1
+            continue
         rb, ab, alt_ct, cl = calls[pos]
         # harmonise the panel ALT count to the ANCIENT VCF's REF/ALT orientation
         # BEFORE testing it: the two files are joined on position alone
@@ -337,10 +361,10 @@ def run_chromosome(args, tab):
         if p_rb == rb and p_ab == ab:            # same orientation
             pass
         elif p_rb == ab and p_ab == rb:          # REF/ALT swapped between the VCFs
-            ca = n - ca
+            ca = n_called - ca
         else:                                    # different alleles, or an unknown base
             stats["sites_allele_mismatch"] += 1; continue
-        if ca <= 0 or ca >= n:
+        if ca <= 0 or ca >= n_called:
             stats["sites_monomorphic"] += 1; continue
 
         below, above, draw_id = _row_intervals(store, row)
@@ -362,11 +386,12 @@ def run_chromosome(args, tab):
                 continue
             if t_hi > mutation_age_max_generations:
                 t_hi = mutation_age_max_generations
-            d0 = ca if a == rb else n - ca    # ALT derived -> d0 = ALT count, else REF count
-            phi = phi_lookup(tab, d0, t_lo, t_hi)
+            d0 = ca if a == rb else n_called - ca
+            phi = phi_lookup(tab, d0, t_lo, t_hi, n_called=n_called)
             if phi is None:
                 continue
-            phi2 = phi_lookup(tab, d0, t_lo, t_hi, key="table2") if need2 else None
+            phi2 = (phi_lookup(tab, d0, t_lo, t_hi, key="table2", n_called=n_called)
+                    if need2 else None)
             if not np.all(np.isfinite(phi)) or (phi2 is not None and
                                                 not np.all(np.isfinite(phi2))):
                 numerical_rejected = True
@@ -418,7 +443,24 @@ def run_chromosome(args, tab):
 
 def load_prior(args, grid):
     if args.prior_file:
-        d = np.loadtxt(args.prior_file); tp, pp = d[:, 0], np.clip(d[:, 1], 1e-300, None)
+        try:
+            d = np.loadtxt(args.prior_file, ndmin=2)
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f"Could not read --prior-file {args.prior_file}: {exc}") from exc
+        if d.ndim != 2 or d.shape[1] != 2:
+            raise SystemExit("--prior-file must contain exactly two columns: age density")
+        if d.shape[0] < 2:
+            raise SystemExit("--prior-file must contain at least two rows")
+        if not np.all(np.isfinite(d)):
+            raise SystemExit("--prior-file ages and densities must all be finite")
+        tp, pp = d[:, 0], d[:, 1]
+        if not np.all(np.diff(tp) > 0):
+            raise SystemExit("--prior-file ages must be strictly increasing and unique")
+        if np.any(pp < 0):
+            raise SystemExit("--prior-file densities must be non-negative")
+        if not np.any(pp > 0):
+            raise SystemExit("--prior-file must contain at least one positive density")
+        pp = np.clip(pp, 1e-300, None)
         return np.log(np.interp(grid, tp, pp, left=pp[0], right=pp[-1]))
     return np.zeros_like(grid)
 
@@ -512,6 +554,8 @@ def parse_args(argv=None):
                         "diploid, or 2 would double-count each site.")
     p.add_argument("--epsilon", type=float, default=0.01,
                    help="per-ALLELE ancient-VCF genotype-error probability [0.01].")
+    p.add_argument("--min-n", type=int, default=20,
+                   help="drop panel sites with fewer than this many called haplotypes [20].")
     p.add_argument("--mutation-age-max", type=float, default=3.0,
                    help="maximum mutation age in diffusion units tau; older mutation-"
                         "age mass is discarded and crossing intervals are truncated "
@@ -524,6 +568,8 @@ def parse_args(argv=None):
     args = p.parse_args(argv)
     if not 0.0 <= args.epsilon < 0.5:
         p.error("--epsilon must satisfy 0 <= epsilon < 0.5")
+    if args.min_n < 2:
+        p.error("--min-n must be at least 2")
     if args.mutation_age_max <= 0:
         p.error("--mutation-age-max must be positive")
     if args.merge is None:

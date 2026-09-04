@@ -94,6 +94,7 @@ Notes:
 python precompute_freq_trajectory_moments.py \
     --ne coalescence-ne-estimates.tsv \
     --n-sample 26 \
+    --min-n 20 \
     --t-min 0 --t-max 30000 --n-t 300 \
     --age-min 10 --age-max 4e7 --n-age 100 \
     --output freq_table.npz
@@ -115,6 +116,7 @@ python posterior_sample_age_infer.py \
     --vcf ancient.vcf.gz \
     --chrom chr1 \
     --ploidy 1 \
+    --min-n 20 \
     --mutation-age-max 3 \
     --epsilon 0.01 \
     --output results/Tage/chr1
@@ -182,8 +184,13 @@ Ages are in **ARG generations**; convert to years with your generation time.
   numerical-reliability cutoff, not a claim that every older mutation is biologically
   uninformative.
 - `--include-positions` — restrict to a QC'd / approximately-neutral site set.
-- `--prior-file` — `T density` prior (two columns), interpolated onto the grid;
-  default uniform.
+- `--min-n` — minimum number of called ARG-panel haplotypes required at a site,
+  default `20`. Precomputation builds separate moment planes for every
+  $n=20,\ldots,26$; inference uses the plane matching the site's exact called count
+  and reports smaller panels as `sites_panel_below_min_n`.
+- `--prior-file` — `T density` prior with exactly two columns and at least two rows,
+  interpolated onto the grid; ages must be finite, unique, and strictly increasing,
+  while densities must be finite, non-negative, and not all zero. Default uniform.
 - `--samples-file` — run a subset of the ancient samples.
 
 ---

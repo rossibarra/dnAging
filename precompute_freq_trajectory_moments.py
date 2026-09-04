@@ -65,8 +65,9 @@ posterior_mean) as a step function.
 
 Output (.npz, --output)
 -----------------------
-    table   float32 (n_d0, n_age, n_T)   E[p_T | d0, t_i]    (0 where T>=t_i)
-    table2  float32 (n_d0, n_age, n_T)   E[p_T^2 | d0, t_i]  (0 where T>=t_i)
+    table   float32 (n_n, n_d0, n_age, n_T)   E[p_T | n,d0,t_i]
+    table2  float32 (n_n, n_d0, n_age, n_T)   E[p_T^2 | n,d0,t_i]
+    n_panel int     (n_n,)                 called-panel sizes min_n..n_sample
     d0      int     (n_d0,)               present counts 1..n
     age     float   (n_age,)              mutation ages t_i (generations)
     Tgrid   float   (n_T,)                sample ages T (generations)
@@ -250,31 +251,34 @@ class MomentEngine:
 
 def build_table(args):
     tau_of_t, ne_of_t, windows = load_demography(args.ne, series=args.ne_series)
-    n = args.n_sample
-    eng = MomentEngine(n)
+    panel_sizes = np.arange(args.min_n, args.n_sample + 1, dtype=np.int64)
     Tgrid = (np.loadtxt(args.t_grid) if args.t_grid else
              np.linspace(args.t_min, args.t_max, args.n_t)).astype(np.float64)
     age = np.geomspace(max(args.age_min, 1.0), args.age_max, args.n_age)
 
     tauT = np.array([tau_of_t(T) for T in Tgrid])
-    table = np.full((n, args.n_age, len(Tgrid)), np.nan, dtype=np.float32)
-    table2 = np.full((n, args.n_age, len(Tgrid)), np.nan, dtype=np.float32)
-    for ia, t_i in enumerate(age):
-        tau_i = tau_of_t(t_i)
-        eps = 1.0 / (2.0 * float(ne_of_t(t_i)[0]))
-        for id0, d0 in enumerate(range(1, n + 1)):
-            # both moments per (d0, t_i, T) in one pass: they share the matrix exponentials
-            row = np.array([eng.Emoments(d0, tau_i, tt, eps) for tt in tauT])
-            table[id0, ia] = row[:, 0]; table2[id0, ia] = row[:, 1]
-        if not args.quiet:
-            print(f"[age {ia+1}/{args.n_age}] t_i={t_i:.3g}  tau_i={tau_i:.3g}",
-                  file=sys.stderr)
+    shape = (len(panel_sizes), args.n_sample, args.n_age, len(Tgrid))
+    table = np.full(shape, np.nan, dtype=np.float32)
+    table2 = np.full(shape, np.nan, dtype=np.float32)
+    for inx, n in enumerate(panel_sizes):
+        eng = MomentEngine(int(n))
+        for ia, t_i in enumerate(age):
+            tau_i = tau_of_t(t_i)
+            eps = 1.0 / (2.0 * float(ne_of_t(t_i)[0]))
+            for id0, d0 in enumerate(range(1, n + 1)):
+                row = np.array([eng.Emoments(d0, tau_i, tt, eps) for tt in tauT])
+                table[inx, id0, ia] = row[:, 0]
+                table2[inx, id0, ia] = row[:, 1]
+            if not args.quiet:
+                print(f"[n={n} age {ia+1}/{args.n_age}] t_i={t_i:.3g} "
+                      f"tau_i={tau_i:.3g}", file=sys.stderr)
     age_tau = np.array([tau_of_t(t_i) for t_i in age], dtype=np.float64)
     if age_tau[-1] <= 3.0:
         raise SystemExit(f"--age-max={args.age_max:g} reaches only tau={age_tau[-1]:.6g}; "
                          "increase --age-max so the table extends beyond the default "
                          "inference cutoff tau=3")
-    return table, table2, np.arange(1, n + 1), age, age_tau, Tgrid, windows
+    return (table, table2, np.arange(1, args.n_sample + 1), panel_sizes, age,
+            age_tau, Tgrid, windows)
 
 
 def main(argv=None):
@@ -289,6 +293,8 @@ def main(argv=None):
     p.add_argument("--ne-series", default="posterior_mean")
     p.add_argument("--n-sample", type=int, default=26,
                    help="sample chromosomes (the ARG panel) [26].")
+    p.add_argument("--min-n", type=int, default=20,
+                   help="smallest called-panel size to precompute [20].")
     p.add_argument("--t-min", type=float, default=0.0)
     p.add_argument("--t-max", type=float, default=30000.0,
                    help="max sample age T (generations) [30000].")
@@ -303,15 +309,18 @@ def main(argv=None):
     p.add_argument("--output", type=Path, required=True, help="output .npz")
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)
+    if not 2 <= args.min_n <= args.n_sample:
+        p.error("--min-n must satisfy 2 <= min-n <= n-sample")
 
-    table, table2, d0, age, age_tau, Tgrid, windows = build_table(args)
+    table, table2, d0, n_panel, age, age_tau, Tgrid, windows = build_table(args)
     meta = {"n_sample": args.n_sample, "ne_file": str(args.ne),
             "ne_series": args.ne_series, "method": "neutral WF moment recursion",
             "ne_windows": int(len(windows[0])),
-            # format 3 adds age_tau for diffusion-time filtering during inference
-            "format_version": 3, "planes": ["table (E[p_T])", "table2 (E[p_T^2])"]}
+            # format 4 adds an n_panel axis for partially called panel sites
+            "format_version": 4, "planes": ["table (E[p_T])", "table2 (E[p_T^2])"]}
     np.savez_compressed(args.output, table=table, table2=table2, d0=d0, age=age,
-                        age_tau=age_tau, Tgrid=Tgrid, n_sample=args.n_sample,
+                        n_panel=n_panel, age_tau=age_tau, Tgrid=Tgrid,
+                        n_sample=args.n_sample, min_n=args.min_n,
                         meta=json.dumps(meta))
     if not args.quiet:
         print(f"[precompute-moments] wrote {args.output}  shape={table.shape}",
