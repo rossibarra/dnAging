@@ -22,16 +22,32 @@
 #     sbatch slurm/run_infer.sbatch
 #
 # Env: TABLE STORE POLARITY PANELVCF VCF OUTROOT   (INCLUDE optional site list)
-#      CHROMS_FILE (default chroms.txt)  EPSILON (default 1e-3)  SAMPLES_FILE (optional)
+#      CHROMS_FILE (default chroms.txt)  SAMPLES_FILE (optional)
+#      EPSILON (optional; defaults to the value in posterior_sample_age_infer.py)
 
 set -euo pipefail
-PROJECT="${PROJECT:-$SLURM_SUBMIT_DIR}"
-source "$PROJECT/slurm/slurm_conda_bootstrap.sh" 2>/dev/null || true
+PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 mkdir -p logs
+
+# Activate the project conda env BEFORE submitting; sbatch defaults to
+# --export=ALL, so the job inherits it. Checked here so a forgotten activation
+# fails with this message instead of an opaque ImportError further down.
+python -c 'import numpy, normalize_tes' 2>/dev/null || {
+    echo "ERROR: 'python' cannot import numpy, normalize_tes." >&2
+    echo "  normalize_tes is NOT in the conda env; it comes from the normalizeTEs" >&2
+    echo "  checkout on PYTHONPATH. Before submitting:" >&2
+    echo "    conda activate dnaging" >&2
+    echo "    export PYTHONPATH=/path/to/normalizeTEs:\${PYTHONPATH:-}" >&2
+    echo "    sbatch $0" >&2
+    exit 90
+}
 
 EXTRA=()
 [[ -n "${INCLUDE:-}" ]]       && EXTRA+=(--include-positions "$INCLUDE")
 [[ -n "${SAMPLES_FILE:-}" ]]  && EXTRA+=(--samples-file "$SAMPLES_FILE")
+# Only pass --epsilon when set: the Python CLI owns the default, so it cannot
+# drift out of sync with a value duplicated here.
+[[ -n "${EPSILON:-}" ]]       && EXTRA+=(--epsilon "$EPSILON")
 
 if [[ "${MERGE:-0}" == "1" ]]; then
     python "$PROJECT/posterior_sample_age_infer.py" \
@@ -48,6 +64,5 @@ python "$PROJECT/posterior_sample_age_infer.py" \
     --freq-table "$TABLE" \
     --store "$STORE" --draw-polarity "$POLARITY" \
     --panel-vcf "$PANELVCF" --vcf "$VCF" --chrom "$CHROM" \
-    --epsilon "${EPSILON:-1e-3}" \
     "${EXTRA[@]}" \
     --output "$OUTROOT/$CHROM"

@@ -77,12 +77,44 @@ Notes:
 
 ## Dependencies
 
-- Python with `numpy` and `scipy` (the precompute uses `scipy.linalg.expm`);
-  `matplotlib` optional (cohort plot).
-- `normalize_tes` importable (the inference adapter layer calls
-  `open_snp_age_store`, `open_draw_polarity`, `read_vcf_chunks`,
-  `resolve_native_position_requests`). See the **ADAPTER LAYER** banner at the top
-  of `posterior_sample_age_infer.py` — verify those names against your repo.
+The conda environment is declared in [environment.yml](./environment.yml):
+
+```bash
+conda env create -f environment.yml     # once
+conda activate dnaging
+```
+
+That covers `numpy`, `scipy` (the precompute uses `scipy.linalg.expm`), plus
+`pytest` and `mpmath` for the test suite. `matplotlib` is optional (cohort plot).
+
+**`normalize_tes` is deliberately not in that environment**, because it is not a
+package — it is the [normalizeTEs](https://github.com/rossibarra/normalizeTEs)
+checkout, which has no `pyproject.toml`/`setup.py` and so cannot be pip-installed.
+It has to be put on `PYTHONPATH`:
+
+```bash
+export PYTHONPATH=/path/to/normalizeTEs:${PYTHONPATH:-}
+```
+
+Only the **inference** step needs it; precompute does not, and neither does the test
+suite. The adapter layer expects `normalize_tes.snp_age_store`,
+`normalize_tes.build_draw_polarity`, `normalize_tes.individual_age_spectrum` and
+`normalize_tes.snp_position_resolution`.
+
+All four exist as a `normalize_tes/` package on `normalizeTEs` `main`, along with
+the symbols the adapter uses (`open_snp_age_store`, `open_draw_polarity`, `NO_CALL`,
+`read_vcf_chunks`, `resolve_native_position_requests`).
+
+> **Make sure the checkout is current.** `git status` reports agreement with the last
+> *fetched* `origin/main`, so a stale clone can look up to date while still having
+> the old flat layout (top-level `snp_age_store.py` and no `normalize_tes` package),
+> against which every adapter import fails. Run `git fetch` and confirm
+> `normalize_tes/__init__.py` exists before blaming the pipeline.
+
+**On the cluster**, activate the environment (and export `PYTHONPATH`) *before*
+`sbatch`: SLURM defaults to `--export=ALL`, so the job inherits both. Each sbatch
+script preflights exactly what it imports and exits 90 with an actionable message
+if the environment is missing, rather than failing later inside Python.
 
 ---
 
@@ -140,6 +172,11 @@ python posterior_sample_age_infer.py \
 ```
 
 or `MERGE=1 TABLE=freq_table.npz OUTROOT=results/Tage sbatch slurm/run_infer.sbatch`.
+
+Merge validates that every part has the same sample order and the exact sample-age
+grid from the frequency table, and that every likelihood matrix has shape
+`(n_samples, n_grid)`. Mismatches stop with an error rather than being broadcast or
+summed across different ages.
 
 ---
 

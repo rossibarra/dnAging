@@ -1,0 +1,16 @@
+name: dnaging
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - scipy          # precompute_freq_trajectory_moments.py: scipy.linalg.expm
+  - mpmath         # tests/_reference.py: high-precision moment reference
+  - pytest
+  # Inference imports normalize_tes.build_draw_polarity, which imports
+  # build_ancestral_states, which has a top-level `import tszip`. tszip pulls
+  # tskit. normalize_tes reads VCFs with stdlib gzip, so no pysam/cyvcf2 needed.
+  - tszip
+  # Coalescent simulation for validating the model (not just its numerics)
+  # against an independent implementation. See TODO.md "Simulation validation".
+  - msprime

@@ -21,9 +21,17 @@
 #       AGEMAX (default 4e7)  NAGE (default 100)
 
 set -euo pipefail
-PROJECT="${PROJECT:-$SLURM_SUBMIT_DIR}"
-source "$PROJECT/slurm/slurm_conda_bootstrap.sh" 2>/dev/null || true
+PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 mkdir -p logs
+
+# Activate the project conda env BEFORE submitting; sbatch defaults to
+# --export=ALL, so the job inherits it. Checked here so a forgotten activation
+# fails with this message instead of an opaque ImportError further down.
+python -c 'import numpy, scipy' 2>/dev/null || {
+    echo "ERROR: 'python' cannot import numpy, scipy." >&2
+    echo "  Activate the env before submitting: conda activate dnaging; sbatch $0" >&2
+    exit 90
+}
 
 python "$PROJECT/precompute_freq_trajectory_moments.py" \
     --ne "$NE" \

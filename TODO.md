@@ -50,3 +50,50 @@ haploid path fail safely rather than about adding missing capability.
 
 **Where:** `run_chromosome` in `posterior_sample_age_infer.py`; the `--ploidy`
 documentation in README.md; MATH.md §2 if the policy changes the likelihood.
+
+---
+
+## Simulation validation with msprime
+
+**Why the existing check is not enough.** `validate_moments_vs_mc.py` compares the
+moment recursion against a forward simulation that takes Gaussian increments of
+variance $p(1-p)/N_c$ per step — i.e. it simulates *the diffusion*. The analytics
+assume the diffusion too, so the agreement confirms the **numerics** of the
+recursion while leaving the **modelling approximation** untested. A discrepancy
+between discrete Wright-Fisher and its diffusion limit would pass silently, and so
+would an error in how we set up the conditioning.
+
+**What msprime buys.** It can place samples at *different times*, so the quantity
+the pipeline actually needs can be measured directly rather than reconstructed from
+an intermediate moment. Simulate under the same step-function $N_e(t)$ with:
+
+- $n$ modern samples at time 0 (the ARG panel), and
+- one or more ancient lineages sampled at time $T$,
+
+then place neutral mutations, and for each one read off its true age $t_i$ (the
+branch it sits on), its derived count $d_0$ among the modern samples, and whether
+each ancient lineage carries it. Binning by $(t_i, d_0)$ gives an empirical estimate
+of exactly
+
+$$
+P(\text{ancient carries derived} \mid d_0, t_i) \;=\; E[p_T \mid d_0, t_i],
+$$
+
+which is the table's contents, measured end to end under the full coalescent.
+
+**What it would validate that nothing currently does.**
+
+1. The diffusion approximation itself, not merely its numerical evaluation.
+2. The $T \ge t_i \Rightarrow p_T = 0$ boundary, as a simulated fact rather than an
+   asserted one.
+3. The conditioning setup — that conditioning on $d_0$ and $t_i$ is being done the
+   way the derivation intends.
+4. The second moment $E[p_T^2 \mid d_0, t_i]$, by sampling **two** ancient lineages
+   at time $T$ and measuring the probability that *both* carry the derived allele.
+   That is a direct, independent check on `table2` and hence on `--ploidy 2`.
+5. As a by-product, the harness would give real (rather than synthetic) ARG draws,
+   which is what REVIEW.md finding 1 — the ARG-draw marginalisation order — needs in
+   order to be settled empirically.
+
+**Cost.** Rare $(t_i, d_0)$ cells need many replicates, so this belongs in a
+`@pytest.mark.slow` test or a standalone script rather than the default suite.
