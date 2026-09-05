@@ -302,10 +302,19 @@ likelihood on the same out-of-sample footing:
 Its calibration also transfers far better -- slope 0.0937 -> 0.0901 between
 archives, against the betabinom's 1.026 -> 0.928 with intercepts 748 -> 2238.
 
-The principled version is a likelihood term rather than a fitted regression: the
-private count is Poisson with mean mu*L*(coalescence time - T), and the ARG
-supplies n_T, which sets the waiting-time distribution. Adding it is the most
-promising direction left on this branch.
+**This does not transfer to real data and must not be pursued.** Ancient samples
+are genotyped only at SNPs ascertained as polymorphic in a modern discovery panel
+(MATH.md section 1), so a mutation private to the ancient lineage has no site to be
+called at -- it is invisible by construction. The signal exists here only because
+these simulations write out the ancient sample's *complete* genotype rather than an
+ascertained one: of 18,714 carried sites in simulation_01, 1,166 appear in neither
+the modern VCF nor the tree sequence.
+
+Two consequences. The likelihood results in this branch are unaffected, since every
+run used only panel-polymorphic sites (`if not (0 < nl < NMOD): continue`) and no
+private mutation ever entered a likelihood. But the archives are a hazard for
+benchmarking generally: any method scored against these ancient VCFs can pick up
+age signal that will not exist in practice.
 
 ## Files
 
