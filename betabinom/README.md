@@ -200,6 +200,32 @@ function of edge span applied at every `T` alike, so it shifts the level of `p`
 without much changing the likelihood's *gradient* in `T`, and only the gradient
 sets the peak.
 
+### eps matters, and it was misspecified throughout
+
+The supplied simulations have no genotype error -- the ancient sample never carries
+a mutation that postdates it (0 violations in 75,827 sites) -- so eps > 0 can only
+ever cost likelihood. Every run in this branch before now used eps = 1e-3.
+
+eps is a floor on r, so it converts the hard constraint "the sample cannot carry a
+mutation younger than itself" into a finite penalty of log(eps) per violation. The
+optimiser can then buy a larger T by paying that finite cost, which is why it has a
+T-gradient and the age-marginalisation fix does not.
+
+Same model, only eps changed (`run_corrected.py` takes eps as argv[2]):
+
+                    RMSE    MAE    bias   slope   intercept      r   coverage
+      eps=1e-3      1562   1244   +1239   1.023       +1117   0.962      8/10
+      eps=1e-6      1169    892    +886   1.026        +748   0.975      8/10
+
+A 25% reduction in RMSE and 28% in bias from the error rate alone. `plot_archive.py`
+draws `age_vs_truth.png`: both settings sit above the diagonal at every true age
+with slope ~1.02, so the residual is a near-constant offset rather than a timescale
+error, and eps accounts for about a third of it.
+
+Note for the real application: on aDNA eps cannot be set to 1e-6, since damage is
+real. The gain seen here is only available if eps is estimated rather than fixed --
+MATH.md currently fixes it at 0.01 by fiat.
+
 ## Files
 
 | file | purpose |
@@ -225,5 +251,6 @@ sets the peak.
 | `no_straddle.py` | tests whether the additive bias comes from the straddling term (it does not) |
 | `phid.py` | `phi` with num and den exposed, so the age integral can be weighted correctly |
 | `run_corrected.py` | archive run with the corrected age marginalisation; takes eps as argv[2] |
+| `plot_archive.py` | estimated vs true age for both eps settings -> `age_vs_truth.png` |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).
