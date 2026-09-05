@@ -226,6 +226,38 @@ Note for the real application: on aDNA eps cannot be set to 1e-6, since damage i
 real. The gain seen here is only available if eps is estimated rather than fixed --
 MATH.md currently fixes it at 0.01 by fiat.
 
+### Blind test on a second set (Archive2)
+
+Ten more true-ARG simulations, set up the realistic way: the `.trees` holds only
+the 26 modern haplotypes, the ancient sample arrives as a separate haploid VCF
+listing carried sites, and nothing records Ne or the true ages. VCF POS is
+`int(tree position) + 1`. Ne was recovered from Watterson at 49,170-50,095
+assuming mu = 1e-8, later confirmed as 50,000.
+
+Predictions were made before seeing any true age (`run_archive2.py`), then scored
+(`plot_archive2.py` -> `archive2_blind.png`, truths in `ages_archive2.tsv`):
+
+                            RMSE    MAE    bias     SD      r   coverage
+      raw MAP               1940   1817   +1817    717  0.963      5/10
+      Archive1-corrected    1125    893    +893    720  0.963      9/10
+
+The correction is `T = (MAP - 748)/1.026`, fitted on Archive1, so applying it here
+is genuinely out of sample. It cuts RMSE 42% and lifts coverage from 5/10 to 9/10 --
+the offset is real and partly transferable.
+
+But it under-corrects, and the calibration is **not stable between datasets**:
+
+      Archive1:  MAP = 1.026*T  +748
+      Archive2:  MAP = 0.928*T +2238
+
+Archive2's raw bias is more than double Archive1's despite matching Ne, sequence
+length, sample size and age range. So the offset cannot be removed by a universal
+constant. The per-simulation errors are U-shaped rather than flat -- worst at the
+youngest sample (+3369 on a truth of 1265, an error larger than the age itself) and
+rising again at the oldest -- because a young sample has few mutations postdating
+it, and the hard constraint that carries most of the information is weakest exactly
+where it is needed most.
+
 ## Files
 
 | file | purpose |
@@ -252,5 +284,8 @@ MATH.md currently fixes it at 0.01 by fiat.
 | `phid.py` | `phi` with num and den exposed, so the age integral can be weighted correctly |
 | `run_corrected.py` | archive run with the corrected age marginalisation; takes eps as argv[2] |
 | `plot_archive.py` | estimated vs true age for both eps settings -> `age_vs_truth.png` |
+| `run_archive2.py` | blind run on a panel-only ARG plus a separate haploid ancient VCF |
+| `plot_archive2.py` | scores the blind predictions -> `archive2_blind.png` |
+| `ages_archive2.tsv` | true ages for Archive2, supplied after the predictions were made |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).
