@@ -70,6 +70,28 @@ $$
 No second moment is required anywhere. A true-diploid path would need
 $\mathbb{E}[X^2]$, which the same machinery supplies but which is not used here.
 
+**Pseudo-haploid sampling needs no change to any of this.** A real ancient sample
+is a diploid individual from which one allele is drawn at random per locus. That
+individual carries two lineages, each an exchangeable draw from the population at
+$T$, so given $X(T)=x$ each allele is Bernoulli in $x$; a random choice between
+them is a mixture of two Bernoulli variables with the same parameter, which is
+again Bernoulli in $x$. The marginal at every site is therefore identical to a
+true haploid lineage and (2) and (3) stand unaltered.
+
+It also means **Hardy-Weinberg is not assumed here**, unlike the diploid path of
+MATH.md. The two alleles of one individual are never used at the same locus, so
+whether they are independent given the frequency never arises, and recent
+inbreeding in the ancient individual is harmless.
+
+What does differ is dependence *across* sites. A single haploid genome is one
+chromosome, so neighbouring sites share an ancestry; pseudo-haploid switches
+chromosome at random between sites, so roughly half of adjacent pairs are drawn
+from two independent lineages. Real pseudo-haploid data therefore carries **less**
+linkage than the haploid genomes this model was validated on. Since the estimate
+depends only on the per-site marginals, that is a variance effect and not a bias,
+and the block bootstrap of section 6 absorbs it because it resamples the observed
+data rather than assuming a correlation structure.
+
 Everything therefore reduces to one quantity: $p_i(T)$, the expected
 derived-allele frequency at $T$ given the tree.
 
@@ -291,9 +313,20 @@ averaged only afterwards.
     and, through the tree, the values of $n_T$.
 13. **Known error rate.** $\varepsilon$ is fixed, not estimated. Section 8 records
     how much this matters.
-14. **A site absent from the ancient VCF is treated as not carried.** For simulated
-    data with complete calls this is correct. For real aDNA it is not: absence
-    there means uncalled, and scoring it as non-carriage biases the sample older.
+14. **Upstream control of the aDNA-specific artefacts.** Three properties of real
+    pseudo-haploid data are outside this model and are assumed to be handled before
+    it sees the data. Each biases the sample *older* if left uncorrected, which is
+    the same direction as the unexplained offset in section 8, so none of them is
+    a safe omission.
+    - *Reference bias*: reads carrying the non-reference base map less readily, so
+      the drawn allele skews toward REF and the sample appears to carry fewer
+      derived alleles. $\varepsilon$ cannot represent this, being symmetric by
+      construction.
+    - *Missing calls scored as non-carriage*: absence of a site means uncalled, not
+      that the sample lacks the derived allele.
+    - *Deamination*: C-to-T damage is strand- and context-dependent, so it is not
+      the symmetric per-allele error that $\varepsilon$ models. End-trimming or
+      restriction to transversions belongs upstream.
 
 ---
 
