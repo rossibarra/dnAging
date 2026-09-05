@@ -104,6 +104,22 @@ in two places the earlier calibration checks could not see:
   worth ~47 excess predicted events against a ~100 nat total signal. The old
   `[0, 0.2)` bin lumped `p=0.003` together with `p=0.19` and averaged it away.
 
+### The nleaf fix was attempted and does not work
+
+`phi2.py` conditions a straddling site on both "1 of n_T carries it at T" and
+"nleaf of n carry it today", by multiplying the two binomial factors. This is
+**wrong**: the n_T lineages at T are the ancestors of those same 26 samples, so
+the two factors are the same observation counted twice. It inflates p uniformly
+(1.45x at nleaf=1, where phi was already right) and makes calibration worse --
+`phi2_check.py` gives obs/pred 1.079 against phi's 1.002, and 1.127 at nleaf=1
+against phi's 1.010.
+
+`nleaf` is not a second sample. It records how fast the mutant lineage branched
+between T and the present, and under the structured coalescent that rate is
+proportional to 1/X(u) across the whole interval (0,T). Using it correctly needs
+the frequency trajectory, not just X(T), which is a much larger change than an
+extra table dimension.
+
 The lesson for any further work here: aggregate and coarse-binned calibration is
 not evidence. Both real defects were invisible until the bins were made fine on a
 log scale and the straddling case was tested on its own.
@@ -127,5 +143,7 @@ log scale and the straddling case was tested on its own.
 | `smallp.py` | calibration on a log-`p` scale, where the coarse bins hid a 26% error |
 | `numcheck.py` | separates numerical error from model error (numerics are clean) |
 | `straddle_nleaf.py` | shows straddling `p` depends on clade size, which `phi` ignores |
+| `phi2.py` | attempted nleaf conditioning via a second binomial -- incorrect, kept as a record |
+| `phi2_check.py` | demonstrates phi2 is worse than phi |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).
