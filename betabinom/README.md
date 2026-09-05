@@ -60,23 +60,38 @@ The age posterior is biased old and does not cover truth (`post3.py`):
       44    1000  15,182   1095    953-1240        YES
       55    6000  15,410   8254   7980-8403         no
 
-Three findings about why:
+Findings about why:
 
 1. **The data is informative; the model is not accurate enough.** The expected
    log-likelihood penalty for the wrong `T`, if the model were exact, is ~100 nats
-   at `T = 7658` (`power.py`). But misspecification supplies ~129 nats of spurious
-   gain in the same direction, so it outbids the signal.
-2. **More sites will not fix it.** Signal and systematic bias both scale with site
-   count, so the peak location is invariant while the width shrinks as
-   `1/sqrt(N)`. Going 0.5 -> 4 Mb leaves the MAP wrong and only narrows the
-   interval (`scaling.py`).
-3. **`(k, n_T, a)` is not a sufficient statistic for the tree.** At the true age
-   the aggregate calibration is now *best* (obs/pred 1.0019, versus 0.9954 and
-   1.0091 at neighbouring `T`), yet the likelihood peaks elsewhere. A model whose
-   mean is right but whose likelihood peaks in the wrong place is misspecified in
-   the spread of `p`, not its level. Two sites with the same `(k, n_T, a)` get the
-   same `p`, but a mutant clade that coalesces quickly implies a lower frequency
-   than one that does not.
+   at `T = 7658` (`power.py`). Misspecification supplies a comparable gain in the
+   same direction, so it outbids the signal.
+2. **The composite likelihood understates uncertainty by ~30x.** Its intervals
+   cover the truth **0 times in 12 seeds**. Resampling 100 contiguous genomic
+   blocks (`bootstrap.py`) widens them to a median of 5,334 generations and lifts
+   coverage to 8/12. No interval from the raw composite curvature should be
+   reported.
+3. **Clade shape is NOT the missing information.** The natural hypothesis was that
+   `(k, n_T, a)` discards the mutant clade's coalescent history -- fast coalescence
+   within the clade implying a lower frequency. Tested directly on 862,343
+   observations (`clade.py`), stratified within `(k, n_T)` cells and binned by
+   leaves-per-lineage: obs/pred is flat (1.001, 0.995, 1.012, 1.038, 0.990) with no
+   monotone trend. The hypothesis is wrong; `(k, n_T, a)` is closer to sufficient
+   than expected, and the residual lies elsewhere.
+4. **There is a real upward bias, and more sequence does not remove it.** Across 12
+   seeds at 2 Mb the MAP median is 4,376 against a truth of 2,500, with 75% of
+   estimates above truth. Going to 8 Mb tightens nothing toward the truth -- the
+   median moves to 6,017 with 4/4 above (`converge.py`). So the residual is not
+   only sampling noise: bias survives a 4x increase in data, and since variance
+   shrinks as `1/sqrt(L)` while bias does not, a genome-scale run would converge
+   confidently on the wrong age.
+
+The bias source is still unidentified. Calibration is flat in every stratum tested
+(by `p`, by fraction of edge above `T`, by clade compression, and in aggregate at
+the true age it is the *best* of any `T`), yet the likelihood peaks several
+thousand generations too old. A model whose per-site mean is right everywhere
+tested but whose likelihood peaks in the wrong place is misspecified in something
+not yet measured.
 
 Reported intervals are also not trustworthy at any stage: they treat linked sites
 as independent, so even an exactly specified model would give intervals far too
@@ -94,5 +109,9 @@ narrow. Coverage needs a block bootstrap.
 | `power.py` | identifiability budget: expected log-likelihood penalty for the wrong `T` |
 | `decomp2.py` | per-case obs/pred at several `T`, for locating residual bias |
 | `scaling.py` | posterior versus sequence length |
+| `clade.py` | tests whether mutant-clade shape carries the residual (it does not) |
+| `bootstrap.py` | block bootstrap over genomic windows for honest intervals |
+| `bias_vs_var.py` | many seeds at one true age: separates bias from variance |
+| `converge.py` | does the estimate approach truth as sequence length grows |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).
