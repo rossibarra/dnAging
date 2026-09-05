@@ -258,6 +258,22 @@ rising again at the oldest -- because a young sample has few mutations postdatin
 it, and the hard constraint that carries most of the information is weakest exactly
 where it is needed most.
 
+### The intervals are the right size, in the wrong place
+
+Re-running Archive2 with Ne fixed at exactly 50,000 changes nothing -- every MAP is
+identical to the Watterson-estimated run -- so the 2% rounding was irrelevant.
+Reporting +/-1 block-bootstrap SD instead of percentiles separates the two failure
+modes (`plot_sd.py` -> `archive2_sd.png`):
+
+                    RMSE   bias   scatter SD   median bootstrap SD   |z|>2
+      raw           1940  +1817          717                   947    4/10
+      corrected     1125   +893          720                   923    1/10
+
+The bootstrap estimates a per-simulation SD of ~947 against an actual scatter of
+717, so it is slightly conservative -- it is not underestimating the noise. Every
+coverage failure is therefore bias, not variance: 4 of 10 raw estimates sit beyond
+2 SD of truth, falling to 1 of 10 once most of the offset is removed.
+
 ## Files
 
 | file | purpose |
@@ -287,5 +303,6 @@ where it is needed most.
 | `run_archive2.py` | blind run on a panel-only ARG plus a separate haploid ancient VCF |
 | `plot_archive2.py` | scores the blind predictions -> `archive2_blind.png` |
 | `ages_archive2.tsv` | true ages for Archive2, supplied after the predictions were made |
+| `plot_sd.py` | estimated vs true with +/-1 bootstrap SD bars -> `archive2_sd.png` |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).

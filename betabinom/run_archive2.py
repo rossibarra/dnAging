@@ -69,10 +69,12 @@ def run(d):
     rng=np.random.default_rng(0)
     bm=np.array([grid[sums[rng.integers(0,NBLOCK,NBLOCK)].sum(0).argmax()] for _ in range(NBOOT)])
     ncar=sum(1 for x in POS if int(x) in carried)
-    return Ne, LL.shape[0], ncar, grid[tot.argmax()], *np.percentile(bm,[2.5,97.5])
+    return (Ne, LL.shape[0], ncar, grid[tot.argmax()], bm.std(ddof=1),
+            *np.percentile(bm,[2.5,97.5]))
 
 print(f"eps={EPS:g}   (BLIND - no true ages available in these files)",flush=True)
-print(f"{'sim':<15}{'Ne_hat':>8}{'sites':>8}{'carried':>9}{'MAP':>8}{'bootstrap 95%':>20}",flush=True)
+print(f"{'sim':<15}{'Ne_hat':>8}{'sites':>8}{'carried':>9}{'MAP':>8}{'SD':>8}{'bootstrap 95%':>20}",flush=True)
 for d in sorted(glob.glob(f"{ARCH}/simulation_*")):
-    Ne,n,nc,mv,lo,hi=run(d)
-    print(f"{os.path.basename(d):<15}{Ne:>8,}{n:>8,}{nc:>9,}{mv:>8.0f}{lo:>10.0f}-{hi:<9.0f}",flush=True)
+    Ne,n,nc,mv,sd,lo,hi=run(d)
+    print(f"{os.path.basename(d):<15}{Ne:>8,}{n:>8,}{nc:>9,}{mv:>8.0f}{sd:>8.0f}"
+          f"{lo:>10.0f}-{hi:<9.0f}",flush=True)
