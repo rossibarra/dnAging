@@ -87,6 +87,12 @@ $$
 P(k \mid n_T, x) = \binom{n_T}{k} x^k (1-x)^{n_T - k}. \tag{4}
 $$
 
+Equation (4) keeps only the dependence of the tree on $x$ through the *count*. It
+is not the whole dependence: under the structured coalescent the mutant class
+coalesces at rate proportional to $1/x$, so the branch lengths within that class
+also carry information about the frequency (Griffiths 2003, section 4.3). That term
+is dropped. Section 8 records that it was tested and found undetectable.
+
 **Prior.** Before seeing the tree, $X(T)$ is the frequency of a mutation of age $a$
 that began as a single copy. Call its density $f_a$; its moments
 $M_m(\tau_a) = \mathbb{E}[X^m]$ come from the neutral recursion of section 5.
@@ -162,6 +168,22 @@ The factor $w$ is the fraction of the edge lying above $T$; it equals 1 for an e
 entirely older than $T$ and handles the straddling case. Averaging $\varphi$
 uniformly instead over-weights young ages and inflates $p$ by up to a factor of two
 on long edges.
+
+**Equation 8 is an approximation in one respect.** $w$ is the *prior* probability
+that the mutation lies above $T$, whereas the reweighting argument of (7) calls for
+the posterior,
+
+$$
+P(\text{above} \mid \text{ARG}) =
+\frac{\int_{\text{above}} f \cdot \mathrm{den}}
+     {\int_{\text{above}} f \cdot \mathrm{den} + W_{\text{below}}}, \tag{8a}
+$$
+
+and $W_{\text{below}}$ is not commensurable with $\mathrm{den}(a)$ in any obvious
+way: below $T$ the allele does not exist, so there is no binomial factor at $T$ to
+weigh against. The prior is used because the posterior is not well defined without
+settling that comparison. Section 8 records the calibration evidence that the
+difference is below the level simulation can resolve.
 
 A note on what $w$ does and does not do. For a straddling edge, the placements
 below $T$ make carriage impossible, so they reduce $p$; they do **not** zero the
@@ -285,6 +307,16 @@ averaged only afterwards.
   unpolarised alternative $k/n_T$ is wrong by 9.6%.
 - Calibration of (8) is flat across strata: by predicted $p$, by fraction of edge
   above $T$, by clade size, and on a log scale down to $p \approx 10^{-3}$.
+  Overall observed/predicted is 0.996 for straddling edges and 0.999 for edges
+  above $T$, with the worst single bin at 1.2 standard deviations. The
+  den-weighting of (8) is what makes this true: averaging uniformly instead gives
+  ratios of 0.09, 0.17 and 0.31 across bins of the fraction of edge above $T$,
+  against 1.12, 1.01 and 0.92 with it.
+- The two approximations flagged in sections 3 and 4 -- dropping the
+  structured-coalescent term in (4), and using the prior rather than the posterior
+  in $w$ -- are therefore good to within what these tests can resolve. That is not
+  the same as being exact, and this likelihood has already proved sensitive to
+  sub-1% structure, so neither should be assumed harmless.
 - Over 20 simulations at $N_e = 50{,}000$, 10 Mb, 26 haplotypes, with true ages
   from 454 to 9,293 generations, the estimate regresses on truth with **slope
   1.002** and correlation 0.960.
