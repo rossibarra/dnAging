@@ -274,6 +274,39 @@ The bootstrap estimates a per-simulation SD of ~947 against an actual scatter of
 coverage failure is therefore bias, not variance: 4 of 10 raw estimates sit beyond
 2 SD of truth, falling to 1 of 10 once most of the offset is removed.
 
+### The likelihood discards the ancient sample's own branch
+
+About 1,200 of the ancient sample's ~18,500 derived alleles (7%) sit at positions
+absent from the panel ARG (`private_clock.py`). They are mutations on the ancient
+lineage between T and the point where it coalesces with the panel genealogy, and
+the likelihood never looks at them -- it only asks whether the ancient sample
+carries each *panel* mutation.
+
+They are strongly informative. The count RISES with age, at close to mu*L per
+generation:
+
+      Archive1: private = 0.0937*T +672   r=0.986
+      Archive2: private = 0.0901*T +746   r=0.939
+
+The sign is the opposite of a naive missing-evolution argument. The reason is that
+the panel has fewer ancestral lineages at older T, so the ancient lineage waits
+longer to coalesce and spends longer in isolation.
+
+Calibrated on Archive1 and applied to Archive2, this single scalar beats the whole
+likelihood on the same out-of-sample footing:
+
+      private-count clock            RMSE 1060   bias  +560   r 0.939
+      betabinom, Archive1-corrected  RMSE 1125   bias  +893   r 0.963
+      betabinom, raw                 RMSE 1940   bias +1817   r 0.963
+
+Its calibration also transfers far better -- slope 0.0937 -> 0.0901 between
+archives, against the betabinom's 1.026 -> 0.928 with intercepts 748 -> 2238.
+
+The principled version is a likelihood term rather than a fitted regression: the
+private count is Poisson with mean mu*L*(coalescence time - T), and the ARG
+supplies n_T, which sets the waiting-time distribution. Adding it is the most
+promising direction left on this branch.
+
 ## Files
 
 | file | purpose |
@@ -304,5 +337,6 @@ coverage failure is therefore bias, not variance: 4 of 10 raw estimates sit beyo
 | `plot_archive2.py` | scores the blind predictions -> `archive2_blind.png` |
 | `ages_archive2.tsv` | true ages for Archive2, supplied after the predictions were made |
 | `plot_sd.py` | estimated vs true with +/-1 bootstrap SD bars -> `archive2_sd.png` |
+| `private_clock.py` | counts ancient SNPs absent from the ARG and tests them as an age clock |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).
