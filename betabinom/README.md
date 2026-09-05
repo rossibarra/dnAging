@@ -124,6 +124,35 @@ The lesson for any further work here: aggregate and coarse-binned calibration is
 not evidence. Both real defects were invisible until the bins were made fine on a
 log scale and the straddling case was tested on its own.
 
+## Independent test on supplied simulations
+
+Ten true-ARG simulations (`run_archive.py`), independently generated: Ne = 50,000,
+10 Mb, 26 modern haplotypes, one diploid ancient individual, true ages 454-9,293.
+Ne and the true ages are read from the tree-sequence provenance and sample node
+times; `simplify()` to the modern samples strips the ancient lineage, so the true
+age never enters the likelihood. One ancient haplotype is used, since that is the
+pseudohaploid case that has been validated.
+
+    n=10   Pearson r = 0.970
+    bias   mean +1062   median +713   9/10 above truth
+    regression:  MAP = 1.032 * T_true + 892
+    bootstrap CI width: median 3,466 generations
+    coverage: composite 1/10   block-bootstrap 8/10
+
+Three points:
+
+* **The bias is essentially additive** -- slope 1.032, intercept +892. The model
+  tracks `T` correctly and sits about 900 generations too old, rather than
+  mis-scaling time. This is why the Ne = 100,000 runs above look so much worse: at
+  a truth of 2,500 an offset that size is the whole answer, while at T = 8,000 it
+  is a 10% error.
+* **This regime carries more signal.** tau_T reaches 0.093 here against 0.0125 in
+  the Ne = 100,000 runs, and 10 Mb gives five times the blocks.
+* **The composite interval is unusable, now confirmed on independent data** --
+  1/10 coverage here, 0/12 there. The block bootstrap gives 8/10, about right for
+  a nominal 95% given the residual bias, but the intervals are thousands of
+  generations wide.
+
 ## Files
 
 | file | purpose |
@@ -145,5 +174,6 @@ log scale and the straddling case was tested on its own.
 | `straddle_nleaf.py` | shows straddling `p` depends on clade size, which `phi` ignores |
 | `phi2.py` | attempted nleaf conditioning via a second binomial -- incorrect, kept as a record |
 | `phi2_check.py` | demonstrates phi2 is worse than phi |
+| `run_archive.py` | runs the likelihood over a directory of supplied `.trees` simulations |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).
