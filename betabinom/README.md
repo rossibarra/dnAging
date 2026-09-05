@@ -316,6 +316,39 @@ private mutation ever entered a likelihood. But the archives are a hazard for
 benchmarking generally: any method scored against these ancient VCFs can pick up
 age signal that will not exist in practice.
 
+### Pooling both sets: a constant offset, and a usable estimator
+
+The two archives differ only in random seeds, redrawn ancient ages and packaging
+(haploid vs diploid ancient, provenance stripped, trees with or without the ancient
+sample). Parameters are identical: 10 Mb, constant diploid Ne = 50,000,
+mu = r = 1e-8, 26 modern haplotypes, multiallelic sites excluded.
+
+That makes them 20 draws from one process, and pooling is the right analysis:
+
+    pooled regression:  MAP = 1.002*T + 1340    r = 0.960
+    mean bias +1352,  SE 197,  95% CI +965 to +1738
+
+**The slope is 1.002.** Across 454-9,293 generations the timescale is exactly
+right, and the whole error is a constant additive offset. Correcting for it
+leave-one-out, so each simulation is corrected by a calibration that never saw it:
+
+    uncorrected          RMSE 1602
+    LOO bias-corrected   RMSE  967   bias -3   median |err|/T = 0.12
+
+An unbiased estimator with about 12% median relative error.
+
+**Correction to an earlier claim in this file.** The "calibration is not stable
+between datasets" reading above was a post-hoc comparison, made after noticing the
+two archives differed, and it does not survive. With a pooled slope of 1.002 and
+only a 2.7 sigma gap between halves, one process with sampling noise is the
+parsimonious explanation. The per-archive regressions (1.026*T+748 and
+0.928*T+2238) should be read as two noisy estimates of 1.002*T+1340.
+
+What has NOT been established is where the +1340 comes from. It is a fitted
+correction, not a derived one, and it was calibrated on true ARGs with known Ne and
+mu at eps = 1e-6. Inferred ARGs, uncertain demography, and a realistic error rate
+could all move it.
+
 ## Files
 
 | file | purpose |
