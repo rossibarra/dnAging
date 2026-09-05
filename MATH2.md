@@ -83,6 +83,12 @@ MATH.md. The two alleles of one individual are never used at the same locus, so
 whether they are independent given the frequency never arises, and recent
 inbreeding in the ancient individual is harmless.
 
+This was checked rather than assumed. Archive1's ancient samples are diploid, so
+the same data can be scored both ways (`betabinom/pseudohap.py`): one haplotype
+throughout, or one of the two drawn at random per site. Over ten simulations the
+MAPs agree to a mean absolute difference of 252 generations, which is one step of
+the 252-generation grid -- that is, they agree to the resolution of the estimator.
+
 What does differ is dependence *across* sites. A single haploid genome is one
 chromosome, so neighbouring sites share an ancestry; pseudo-haploid switches
 chromosome at random between sites, so roughly half of adjacent pairs are drawn
@@ -90,7 +96,15 @@ from two independent lineages. Real pseudo-haploid data therefore carries **less
 linkage than the haploid genomes this model was validated on. Since the estimate
 depends only on the per-site marginals, that is a variance effect and not a bias,
 and the block bootstrap of section 6 absorbs it because it resamples the observed
-data rather than assuming a correlation structure.
+data rather than assuming a correlation structure. Measured on the same ten
+simulations, the median block-bootstrap standard deviation falls from 860 to 568
+generations, a ratio of 0.66.
+
+That tightening is not a free gain. The offset of section 8 is unchanged by it, so
+the ratio of bias to standard deviation rises from about 1.0 to about 1.8 and
+coverage gets *worse*. As with sequence length, anything that reduces variance
+without addressing the offset makes the estimator more confidently wrong; the
+narrower intervals are only worth having once the bias is dealt with.
 
 Everything therefore reduces to one quantity: $p_i(T)$, the expected
 derived-allele frequency at $T$ given the tree.
