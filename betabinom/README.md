@@ -153,6 +153,28 @@ Three points:
   a nominal 95% given the residual bias, but the intervals are thousands of
   generations wide.
 
+### The additive bias is not the straddling term
+
+`no_straddle.py` retains only sites whose edge never straddles any `T` in the grid,
+so the observation set is identical at every `T`. Dropping the straddling term
+makes the bias worse, not better:
+
+                       slope   intercept       r   mean bias   coverage
+      full model       1.032        +892   0.970       +1062       8/10
+      no straddling    1.100       +2187   0.944       +2725       5/10
+
+The test is confounded -- the filter removes 60% of sites and not at random, since
+it strips every recent edge -- but the direction settles it: a term responsible for
+a +892 bias cannot produce +2187 when deleted.
+
+This matches the earlier per-case decomposition. Above the true age the `old`
+channel runs obs/pred > 1 (under-predicting, 1.008 -> 1.031) while straddling runs
+< 1 (over-predicting, ~0.91). They push in **opposite** directions, so removing
+straddling leaves the `old` drift unopposed. The additive bias therefore lives in
+`phi(k, n_T, a)` for edges *above* `T` -- the case measured at 0.15% and considered
+settled -- and its slow monotone drift with `T` is why the displacement is roughly
+constant rather than proportional.
+
 ## Files
 
 | file | purpose |
@@ -175,5 +197,6 @@ Three points:
 | `phi2.py` | attempted nleaf conditioning via a second binomial -- incorrect, kept as a record |
 | `phi2_check.py` | demonstrates phi2 is worse than phi |
 | `run_archive.py` | runs the likelihood over a directory of supplied `.trees` simulations |
+| `no_straddle.py` | tests whether the additive bias comes from the straddling term (it does not) |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).
