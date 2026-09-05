@@ -175,6 +175,31 @@ straddling leaves the `old` drift unopposed. The additive bias therefore lives i
 settled -- and its slow monotone drift with `T` is why the displacement is roughly
 constant rather than proportional.
 
+### The mutation age was being marginalised the wrong way
+
+The code evaluated `phi` at each quadrature node and averaged the *ratios*
+uniformly over the edge. That is wrong: the age posterior is not uniform once the
+ARG is conditioned on. Writing num(a) and den(a) for the two alternating sums,
+
+    f(a | ARG)  proportional to  f(a) * INT f_a(x) x^k (1-x)^(n_T-k) dx  =  f(a) den(a)
+
+so the marginal is INT num / INT den -- a ratio of integrals, not an integral of
+ratios. `den(a)` is P(k of n_T | a); it is near-flat while the allele is rare and
+decays as the allele drifts to loss or fixation, so it up-weights young ages. The
+error is large and grows with edge span: the den-weighted value is 0.99 of the
+uniform average for a 200-generation edge but 0.44 for a 100,000-generation one.
+
+`phid.py` exposes num and den; `run_corrected.py` uses them. It is a genuine
+correctness fix and it changes the answer almost not at all:
+
+    CORRECTED  MAP = 1.023*T +1117   r=0.962   mean bias +1239   coverage 8/10
+    previous   MAP = 1.032*T  +892   r=0.970   mean bias +1062   coverage 8/10
+
+Six of ten MAPs are bit-identical. The reason is that the correction is a smooth
+function of edge span applied at every `T` alike, so it shifts the level of `p`
+without much changing the likelihood's *gradient* in `T`, and only the gradient
+sets the peak.
+
 ## Files
 
 | file | purpose |
@@ -198,5 +223,7 @@ constant rather than proportional.
 | `phi2_check.py` | demonstrates phi2 is worse than phi |
 | `run_archive.py` | runs the likelihood over a directory of supplied `.trees` simulations |
 | `no_straddle.py` | tests whether the additive bias comes from the straddling term (it does not) |
+| `phid.py` | `phi` with num and den exposed, so the age integral can be weighted correctly |
+| `run_corrected.py` | archive run with the corrected age marginalisation; takes eps as argv[2] |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).
