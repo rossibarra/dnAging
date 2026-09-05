@@ -86,16 +86,27 @@ Findings about why:
    shrinks as `1/sqrt(L)` while bias does not, a genome-scale run would converge
    confidently on the wrong age.
 
-The bias source is still unidentified. Calibration is flat in every stratum tested
-(by `p`, by fraction of edge above `T`, by clade compression, and in aggregate at
-the true age it is the *best* of any `T`), yet the likelihood peaks several
-thousand generations too old. A model whose per-site mean is right everywhere
-tested but whose likelihood peaks in the wrong place is misspecified in something
-not yet measured.
+### The bias source, located
 
-Reported intervals are also not trustworthy at any stage: they treat linked sites
-as independent, so even an exactly specified model would give intervals far too
-narrow. Coverage needs a block bootstrap.
+The likelihood *formula* is correct (Bernoulli in `r = eps + (1-2eps) p`; the tree
+factor is common to all `T` and cancels), and the *numerics* are correct
+(`numcheck.py`: production quadrature and table interpolation match a 400-node,
+240-age reference to 0.2% even at the smallest `p`). The error is in `phi` itself,
+in two places the earlier calibration checks could not see:
+
+* **`phi` ignores `nleaf` on straddling edges** (`straddle_nleaf.py`). A mutant
+  lineage at `T` that founds a four-leaf clade below `T` sits at a higher frequency
+  than one founding a singleton, but both are assigned the same `p`. obs/pred rises
+  monotonically with clade size: 0.993 (nleaf=1), 1.046 (2), 1.167 (3-4), 1.182
+  (5-8). `clade.py` missed this because it skipped straddling sites, which is
+  exactly where small `p` lives.
+* **26% over-prediction at `p` in [0.003, 0.01]** (`smallp.py`), about 4 SE and
+  worth ~47 excess predicted events against a ~100 nat total signal. The old
+  `[0, 0.2)` bin lumped `p=0.003` together with `p=0.19` and averaged it away.
+
+The lesson for any further work here: aggregate and coarse-binned calibration is
+not evidence. Both real defects were invisible until the bins were made fine on a
+log scale and the straddling case was tested on its own.
 
 ## Files
 
@@ -113,5 +124,8 @@ narrow. Coverage needs a block bootstrap.
 | `bootstrap.py` | block bootstrap over genomic windows for honest intervals |
 | `bias_vs_var.py` | many seeds at one true age: separates bias from variance |
 | `converge.py` | does the estimate approach truth as sequence length grows |
+| `smallp.py` | calibration on a log-`p` scale, where the coarse bins hid a 26% error |
+| `numcheck.py` | separates numerical error from model error (numerics are clean) |
+| `straddle_nleaf.py` | shows straddling `p` depends on clade size, which `phi` ignores |
 
 Requires `msprime` and `mpmath` (both in `environment.yml`).
