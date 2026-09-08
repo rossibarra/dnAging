@@ -10,9 +10,9 @@ def _run_one_site(monkeypatch, tmp_path, draw_ids, polarity):
     tab["n_panel"] = np.array([6])
 
     ancient = FakeChunk(["1"], [100], ["A"], ["C"], pack([[1]], [[1]]))
+    # (sites, samples), matching normalizeTE's documented VcfChunk layout
     panel = FakeChunk(["1"], [100], ["A"], ["C"],
-                      pack([[1], [1], [0], [0], [0], [0]],
-                           [[1], [1], [1], [1], [1], [1]]))
+                      pack([[1, 1, 0, 0, 0, 0]], [[1, 1, 1, 1, 1, 1]]))
     mapping = {
         "anc.vcf": [(["ancient"], ancient)],
         "panel.vcf": [([f"p{i}" for i in range(6)], panel)],

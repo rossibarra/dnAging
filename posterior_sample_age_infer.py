@@ -118,24 +118,59 @@ def _chunk_sites(chunk):
     return chrom, pos, rb, ab
 
 
+def _codes_by_site(chunk, names):
+    """Packed genotype codes as (sites x samples), the layout the reader emits.
+
+    normalizeTE's VcfChunk documents `codes` as (records, samples), so the
+    orientation must be taken from the site and sample counts, never inferred
+    from `codes.shape[0] == len(names)`: that test is satisfied by ANY chunk
+    holding exactly as many records as there are samples -- a final partial
+    chunk of 26 records in a 26-sample panel, say -- and silently transposes
+    sites against samples. The result is not an error but wrong counts: it can
+    flip which site looks monomorphic and invert an ancient observation.
+    """
+    codes = np.asarray(getattr(chunk, "codes"))
+    n_site = int(np.asarray(_attr(chunk, "positions", "position")).size)
+    n_samp = len(list(names))
+    if codes.ndim != 2:
+        raise SystemExit(f"genotype codes must be 2-D; got shape {codes.shape}")
+    if codes.shape == (n_site, n_samp):
+        return codes                          # documented reader layout
+    if codes.shape == (n_samp, n_site):
+        return codes.T                        # transposed input, unambiguous here
+    raise SystemExit(
+        f"genotype codes shape {codes.shape} matches neither (sites, samples) = "
+        f"({n_site}, {n_samp}) nor its transpose")
+
+
 def _chunk_codes(chunk, names, want):
     """Return the packed genotype codes (rows aligned to `want`) as (len(want) x sites)."""
-    codes = np.asarray(getattr(chunk, "codes"))
     names = list(names)
     idx = np.array([names.index(s) for s in want], dtype=np.int64)
-    return codes[idx, :] if codes.shape[0] == len(names) else codes[:, idx].T
+    return _codes_by_site(chunk, names)[:, idx].T
 
 
 def _resolve_rows(store, chrom, pos):
     from normalize_tes.snp_position_resolution import resolve_native_position_requests
     res = resolve_native_position_requests(store, np.asarray(chrom).astype(str),
                                            np.asarray(pos, dtype=np.int64), policy="drop")
-    rows = np.asarray(_attr(res, "rows", "row_indices"), dtype=np.int64)
-    mask = getattr(res, "eligible", None)
-    if mask is not None:
-        out = np.full(len(pos), -1, dtype=np.int64)
-        out[np.asarray(mask, bool)] = rows
-        return out
+    # PositionResolution.row_indices has one entry per REQUEST and uses -1 only
+    # for an unresolved coordinate, so a resolved-but-ineligible row still carries
+    # a usable-looking index. eligible_mask is false for both cases and is what
+    # decides inclusion. Reading it with a bare getattr(res, "eligible") returned
+    # None -- no such attribute exists -- which skipped the filter entirely and
+    # let ineligible rows through; hence _attr, which the rest of this file
+    # already uses for exactly this alias problem.
+    rows = np.array(_attr(res, "row_indices", "rows"), dtype=np.int64)
+    mask = next((getattr(res, nm) for nm in ("eligible_mask", "eligible")
+                 if hasattr(res, nm)), None)
+    if mask is None:
+        return rows
+    mask = np.asarray(mask, bool)
+    if rows.shape != mask.shape:
+        raise SystemExit(f"resolver returned {rows.shape} rows for {mask.shape} "
+                         "eligibility flags")
+    rows[~mask] = -1
     return rows
 
 
@@ -216,7 +251,13 @@ def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table", n_called=None):
     def row_at(a):                               # table row at age a, log-age interp
         k = np.interp(np.log(max(a, 1e-9)), la, np.arange(len(age)))
         k0 = int(np.floor(k)); k1 = min(k0 + 1, len(age) - 1); w = k - k0
-        r = (1 - w) * T[k0] + w * T[k1]
+        if w == 0.0:
+            # Exactly on a knot: the neighbour has zero weight and must not be
+            # touched. Writing (1-w)*T[k0] + w*T[k1] would evaluate 0 * NaN = NaN
+            # and reject a site over a table entry the answer does not depend on.
+            r = T[k0]
+        else:
+            r = (1 - w) * T[k0] + w * T[k1]
         # blending a T>=t_i zero row with a nonzero one leaks probability across the
         # mutation-existence boundary, so re-impose p_T = 0 at the interpolated age
         return np.where(Tg >= a, 0.0, r)
@@ -225,7 +266,13 @@ def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table", n_called=None):
     lo = max(b_lo, age[0])
     hi = min(max(b_hi, lo), age[-1])
     if hi <= lo:                                 # point age, or branch wholly below
-        return row_at(lo)                        # age[0] (row_at zeroes T >= age[0])
+        # row_at(lo) masks on the CLAMPED age, which for a branch lying entirely
+        # below the table's youngest row is age[0] > b_hi. That leaves T in
+        # [b_hi, age[0]) unmasked and hands back a positive probability for a
+        # sample older than every mutation age the branch admits -- the one case
+        # where p_T = 0 is certain. Mask on the true branch top instead; for a
+        # genuine point age b_hi == lo and this is what row_at already did.
+        return np.where(Tg >= b_hi, 0.0, row_at(lo))
     nodes = np.linspace(lo, hi, n_quad)          # UNIFORM in time along the branch
     wts = np.full(n_quad, 1.0); wts[0] = wts[-1] = 0.5   # trapezoidal weights
     acc = np.zeros(T.shape[1])
@@ -300,14 +347,10 @@ def read_panel_alt(vcf_paths, chrom, chunk_records, quiet, n_expected):
             if chunk is None:                  # normalizeTE header/final-summary event
                 continue
             _chrom, pos, rb, ab = _chunk_sites(chunk)
-            codes = np.asarray(getattr(chunk, "codes"))
             # sum ALT alleles and called alleles across all panel samples
-            if codes.shape[0] == len(list(names)):
-                alt = (codes >> 4).astype(np.int64); cal = (codes & 15).astype(np.int64)
-                tot_alt = alt.sum(axis=0); tot_called = cal.sum(axis=0)
-            else:
-                alt = (codes >> 4).astype(np.int64); cal = (codes & 15).astype(np.int64)
-                tot_alt = alt.sum(axis=1); tot_called = cal.sum(axis=1)
+            codes = _codes_by_site(chunk, names)          # (sites, samples)
+            alt = (codes >> 4).astype(np.int64); cal = (codes & 15).astype(np.int64)
+            tot_alt = alt.sum(axis=1); tot_called = cal.sum(axis=1)
             for j in range(len(pos)):
                 if chrom is not None and str(_chrom[j]) != str(chrom):
                     continue
@@ -475,6 +518,19 @@ def run_chromosome(args, tab):
                 if phi2 is not None:           # E[(1-X)^2] = 1 - 2 E[X] + E[X^2]
                     phi2 = 1.0 - 2.0 * phi + phi2
                 phi = 1.0 - phi
+            # E[p]^2 <= E[p^2] <= E[p] and 0 <= E[p] <= 1 are exact identities of
+            # the model. Clipping each moment into [0, 1] INDEPENDENTLY cannot
+            # enforce the relation between them, so an invalid pair such as
+            # (0.2, 0.8) survives and makes P(dosage=1) = 2(E[r] - E[r^2])
+            # negative, which the 1e-300 floor below then turns into a confident
+            # log-likelihood of about -690. Reject the draw instead: the table is
+            # wrong, and no clip recovers the information.
+            if phi2 is not None:
+                tol = 1e-5                     # table planes are float32
+                if np.any(phi2 < phi * phi - tol) or np.any(phi2 > phi + tol):
+                    stats["draws_numerical_failure"] += 1
+                    numerical_rejected = True
+                    continue
             phi_by_draw[d] = np.clip(phi, 0.0, 1.0)
             if phi2 is not None:
                 phi2_by_draw[d] = np.clip(phi2, 0.0, 1.0)

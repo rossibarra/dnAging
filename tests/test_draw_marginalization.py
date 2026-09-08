@@ -14,12 +14,16 @@ def _run_two_sites(monkeypatch, tmp_path, *, second_site_draw_values,
 
     dosage = 1 if ploidy == 1 else 2
     called = 1 if ploidy == 1 else 2
+    # codes are (sites, samples), the layout normalizeTE's VcfChunk documents.
+    # These fixtures used to be transposed, which is what hid the orientation bug:
+    # the adapter guessed from codes.shape[0] == len(names) and so agreed with
+    # either layout.
     ancient = FakeChunk(["1", "1"], [100, 200], ["A", "A"], ["C", "C"],
-                        pack([[dosage, dosage]], [[called, called]]))
+                        pack([[dosage], [dosage]], [[called], [called]]))
     panel = FakeChunk(
         ["1", "1"], [100, 200], ["A", "A"], ["C", "C"],
-        pack([[1, 1], [1, 1], [0, 0], [0, 0], [0, 0], [0, 0]],
-             [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]]))
+        pack([[1, 1, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0]],
+             [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]))
     mapping = {
         "anc.vcf": [(["ancient"], ancient)],
         "panel.vcf": [([f"p{i}" for i in range(6)], panel)],
