@@ -99,7 +99,8 @@ differs from that file's.
 | **H0** | **The eps floor.** `--epsilon` defaults to 0.01 and enters as r = eps + (1-2 eps) p, so every site with true p < 0.01 is modelled at ~0.01 — exactly the rare carried sites H1 identifies as high-leverage. An eps-driven offset is ~Ne-independent in generations, matching (a). | **OPEN, highest priority.** Codex measured a 200-generation MAP shift between eps = 1e-6 and 0.01 on a synthetic 2-site fixture. Worth ~1/3 of the offset in the beta-binomial work, the only mechanism of six that survived there. Not in `bias_ideas.md`. |
 | 5b | **Table numerics.** `bias_ideas.md` notes in passing that "a handful of entire very-young moment-table rows were NaN ... at Ne = 500,000". That was the tip of it: float64 discarded 11% of entries at n=12 and 59% at n=40, wrote 18% of a test build as silent zeros, and was already 0.8% wrong where it passed its own guard. | **FIXED** (d75b9b9, 54b9113, 33b23d6). Plausibly the main driver of the high-Ne rows in (a): larger Ne compresses a fixed generation grid into smaller tau, where the intermediate-d0 denominator underflows. **All of (a) must be re-measured.** |
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | OPEN, and probably the same object as H0. Note the *selective* filter test in `bias_ideas.md` cannot distinguish "model wrong about rare carried alleles" from "deleting terms of one sign moves the estimate": removing carried-but-not-absent singletons deletes the log p terms and keeps the log(1-p) terms, so an upward swing is guaranteed. The swings are 3–6x the bias being explained, which is the tell. Run the **symmetric** arms instead. |
-| 2 | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
+| 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
+| **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a, and much better supported. `phi_lookup` averages the conditional uniformly along the branch (`np.linspace(lo, hi, n_quad)`, trapezoidal), which is an integral of ratios. The weighted form needs P(d0 \| t_i), which is not in the table. | **OPEN, second priority after H0.** The `betabinom` branch **tested exactly this question** and the effect is large: uniform averaging gives observed/predicted of 0.09, 0.17, 0.31 across bins of the fraction of edge above T, against 1.12, 1.01, 0.92 den-weighted — up to **11x** miscalibration, and up to 2x inflation of p on long edges (MATH2.md sections 4 and 8). `main` currently uses the form that failed there. Caveats: the weights are analogous but not identical (k observed *at* T versus d0 observed at the present, much later), and a uniform inflation of p would push *older* whereas the observed bias is younger — so if this matters it acts through how the inflation varies with T, not its level. |
 | 3 | Insufficient conditioning on the ARG beyond d0 and age interval. | OPEN, untested. |
 | 4 | Wrong diffusion conditioning / boundary behaviour. | OPEN. **Caution:** "biased upward at low true frequency" is what an *unbiased* posterior mean does — shrinkage toward the prior. Calibration must be binned on the *predicted* value, E[p_true \| p_hat], not on the true one. Bin on truth and you will reproduce the artifact. I withdrew a claim of my own for this reason. |
 | 5 | Edge quadrature and interpolation. | **PARTLY CONFIRMED, OPEN.** See "fixed 16-node quadrature" under open bugs — codex constructed a 30x overestimate. Directionally this pulls toward *younger* ages, matching (a). |
@@ -118,6 +119,14 @@ inference error (true ARGs used), genotype error (none simulated).
 | Medium | **tau_i = 3 cutoff recovered 6.3% early across a demographic boundary.** With Ne=10,000 to generation 59,000 then Ne=1,000, the exact cutoff is 59,100 generations; interpolating log-spaced age rows returns 55,352. Edges starting in between are wrongly excluded. | MATH.md admits the approximation. Fix: store the breakpoints or the exactly inverted cutoff with the table. Exact within a single constant-Ne window. |
 | Medium | **Build cost is concentrated in rows inference discards.** One (n=26, 300 sample-age) row costs 0.02 s at tau_i=5e-4 and 2.9 s at tau_i=2.33, but **42 s at tau_i=2000**, where 930 digits are needed — and `--mutation-age-max` throws away everything past tau_i=3. | Cap the age grid nearer the cutoff. Deliberately not done: it is a semantics change, not a bug. |
 | Low | **Store coordinate convention is assumed, not validated.** The adapter subtracts one because this repo's converter declares one-based ARG coordinates. A store preserving ordinary zero-based tree positions would silently select the neighbouring site. | Not an unconditional bug for current stores. Fix: validate coordinate-convention metadata at ingestion. This project has been bitten by POS conventions before. |
+
+**Not a bug, but the standing engineering option:** reformulating the conditioning
+in a numerically stable basis (orthogonal-polynomial or spectral moments rather
+than raw power moments) would cut the digits required and could retire the whole
+per-row precision apparatus, on both branches. It is **bias-neutral by
+construction** — it computes the same expectations with less cancellation, so it
+is deliberately *not* a bias hypothesis. Noted in MATH.md; not needed at ARG panel
+sizes now that precision is handled.
 
 Recently fixed, for the record: five inference bugs in bc5268d (square chunks
 transposing sites against samples; resolver eligibility never applied; p_T = 0
@@ -153,8 +162,18 @@ Decisions taken that a reader might reasonably want back.
   that faithfully — it cannot do otherwise, since the denominator is not in the
   table. Whether it is *right* is a modelling question: uniform-along-edge is
   correct as the conditional age distribution given the draw, but wrong as a prior
-  that still needs the sampling weight applied. **This is the same question as
-  bias H2 and needs a decision, not a patch.**
+  that still needs the sampling weight applied. **This is bias H2b and needs a
+  decision, not a patch**; storing the numerator and denominator separately is the
+  precondition for even testing the alternative.
+
+  The same question appears in three places, which is worth seeing as one issue:
+  here as eq. (10b); on the `betabinom` branch as the prior-versus-posterior
+  straddling weight w (MATH2.md eq. 8 against 8a, where the honest reason for the
+  prior is that the posterior is not well defined — below T the allele does not
+  exist, so there is no binomial factor to weigh against); and in `bias_ideas.md`
+  as hypothesis 2. On the `betabinom` branch the *order* question is settled in
+  favour of the weighted form and verified; the *weight for the straddling
+  fraction* remains approximate there. Here neither is settled.
 
 ## Confirmed sound
 
@@ -175,7 +194,11 @@ tested, at every n and tau_i tried.
 2. **Reconcile the sign disagreement** between the production pipeline and the
    300-sim reimplementation. Most likely eps.
 3. **H0: eps sweep** at 1e-6, 1e-3, 0.01 on the same simulations.
-4. Fix the edge quadrature (bias H5, and an open bug in its own right).
-5. H1's symmetric arms; likelihood pull by d0 and carried/absent state.
-6. H4 calibration, binned on predicted rather than true frequency.
-7. Retire H6 analytically. Then H3, H7, H8.
+4. **H2b: the marginalisation order.** Store num and den separately so the
+   weighted form can be computed at all, then compare on the same simulations.
+   The `betabinom` branch's 11x calibration result makes this the best-supported
+   structural hypothesis, and it is currently untestable rather than tested.
+5. Fix the edge quadrature (bias H5, and an open bug in its own right).
+6. H1's symmetric arms; likelihood pull by d0 and carried/absent state.
+7. H4 calibration, binned on predicted rather than true frequency.
+8. Retire H6 analytically. Then H3, H7, H8.
