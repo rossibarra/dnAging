@@ -186,6 +186,71 @@ site contributes. The closed-form partial-fraction expansion of e^{B tau} matche
 `scipy.linalg.expm` and the independent 80-digit reference to the last digit
 tested, at every n and tau_i tried.
 
+## TODO tests
+
+Specified in enough detail to hand off. Add to this list rather than keeping test
+plans in chat.
+
+### T1. Marginalisation order: uniform average vs den-weighted (bias H2b)
+
+**Question.** MATH.md eq. (10b) averages the conditional uniformly along the
+mutation's edge (an integral of ratios). The alternative weights each candidate
+age by the probability of the observed panel count, P(d0 | t_i), giving a ratio
+of integrals. On the `betabinom` branch the uniform form miscalibrates by up to
+11x; `main` uses the uniform form and has never been able to compute the other.
+
+**Why it is now cheap.** den is already computed and discarded, and it does *not*
+depend on T -- in `ExactMomentEngine.grid` it is built outside the `for it, tT`
+loop, so it is a function of (n, d0, age) alone. Since num = phi * den, the
+weighted form is a **den-weighted average of the phi already in the table**:
+
+    p(T) = integral[ den(a) * phi(a,T) da ] / integral[ den(a) da ]
+
+**Prerequisite, already met.** den underflowing to zero was exactly the
+silent-zero bug fixed in 33b23d6 (576 of 3120 entries). Weighting by den before
+that fix would have been unreliable, which is part of why this is newly
+approachable rather than long-neglected.
+
+**Changes.**
+
+1. Return den from `ExactMomentEngine.grid` and write it as an extra table plane
+   of shape (n_panel, n_sample, n_age) -- **no T axis**, so about 1/300 the size
+   of `table` at the default n_t=300. Store **log den**: it is essentially
+   P(d0 | t_i) and will underflow float32 for rare configurations.
+2. In `phi_lookup`, multiply the trapezoidal node weights by den at each node.
+   Do this **together with** the quadrature fix (open bugs, and bias H5) -- both
+   live in the same few lines, and measuring one through the other's error would
+   waste the run.
+3. Expose `--marginalise {uniform,weighted}` so both are runnable from one table.
+   Commits to neither reading of eq. (10b).
+
+**No separate w factor is needed.** The existence dilution falls out: for
+placements with a <= T, phi = 0 contributes nothing to the numerator while den
+stays in the denominator. That is the diffusion analogue of betabinom's explicit
+w -- see MATH2.md eq. (8).
+
+**Comparison.** Both settings over `~/Projects/mutrates/simbatch300` (harness
+exists from the head-to-head). Report bias, RMSE, slope, r, coverage, and
+parameter dependence in generations *and* in diffusion time, since the two
+approaches' offsets behave oppositely under that reparameterisation.
+
+**What counts as an answer.** The weighted form reducing the offset is the
+hypothesis. Two outcomes are informative and one is a trap:
+
+- Offset shrinks materially -> H2b confirmed, and eq. (10b) needs rewriting.
+- Offset unchanged -> H2b struck for `main`, and the betabinom calibration result
+  does not transfer. Record *why*: the weights are analogous but not identical
+  (k observed at T against d0 observed at the present, much later).
+- **Trap:** a uniform inflation of p pushes estimates *older*, while the observed
+  bias is *younger*. Do not read "wrong direction" as "no effect" -- if this
+  matters it acts through how the inflation varies with T, not through its level.
+  Compare the whole p(T) curve, not just the MAP.
+
+**Decision left open.** Which form becomes the default in MATH.md is a modelling
+call, not something the run settles by itself: uniform-along-edge is defensible as
+the conditional age distribution given the draw, and indefensible as a prior still
+awaiting its sampling weight.
+
 ## Next steps, in order
 
 1. **Rebuild the tables with the fixed engine and re-measure the `bias_ideas.md`
@@ -194,11 +259,11 @@ tested, at every n and tau_i tried.
 2. **Reconcile the sign disagreement** between the production pipeline and the
    300-sim reimplementation. Most likely eps.
 3. **H0: eps sweep** at 1e-6, 1e-3, 0.01 on the same simulations.
-4. **H2b: the marginalisation order.** Store num and den separately so the
-   weighted form can be computed at all, then compare on the same simulations.
-   The `betabinom` branch's 11x calibration result makes this the best-supported
-   structural hypothesis, and it is currently untestable rather than tested.
-5. Fix the edge quadrature (bias H5, and an open bug in its own right).
+4. **H2b: the marginalisation order — see TODO test T1**, which is specified.
+   Currently untestable rather than tested, and the fix is small: den is already
+   computed and thrown away. Bundle with the quadrature fix below.
+5. Fix the edge quadrature (bias H5, and an open bug in its own right). Same few
+   lines as T1; do them together.
 6. H1's symmetric arms; likelihood pull by d0 and carried/absent state.
 7. H4 calibration, binned on predicted rather than true frequency.
 8. Retire H6 analytically. Then H3, H7, H8.
