@@ -118,9 +118,10 @@ Established against msprime with true ARGs:
 
 ## Judgement calls
 
-- **Polarised 1/x prior**, giving posterior Beta(k, n_T - k + 1) and mean
-  k/(n_T + 1). The unpolarised Beta(a1, a2) alternative is wrong by 9.6%, so this
-  is validated rather than merely chosen — but it does assume correct polarisation.
+- **Polarised prior**, giving posterior Beta(k, n_T - k + 1) and mean k/(n_T + 1)
+  in the large-age limit. The unpolarised alternative gives k/n_T and is wrong by
+  9.6%, so this is validated rather than merely chosen. Note this is *not* a
+  polarity decision: see below.
 - **Two approximations are knowingly retained** (MATH2.md sections 3 and 4):
   dropping the structured-coalescent term, and using the prior rather than the
   posterior in the straddling weight w. Tests cannot resolve either, which is not
@@ -143,6 +144,50 @@ Established against msprime with true ARGs:
   bias/SD rises from ~1.0 to ~1.8 and coverage gets *worse*. Anything that cuts
   variance without addressing the offset makes the estimator more confidently
   wrong.
+
+## Polarity: this approach largely does not need it
+
+Worth stating explicitly, because it is a genuine structural difference from
+`main` and easy to get backwards.
+
+**Polarity is implied by the ARG, not supplied to the model.** A mutation is an
+event on an edge, so "derived" means precisely "descends from that edge's child
+node", and k is read off the topology:
+
+```python
+m = site.mutations[0]                        # the mutation's edge
+nl = tree.num_samples(m.node)                # leaves below it
+kv = nl - searchsorted(cache[m.node], GRID)  # lineages at T descending from m.node
+```
+
+Nothing in `betabinom/` reads REF/ALT or an ancestral state — there is no polarity
+table and no ALT-ancestral branch. The `len(site.mutations) != 1` filter drops
+recurrent and back mutations, so the identification is exact. The prior is not
+literally f(x) ∝ 1/x either: the moments come from the neutral recursion started
+at a single copy a generations before T, which is polarised by construction; 1/x
+and k/(n_T+1) are only its large-a limit.
+
+Contrast `main`, which conditions on d0, a **count from the VCF**. It must know
+whether ALT is derived to index the conditional, and polarity can flip between ARG
+draws — hence MATH.md's polarity table, per-draw ALT-ancestral transform, and the
+d0 -> n - d0 complement. That machinery exists because the conditioning variable
+is a called allele count rather than a tree.
+
+Polarity still reaches this approach in two places, both **outside** the model:
+
+1. **The ancient sample's call.** `f[9].startswith('1')` means "carries ALT", so
+   `carried` assumes ALT is derived — true by msprime convention, but needing an
+   ancestral state on real data. A flip inverts the *observation*, not the model:
+   a more localised failure than picking the wrong row of a conditional.
+2. **Upstream ARG inference.** With inferred rather than true ARGs, polarised data
+   goes into building the ARG, so mispolarisation would corrupt mutation placement
+   and topology. The exposure moves upstream rather than vanishing, and is
+   untested here — see open question 2.
+
+**Consequence for the branch decision.** The two approaches fail *differently*
+under polarity error, so agreement between them is evidence against polarity error
+as a cause of any shared offset. This is part of why the branch is worth keeping as
+an independent check even though it is not the way forward.
 
 ## Struck, with reasons — do not revisit
 
