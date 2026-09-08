@@ -96,7 +96,7 @@ differs from that file's.
 
 | # | Hypothesis | Status |
 |---|---|---|
-| **H0** | **The eps floor.** `--epsilon` defaults to 0.01 and enters as r = eps + (1-2 eps) p, so every site with true p < 0.01 is modelled at ~0.01 — exactly the rare carried sites H1 identifies as high-leverage. An eps-driven offset is ~Ne-independent in generations, matching (a). | **OPEN, highest priority.** Codex measured a 200-generation MAP shift between eps = 1e-6 and 0.01 on a synthetic 2-site fixture. Worth ~1/3 of the offset in the beta-binomial work, the only mechanism of six that survived there. Not in `bias_ideas.md`. |
+| **H0** | **The eps floor, acting asymmetrically in T.** r = eps + (1-2 eps) p, and phi *decreases* with T, so the floor bites hardest where phi is smallest — at large T. It therefore compresses the likelihood's ability to discriminate among old ages rather than shifting it uniformly. Measured below: it removes 44% of the large-T signal at d0=1 while leaving 80% of the small-T signal, and it acts almost entirely on **carried** sites (a 42% change there against 1% on absent sites). An eps-driven offset is also ~Ne-independent in generations, matching (a). | **OPEN, highest priority.** Codex measured a 200-generation MAP shift between eps = 1e-6 and 0.01 on a synthetic 2-site fixture. Worth ~1/3 of the offset in the beta-binomial work, the only mechanism of six that survived there. Not in `bias_ideas.md`. Because its effect is concentrated on carried sites, **H0 and H1 are quantitatively the same object** — see TODO test T2. |
 | 5b | **Table numerics.** `bias_ideas.md` notes in passing that "a handful of entire very-young moment-table rows were NaN ... at Ne = 500,000". That was the tip of it: float64 discarded 11% of entries at n=12 and 59% at n=40, wrote 18% of a test build as silent zeros, and was already 0.8% wrong where it passed its own guard. | **FIXED** (d75b9b9, 54b9113, 33b23d6). Plausibly the main driver of the high-Ne rows in (a): larger Ne compresses a fixed generation grid into smaller tau, where the intermediate-d0 denominator underflows. **All of (a) must be re-measured.** |
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | OPEN, and probably the same object as H0. Note the *selective* filter test in `bias_ideas.md` cannot distinguish "model wrong about rare carried alleles" from "deleting terms of one sign moves the estimate": removing carried-but-not-absent singletons deletes the log p terms and keeps the log(1-p) terms, so an upward swing is guaranteed. The swings are 3–6x the bias being explained, which is the tell. Run the **symmetric** arms instead. |
 | 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
@@ -250,6 +250,76 @@ hypothesis. Two outcomes are informative and one is a trap:
 call, not something the run settles by itself: uniform-along-edge is defensible as
 the conditional age distribution given the draw, and indefensible as a prior still
 awaiting its sampling weight.
+
+### T2. Split the error term into observation error and model failure
+
+**Question.** A single `--epsilon` is doing two incompatible jobs: a genotype
+error rate, which should come from data quality, and a regulariser softening the
+"carriage is impossible" wall from -infinity to log eps. Setting it high enough to
+survive an ARG error destroys carried-site signal; setting it low makes one bad
+site catastrophic.
+
+**Measured, at n=26, Ne=20,000, mutation age 4,000 generations** (one point only —
+sweep before trusting the magnitudes). All figures in nats.
+
+phi for d0=1 spans 4.9e-3 to 4.3e-2, so eps=0.01 lands *inside* the range of phi
+itself, which is what makes the effect asymmetric rather than a uniform shift:
+
+|      | small-T half | (truth) | large-T half | (truth) |
+|------|-------------:|--------:|-------------:|--------:|
+| d0=1, eps=0.01  | 0.134 | 0.168 | 1.117 | 1.997 |
+| d0=1, eps=1e-3  | 0.164 | 0.168 | 1.837 | 1.997 |
+| d0=13, eps=0.01 | 0.902 | 0.951 | 2.054 | 2.999 |
+| d0=13, eps=1e-3 | 0.946 | 0.951 | 2.845 | 2.999 |
+
+So eps=0.01 keeps 80% of the small-T signal but only 56% of the large-T signal.
+It degrades discrimination *among old ages* specifically.
+
+**eps acts almost entirely on carried sites.** Raising it from 1e-6 to 0.01
+changes the carried-site signal by 42% (2.191 -> 1.272 at d0=1) and the absent-site
+signal by **1%** (0.0397 -> 0.0393). Absent sites also carry 10-70x less
+information each (0.04-0.37 nats against 1.2-3.0 carried), so the two channels are
+balanced by *counts*, not per-site weight. This is the quantitative content of
+bias H1, and it is why H0 and H1 are one hypothesis.
+
+**Proposed split.** Two independent failure channels:
+
+    p~_i(T) = (1 - eps_m) p_i(T) + eps_m * b_i
+    r_i(T)  = eps_e + (1 - 2 eps_e) p~_i(T)
+
+with `eps_e` the observation error rate (fixed from damage and coverage), `eps_m`
+the probability the site's ARG-derived p is simply wrong (misplaced mutation,
+flipped polarity, wrong topology), and `b_i` a T-independent background carrier
+probability — natural choice d0/n.
+
+**What the split does and does not buy.** It buys **nothing on signal**: at
+eps_e=1e-3 the split gives 2.021 nats against 2.027 for eps_e alone, because the
+flat term dominates. Its whole value is in the wall, and only when observation
+error is low:
+
+| scheme | wall at d0=1 | wall at d0=26 | gradient |
+|---|---:|---:|---:|
+| eps_e=1e-5 alone | 11.51 | 11.51 | 0.00 |
+| split eps_e=1e-5, eps_m=1e-2 | 7.84 | 4.60 | **3.23** |
+| eps_e=1e-3 alone | 6.91 | 6.91 | 0.00 |
+| split eps_e=1e-3, eps_m=1e-2 | 6.58 | 4.51 | 2.07 |
+
+The real argument is therefore **decoupling**, not signal recovery: it lets eps_e
+drop two orders of magnitude — recovering the 42% of carried-site signal that
+eps=0.01 destroys — without making a single ARG error cost 11.5 nats. And it makes
+the wall site-dependent, so a violation at a common allele (likely an ARG error) is
+cheap while one at a singleton stays expensive. That is the correct ordering and a
+single eps cannot express it.
+
+**Do this first, and it may be enough.** The dominant effect by far is the *level*
+of the flat term: 4.61 nats at eps=0.01 against 13.82 at 1e-6, a 9-nat swing,
+against a 2-3 nat gradient from the split. **Sweep eps first** (next steps step 3);
+only build the split if setting eps_e to the true error rate does not resolve H0.
+
+**Identifiability caveat.** eps_m is one global parameter against 15,000+ sites, so
+profiling it jointly with T should be feasible — but a larger eps_m flattens the
+likelihood in T, so the joint profile may be weakly identified or ridged. Check the
+profile shape before trusting a fitted value.
 
 ## Next steps, in order
 
