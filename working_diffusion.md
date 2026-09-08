@@ -311,15 +311,64 @@ the wall site-dependent, so a violation at a common allele (likely an ARG error)
 cheap while one at a singleton stays expensive. That is the correct ordering and a
 single eps cannot express it.
 
-**Do this first, and it may be enough.** The dominant effect by far is the *level*
-of the flat term: 4.61 nats at eps=0.01 against 13.82 at 1e-6, a 9-nat swing,
-against a 2-3 nat gradient from the split. **Sweep eps first** (next steps step 3);
-only build the split if setting eps_e to the true error rate does not resolve H0.
+**Do not sweep eps. Profile it.** A sweep implies we could then *set* eps to the
+right value, and we cannot: the genotyping error rate of real aDNA is not known a
+priori. That objection dissolves rather than blocking, because **eps is sharply
+identifiable jointly with T**, so it never has to be assumed.
 
-**Identifiability caveat.** eps_m is one global parameter against 15,000+ sites, so
-profiling it jointly with T should be feasible — but a larger eps_m flattens the
-likelihood in T, so the joint profile may be weakly identified or ridged. Check the
-profile shape before trusting a fitted value.
+Measured on a synthetic set built from the real conditional (n=26, Ne=20,000,
+T_true=2000, 12 age classes x 26 d0 classes, ~15,000 independent sites, carriage
+drawn with a KNOWN injected error rate):
+
+| injected eps | eps_hat | T_hat | T error | T_hat with eps fixed at 0.01 | error |
+|---:|---:|---:|---:|---:|---:|
+| 0      | 1e-6 (grid floor) | 2067 | +67 | 2218 | +218 |
+| 1e-4   | 1e-4  | 2067 | +67 | 2067 | +67 |
+| 1e-3   | 1e-3  | 2067 | +67 | 2067 | +67 |
+| 1e-2   | 1e-2  | 2067 | +67 | 2067 | +67 |
+
+The injected rate is recovered exactly at every level, and the residual +67 is one
+T-grid step (151 generations), i.e. essentially unbiased. **Profiling eps makes
+T_hat insensitive to it** — 2067 at every injected level — whereas wrongly fixing
+eps=0.01 on error-free data costs +151 generations. The profile is peaked, not
+ridged: at eps_true=1e-3 the penalty is -56 nats at 1e-6 and -37 nats at 1e-2.
+
+**The real limit is the effective number of INDEPENDENT sites, not the site
+count.** Curvature scales with it, and identification fails outright once it is
+small:
+
+| independent sites | penalty at eps=1e-6 | penalty at eps=0.01 | eps_hat |
+|---:|---:|---:|---:|
+| 14,976 | -56.1 | -37.0 | 1e-3 (correct) |
+| 2,988  | -20.4 |  -5.4 | 3e-3 |
+| 756    |  -6.9 |  -1.4 | 3e-3 |
+| 144    |   0.0 |  -0.9 | **1e-6 — identification lost** |
+| 24     |   0.0 |  -0.2 | **lost** |
+
+Crossover is around 500-1000 effective independent units. Linked sites are worth
+somewhere between one site and their number, so **10 Mb may be borderline while
+genome scale is comfortable** — the block bootstrap's 100 blocks over 10 Mb sits
+uncomfortably near the row where identification fails. This must be measured on
+real linked data before relying on a profiled eps; the table says what to look for
+(is the profile peaked, and by how many nats).
+
+**Consequences.**
+
+- Replace "choose eps" with "profile eps jointly with T", and report the profile
+  shape as a diagnostic. If it is flat on real data, eps is unknowable *for that
+  dataset* and the estimate must be reported as conditional on it.
+- **This demotes the split further.** Profiling a scalar eps already removes the
+  T-sensitivity, so eps_e/eps_m is only needed if a profiled scalar leaves residual
+  bias. Test the scalar profile first.
+- **eps_hat is an omnibus failure rate, not a sequencing error rate.** It will
+  absorb ARG error, polarity error and model misspecification along with genotyping
+  error. That is arguably what the likelihood wants, but it means the fitted value
+  must not be reported as, or sanity-checked against, a damage-based error estimate.
+
+**Caveat on all of the above.** This is a well-specified simulation: the model
+generating the data is exactly the model being fit, sites are drawn independently,
+and phi is exact with no ARG uncertainty. Identifiability under correct
+specification does not imply it under misspecification.
 
 ## Next steps, in order
 
@@ -328,7 +377,11 @@ profile shape before trusting a fitted value.
    contaminated table.
 2. **Reconcile the sign disagreement** between the production pipeline and the
    300-sim reimplementation. Most likely eps.
-3. **H0: eps sweep** at 1e-6, 1e-3, 0.01 on the same simulations.
+3. **H0: profile eps jointly with T** on the same simulations, and check the
+   profile is peaked once linkage is present (see T2 — identification is lost
+   below ~500 effective independent units, and 10 Mb may be borderline). Fixed-eps
+   comparisons at 1e-6 / 1e-3 / 0.01 are still worth running alongside, as a
+   sensitivity report rather than a calibration.
 4. **H2b: the marginalisation order — see TODO test T1**, which is specified.
    Currently untestable rather than tested, and the fix is small: den is already
    computed and thrown away. Bundle with the quadrature fix below.
