@@ -243,3 +243,6 @@ slurm-*.out
 # large simulation result bundles (multi-GB, not for version control)
 simarg-results.tar.gz
 *.tar.gz
+
+# cached intermediate frequency-comparison arrays (regenerable)
+betabinom/*.npy

@@ -12,7 +12,9 @@ from phid import PhiD
 ARCH=sys.argv[1]; EPS=float(sys.argv[2]) if len(sys.argv)>2 else 1e-6
 MU=1e-8; NQ=12; NBLOCK=100; NBOOT=300
 NE_FIXED=float(os.environ.get("NE_FIXED","0")) or None   # override the Watterson estimate
-grid=np.linspace(100.,20000.,80)
+grid=np.linspace(float(os.environ.get("GMIN","100")),
+                 float(os.environ.get("GMAX","20000")),
+                 int(os.environ.get("GN","80")))
 W=np.full(NQ,1.); W[0]=W[-1]=.5
 _c={}
 def get(Ne):
@@ -26,11 +28,14 @@ def run(d):
     a_n=sum(1.0/i for i in range(1,NMOD))
     Ne_hat=NE_FIXED or (ts.num_sites/a_n/ts.sequence_length)/(4*MU)
     P,Ne=get(Ne_hat)
-    carried=set()
+    raw=[]
     for ln in open(f"{d}/{b}_ancient.vcf"):
         if ln.startswith('#'): continue
-        f=ln.split('\t')
-        if f[9].strip().startswith('1'): carried.add(int(f[1])-1)
+        f=ln.split('\t'); raw.append((int(f[1]), f[9].strip().startswith('1')))
+    tree_pos=set(int(s_.position) for s_ in ts.sites())
+    allp={p for p,_ in raw}
+    off=max((0,-1,1), key=lambda o: len({p+o for p in allp} & tree_pos))
+    carried={p+off for p,c in raw if c}
     LL=[];POS=[]
     for tree in ts.trees():
         internal=np.sort([tree.time(u) for u in tree.nodes() if tree.is_internal(u)])
@@ -69,6 +74,9 @@ def run(d):
     rng=np.random.default_rng(0)
     bm=np.array([grid[sums[rng.integers(0,NBLOCK,NBLOCK)].sum(0).argmax()] for _ in range(NBOOT)])
     ncar=sum(1 for x in POS if int(x) in carried)
+    if os.environ.get("SAVE_CURVE"):
+        np.savez(os.environ["SAVE_CURVE"], grid=grid, loglik=tot, boot=bm,
+                 nsites=LL.shape[0], ncarried=ncar, Ne=Ne)
     return (Ne, LL.shape[0], ncar, grid[tot.argmax()], bm.std(ddof=1),
             *np.percentile(bm,[2.5,97.5]))
 
