@@ -84,7 +84,10 @@ Output (.npz, --output)
 Numerics note: the conditioning step sums binom(n-d0,m-d0)(-1)^{m-d0} M_m with
 alternating signs, which loses roughly 0.3 decimal digits per chromosome. float64
 cannot carry that for realistic panels, so the table is built by
-ExactMomentEngine, which works at 30 + n digits and reaches the value exactly (it
+ExactMomentEngine, which chooses its precision per table row (see required_dps:
+both very young and very old mutation ages lose digits, for different reasons) and
+verifies the result against the exact moment identities rather than trusting that
+choice, escalating where they fail.  It reaches the value exactly (it
 agrees with the independent reference in tests/_reference.py to the last digit
 tested). The float64 engine remains available as --float64 for comparison against
 older tables, but it fails in two ways and should not be used to build one: at
@@ -105,8 +108,11 @@ tau_T and M(tau_i) per age, so each entry costs O(n^2) high-precision multiplies
 instead of an exponential. It also never forms a general matrix exponential at
 all -- B is lower-bidiagonal with eigenvalues -k(k-1)/2, so e^{B u} has an exact
 partial-fraction expansion whose rational coefficients are computed once per panel
-size. Net effect: the default build is ~36 min on one core at 56 digits, i.e. the
-higher precision costs less than the arrangement it replaced.
+size.  Cost is now concentrated in the oldest rows: one (n=26, 300 sample-age)
+row takes 0.02 s at tau_i=5e-4 and 2.9 s at tau_i=2.33, but 42 s at tau_i=2000
+where 933 digits are needed.  Inference discards mutation-age mass beyond
+tau_i=3, so most of a default build is spent on rows nothing reads; capping the
+age grid nearer that cutoff is the obvious saving and is NOT implemented.
 """
 
 from __future__ import annotations
@@ -308,6 +314,20 @@ class ExactMomentEngine:
     stays an independent check.
     """
 
+    #: escalated engines are reused; rebuilding one per call discards its
+    #: coefficient tables and the e^{B tau_T} cache (measured 3.5x slower)
+    _escalated = {}
+
+    @classmethod
+    def at_precision(cls, n, dps):
+        """A cached engine for (n, dps).  Building one is not cheap; sharing is safe
+        because an engine holds no per-query state beyond its `_Ccache`."""
+        key = (int(n), int(dps))
+        eng = cls._escalated.get(key)
+        if eng is None:
+            eng = cls._escalated[key] = cls(n, dps=dps)
+        return eng
+
     def __init__(self, n, dps=None):
         self.n = int(n)
         self.K = self.n + 1
@@ -325,21 +345,40 @@ class ExactMomentEngine:
                                 for k, v in row.items()]
                            for ji, row in self._coeffs().items()}
         self._Ccache = {}
+        #: ceiling on escalation.  ~1400 digits covers tau_i up to ~3000 at
+        #: n=26, far beyond the tau_i=3 inference cutoff; past it entries are
+        #: NaN rather than an aborted build.
+        self.max_dps = 1400
+        #: entries that could not be reached even at max_dps
+        self.exhausted = 0
 
     def required_dps(self, tau_i):
-        """Digits needed when a mutation has had only ``tau_i`` time to spread.
+        """Digits needed at mutation age ``tau_i``.  Both extremes cost digits.
 
-        Reaching the largest sample-count classes from one copy requires up to
-        n-1 frequency-changing events.  As tau_i approaches zero their joint
-        probability scales as tau_i**(n-1); the numerator and denominator are
-        alternating sums of terms much larger than that probability.  The old
-        fixed 30+n budget therefore ceased to be exact on young table rows.
+        The loss is NOT in the conditioning sum for young mutations -- there its
+        cancellation ratio is ~1 (measured 1.06 at tau_i=5e-4, n=26).  It is in
+        the partial-fraction expansion of e^{B u} that `moms` and `_C` evaluate
+        first: the entry C[m,j] is a difference of exponentials whose leading
+        behaviour is order u^{m-j}, so for small u the terms cancel to that
+        order.  Measured ratio for C[28,1]: 3.9e17 at u=0.05, rising to 1.8e69
+        at u=5e-4.  Hence a term growing like N*log10(1/tau_i).
+
+        The opposite end costs digits in the conditioning sum itself.  As
+        tau_i grows every moment M_m tends to the same limit (the fixation
+        probability x0), so the alternating sum over m cancels exactly in the
+        limit and the surviving signal decays like e^{-tau_i}.  With binomial
+        weights of order 2^n that gives roughly 0.301*n + 0.4343*tau_i digits.
+
+        Both terms are estimates, not bounds.  `grid` re-derives the precision
+        from the answer it actually gets, so an underestimate here costs time,
+        never accuracy.
         """
         tau_i = float(tau_i)
         if tau_i <= 0:
             return self.dps
-        lost = (self.n - 1) * max(0.0, -log10(tau_i))
-        return max(self.dps, 30 + self.n + ceil(lost))
+        young = self.N * max(0.0, -log10(tau_i))
+        old = 0.301 * self.n + 0.4343 * tau_i
+        return max(self.dps, 30 + self.n + ceil(max(young, old)))
 
     def _coeffs(self):
         """D[(j, i)][k] with (e^{B u})_{ij} = sum_k D[(j,i)][k] e^{lam_k u}.
@@ -419,20 +458,27 @@ class ExactMomentEngine:
         """
         needed = self.required_dps(tau_i)
         if needed > self.dps:
-            # Coefficients converted from exact rationals in __init__ carry only
-            # self.dps digits, so a wider workdps context alone cannot recover
-            # them.  Reconstruct the engine at the required precision.
-            return ExactMomentEngine(self.n, dps=needed).grid(tau_i, tauT, eps)
+            # Coefficients are converted from exact rationals in __init__ and so
+            # carry only self.dps digits; a wider workdps context cannot recover
+            # them.  Use (and keep) an engine built at the required precision.
+            return self.at_precision(self.n, needed).grid(tau_i, tauT, eps)
         tauT = np.asarray(tauT, dtype=np.float64)
         p1 = np.zeros((self.n, tauT.size))
         p2 = np.zeros((self.n, tauT.size))
+        # An entry the working precision could not reach at all: the denominator
+        # underflowed to zero, so no value was written.  This must be tracked
+        # separately, because leaving such an entry at 0.0 satisfies every moment
+        # identity trivially and so is invisible to the constraint check below.
+        # Measured on the previous implementation: 576 of 3120 table entries (18%)
+        # came back as a silent 0.0 with relative error 1.0, passing all checks.
+        unreached = np.zeros((self.n, tauT.size), dtype=bool)
         with mp.workdps(self.dps):
             Mpres = self.moms(tau_i, eps)
             den = {d0: mp.fsum(c * Mpres[m] for m, c in self.coeff[d0].items())
                    for d0 in range(1, self.n + 1)}
             for it, tT in enumerate(tauT):
                 if tT >= tau_i:
-                    continue
+                    continue        # sample older than the mutation: a true zero
                 C = self._C(tT)
                 Mu1 = self.moms(tau_i - tT, eps)
                 EjX = [mp.fsum(C[m][j] * Mu1[j + 1] for j in range(self.K))
@@ -441,20 +487,31 @@ class ExactMomentEngine:
                         for m in range(self.N)]
                 for d0, cs in self.coeff.items():
                     d = den[d0]
-                    if d == 0:
+                    if d == 0 or not mp.isfinite(d):
+                        unreached[d0 - 1, it] = True
                         continue
                     a = mp.fsum(c * EjX[m] for m, c in cs.items()) / d
                     b = mp.fsum(c * EjX2[m] for m, c in cs.items()) / d
                     p1[d0 - 1, it] = float(a)
                     p2[d0 - 1, it] = float(b)
-        # exact moment constraints; with dps digits these hold, so assert rather
-        # than clip -- a violation now means a real bug, not roundoff
-        bad = (p1 < -1e-12) | (p1 > 1 + 1e-12) | (p2 < p1 * p1 - 1e-12) | (p2 > p1 + 1e-12)
+        # 0 <= E[p] <= 1 and E[p]^2 <= E[p^2] <= E[p] are exact identities, so a
+        # violation means the working precision was too low -- it is a measurement
+        # of the shortfall, not a bug.  Retry higher rather than trusting a
+        # formula: required_dps only estimates the loss.
+        bad = ((p1 < -1e-12) | (p1 > 1 + 1e-12) | (p2 < p1 * p1 - 1e-12)
+               | (p2 > p1 + 1e-12) | unreached)
         if bad.any():
-            i = np.argwhere(bad)[0]
-            raise AssertionError(
-                f"moment constraints violated at d0={i[0]+1}, tau_T={tauT[i[1]]:g}, "
-                f"tau_i={tau_i:g}: E[p]={p1[tuple(i)]!r}, E[p^2]={p2[tuple(i)]!r}")
+            if self.dps < self.max_dps:
+                nxt = min(self.max_dps, max(self.dps * 2, self.dps + 40))
+                return self.at_precision(self.n, nxt).grid(tau_i, tauT, eps)
+            # Exhausted the budget.  Report NaN, as the legacy engine does for
+            # numerical failure; inference already treats NaN as disqualifying.
+            # Never leave one of these at 0.0 -- a wrong zero is indistinguishable
+            # from the legitimate zero at tau_T >= tau_i.
+            p1 = np.where(bad, np.nan, p1)
+            p2 = np.where(bad, np.nan, p2)
+            self.exhausted += int(bad.sum())
+            return p1, p2
         return np.clip(p1, 0.0, 1.0), np.clip(p2, p1 * p1, p1)
 
     def Emoments(self, d0, tau_i, tau_T, eps):
@@ -484,30 +541,43 @@ def build_table(args):
     shape = (len(panel_sizes), args.n_sample, args.n_age, len(Tgrid))
     table = np.full(shape, np.nan, dtype=np.float32)
     table2 = np.full(shape, np.nan, dtype=np.float32)
+    dps_used, exhausted = [], 0
     for inx, n in enumerate(panel_sizes):
-        if args.float64:
-            eng = MomentEngine(int(n))
-        else:
-            base = ExactMomentEngine(int(n), dps=args.precision)
-            minimum_tau = tau_of_t(float(age[0]))
-            eng = ExactMomentEngine(int(n), dps=base.required_dps(minimum_tau))
+        legacy = MomentEngine(int(n)) if args.float64 else None
+        # `args.precision` is a FLOOR, not a cap: accuracy is not negotiable, and
+        # the precision a row needs is a property of that row, not of the user's
+        # preference.  The budget is therefore sized per age row -- the youngest
+        # and oldest rows need far more digits than the middle of the grid, and
+        # sizing the whole panel from one extreme makes every other row pay for it.
+        floor = ExactMomentEngine(int(n), dps=args.precision)
         for ia, t_i in enumerate(age):
             tau_i = tau_of_t(t_i)
             eps = 1.0 / (2.0 * float(ne_of_t(t_i)[0]))
             if args.float64:
                 for id0, d0 in enumerate(range(1, n + 1)):
-                    row = np.array([eng.Emoments(d0, tau_i, tt, eps) for tt in tauT])
+                    row = np.array([legacy.Emoments(d0, tau_i, tt, eps) for tt in tauT])
                     table[inx, id0, ia] = row[:, 0]
                     table2[inx, id0, ia] = row[:, 1]
             else:
+                eng = ExactMomentEngine.at_precision(
+                    int(n), max(floor.dps, floor.required_dps(tau_i)))
+                before = eng.exhausted
                 # one (d0, T) block per age: C = e^{B tau_T} and M(tau_i) are
                 # shared across d0, so they are computed once instead of n times
                 p1, p2 = eng.grid(tau_i, tauT, eps)
                 table[inx, :n, ia] = p1
                 table2[inx, :n, ia] = p2
+                dps_used.append(eng.dps)
+                exhausted += eng.exhausted - before
             if not args.quiet:
+                extra = "" if args.float64 else f" dps={dps_used[-1]}"
                 print(f"[n={n} age {ia+1}/{args.n_age}] t_i={t_i:.3g} "
-                      f"tau_i={tau_i:.3g}", file=sys.stderr)
+                      f"tau_i={tau_i:.3g}{extra}", file=sys.stderr)
+    if exhausted and not args.quiet:
+        print(f"[warn] {exhausted} entries unreachable within {floor.max_dps} digits; "
+              "written as NaN", file=sys.stderr)
+    args._dps_used = (min(dps_used), max(dps_used)) if dps_used else None
+    args._exhausted = exhausted
     age_tau = np.array([tau_of_t(t_i) for t_i in age], dtype=np.float64)
     if age_tau[-1] <= 3.0:
         raise SystemExit(f"--age-max={args.age_max:g} reaches only tau={age_tau[-1]:.6g}; "
@@ -544,9 +614,11 @@ def main(argv=None):
                    help="log-spaced mutation-age grid points [100].")
     p.add_argument("--output", type=Path, required=True, help="output .npz")
     p.add_argument("--precision", type=int, default=None,
-                   help="digits carried through the conditioning sum "
-                        "[30 + n_sample]. The sum loses ~0.3 digits per "
-                        "chromosome to cancellation, so float64 is not enough.")
+                   help="MINIMUM digits carried [30 + n_sample]. This is a floor, "
+                        "not a cap: rows needing more are computed at more, since "
+                        "both very young and very old mutation ages lose digits to "
+                        "cancellation. The precision actually used is recorded in "
+                        "the output metadata.")
     p.add_argument("--float64", action="store_true",
                    help="use the legacy float64 engine. Loses ~0.3*n digits to "
                         "cancellation: at n=40 it drops 59%% of entries as NaN, "
@@ -567,8 +639,11 @@ def main(argv=None):
             # format 4 adds an n_panel axis for partially called panel sites
             "format_version": 4, "planes": ["table (E[p_T])", "table2 (E[p_T^2])"],
             # provenance: which arithmetic produced this table
+            # provenance records the precision ACTUALLY used, per age row, not
+            # the requested floor -- the two differ wherever a row escalated
             "arithmetic": ("float64 (legacy, cancellation-limited)" if args.float64
-                           else f"mpmath dps={args.precision or 30 + args.n_sample}")}
+                           else "mpmath dps={}-{}".format(*args._dps_used)),
+            "unreachable_entries": int(getattr(args, "_exhausted", 0))}
     np.savez_compressed(args.output, table=table, table2=table2, d0=d0, age=age,
                         n_panel=n_panel, age_tau=age_tau, Tgrid=Tgrid,
                         n_sample=args.n_sample, min_n=args.min_n,

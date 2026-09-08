@@ -98,13 +98,84 @@ def test_precision_scales_with_panel_size():
     assert pre.ExactMomentEngine(26, dps=80).dps == 80
 
 
-def test_precision_scales_with_young_mutation_age():
-    """The table's former 30+n budget fails for rare rapid count changes."""
+# Converged values, established by self-convergence at dps = 100/160/260/400/500
+# and cross-checked against _reference.py raised to 400 digits. A fixed 30 + n
+# budget gets all three of these wrong, so they pin accuracy rather than mere
+# plausibility: bounds alone cannot tell a converged value from a plausible one.
+CONVERGED = {
+    # (n, d0, tau_i): (E[p], E[p^2])
+    (26, 21, 0.0005): (0.005836501557915401, 3.5577304407708e-05),
+    (26, 13, 233.0): (0.5, 0.25862068965517243),
+    (20, 3, 233.0): (0.18181818181818182, 0.03952569169960474),
+}
+
+
+@pytest.mark.parametrize("key", sorted(CONVERGED))
+def test_matches_converged_value_where_a_fixed_budget_fails(key):
+    n, d0, tau_i = key
+    want1, want2 = CONVERGED[key]
+    got1, got2 = pre.ExactMomentEngine(n).Emoments(d0, tau_i, 0.0, EPS)
+    assert got1 == pytest.approx(want1, rel=1e-11)
+    assert got2 == pytest.approx(want2, rel=1e-11)
+
+
+def test_precision_grows_at_both_ends_of_the_age_range():
+    """Young AND old mutation ages lose digits, for different reasons.
+
+    Young: the partial-fraction expansion of e^{B u} cancels to order u^{m-j}.
+    Old: every moment tends to the fixation probability, so the alternating
+    conditioning sum cancels exactly in the limit.
+    """
     eng = pre.ExactMomentEngine(26)
-    assert eng.required_dps(0.0005) > eng.dps
-    p1, p2 = eng.Emoments(21, 0.0005, 0.0, 1 / 20000)
-    assert 0 <= p1 <= 1
+    mid = eng.required_dps(1.0)
+    assert eng.required_dps(0.0005) > mid              # young end costs more
+    assert eng.required_dps(233.0) > mid               # so does the old end
+    assert eng.required_dps(5e-4) > eng.required_dps(5e-3) > eng.required_dps(5e-2)
+    assert eng.required_dps(500.0) > eng.required_dps(233.0) > eng.required_dps(50.0)
+    # the middle of the range is cheapest, but the 2^n binomial weights still
+    # cost ~0.301*n digits everywhere, so it is not the bare 30 + n floor
+    assert eng.dps <= mid < eng.required_dps(0.0005)
+
+
+def test_moment_constraints_are_repaired_by_escalation_not_asserted():
+    """A constraint violation means too few digits, so it must trigger a retry.
+
+    A fixed 30+n budget returns E[p^2] = -1.8e-4 here -- negative, and 615% off.
+    """
+    p1, p2 = pre.ExactMomentEngine(26).Emoments(21, 0.0005, 0.0, EPS)
+    assert p2 > 0
     assert p1 * p1 <= p2 <= p1
+
+
+@pytest.mark.parametrize("tau_i", [5e-4, 5e-3, 0.05, 1.0, 3.0, 10.0, 50.0, 233.0])
+def test_whole_age_range_is_self_consistent(tau_i):
+    """Sweep the grid: every entry must satisfy the exact identities."""
+    eng = pre.ExactMomentEngine(20)
+    p1, p2 = eng.grid(tau_i, np.array([0.0, tau_i * 0.5]), EPS)
+    assert np.isfinite(p1).all() and np.isfinite(p2).all()
+    assert (p1 >= 0).all() and (p1 <= 1).all()
+    assert (p2 >= p1 * p1 - 1e-12).all() and (p2 <= p1 + 1e-12).all()
+
+
+def test_escalated_engines_are_reused():
+    """Rebuilding per call discards the coefficient tables and the C cache."""
+    pre.ExactMomentEngine._escalated.clear()
+    eng = pre.ExactMomentEngine(12)
+    eng.grid(1e-4, np.array([0.0]), EPS)
+    n_after_first = len(pre.ExactMomentEngine._escalated)
+    assert n_after_first >= 1
+    eng.grid(1e-4, np.array([0.0]), EPS)
+    assert len(pre.ExactMomentEngine._escalated) == n_after_first
+    assert pre.ExactMomentEngine.at_precision(12, 90) is \
+           pre.ExactMomentEngine.at_precision(12, 90)
+
+
+def test_explicit_precision_is_a_floor_not_a_cap():
+    """Accuracy is not negotiable, so --precision may only raise the budget."""
+    eng = pre.ExactMomentEngine(26, dps=80)
+    assert eng.dps == 80
+    assert eng.required_dps(1.0) == 80              # floor respected
+    assert eng.required_dps(0.0005) > 80            # but raised where needed
 
 
 def test_partial_fraction_expansion_reproduces_the_matrix_exponential():

@@ -307,11 +307,34 @@ moment and 11% in the second. A guard on the cancellation ratio bounds the
 digits lost in the final sum; it does not bound the error already present in the
 moments entering it.
 
+**The digit budget is U-shaped in mutation age**, and a single fixed budget is
+wrong at both ends. Young mutations lose digits *before* the conditioning sum:
+the partial-fraction expansion of $e^{Bu}$ from which the moments are built has
+entry $C_{m,j}$ of leading order $u^{m-j}$, so its terms cancel to that order
+(measured ratio for $C_{28,1}$ at $n=26$: $3.9\times10^{17}$ at $u=0.05$, rising
+to $1.8\times10^{69}$ at $u=5\times10^{-4}$), while the conditioning sum there is
+*well* conditioned, ratio $\approx1.06$. Old mutations are the reverse: as
+$\tau_i$ grows every $M_m$ tends to the same limit, the fixation probability
+$x_0$, so the alternating sum over $m$ cancels exactly in the limit and the
+surviving signal decays like $e^{-\tau_i}$. At $n=26$ the requirement runs from
+about 50 digits mid-grid to 150 at $\tau_i=5\times10^{-4}$ and 930 at
+$\tau_i=2000$, so precision is chosen per table row.
+
+Those are estimates, not bounds, so the budget is not trusted. The identities
+$0\le\bar p\le1$ and $\bar p^2\le\overline{p^2}\le\bar p$ are checked on the
+computed entries and a violation is read as a measurement that the precision fell
+short, triggering recomputation higher. An entry whose denominator underflowed is
+tracked explicitly rather than left at zero: a wrong zero satisfies all three
+identities and is otherwise indistinguishable from the legitimate zero at
+$T\ge t_i$. Sizing from a formula alone left 576 of 3120 entries (18%) of a test
+build at exactly $0$ with relative error $1$, passing every check. Only when
+escalation exhausts its ceiling is an entry written `NaN`.
+
 The legacy double-precision engine is retained behind `--float64` for comparison
 against tables built before this change, and its guard is still exercised by the
 test suite, but it should not be used to build a table. With the exact path,
-`NaN` in the table means only that $d_0$ exceeds this panel size; entries with
-$T\ge t_i$ are $0$. Inference still treats a `NaN` in **any** ARG draw as
+`NaN` in the table means either that $d_0$ exceeds this panel size or that the
+precision ceiling was reached; entries with $T\ge t_i$ are $0$. Inference still treats a `NaN` in **any** ARG draw as
 disqualifying the whole site, since the mixture in eq. (11) is defined over all
 $G$ draws and a single draw cannot simply be dropped
 ([section 6](#6-draws-polarity-chromosomes)).
@@ -357,9 +380,14 @@ $e^{B u}$ has an exact partial-fraction expansion in the $e^{\lambda_k u}$ whose
 rational coefficients are computed once per panel size. The repeated pair
 $\lambda_0=\lambda_1=0$ never reaches a denominator, because the prefactor of any
 block spanning both vanishes. Each entry then costs $O(n^2)$ high-precision
-multiplies rather than an exponential. The default build takes $\approx36$ minutes
-on one core at 56 digits, so the exact table is **cheaper** than the double-precision
-arrangement it replaces.
+multiplies rather than an exponential.
+
+What remains is concentrated in the oldest rows, which are also the least useful.
+One $(n=26$, 300 sample-age$)$ row costs 0.02 s at $\tau_i=5\times10^{-4}$ and
+2.9 s at $\tau_i=2.3$, but 42 s at $\tau_i=2000$, where 930 digits are needed.
+Since inference discards mutation-age mass beyond $\tau_i=3$ by default, most of a
+default build is spent on rows nothing reads. Capping the age grid nearer the
+cutoff is the obvious saving and is **not** implemented.
 
 ---
 
