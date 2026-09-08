@@ -98,6 +98,15 @@ def test_precision_scales_with_panel_size():
     assert pre.ExactMomentEngine(26, dps=80).dps == 80
 
 
+def test_precision_scales_with_young_mutation_age():
+    """The table's former 30+n budget fails for rare rapid count changes."""
+    eng = pre.ExactMomentEngine(26)
+    assert eng.required_dps(0.0005) > eng.dps
+    p1, p2 = eng.Emoments(21, 0.0005, 0.0, 1 / 20000)
+    assert 0 <= p1 <= 1
+    assert p1 * p1 <= p2 <= p1
+
+
 def test_partial_fraction_expansion_reproduces_the_matrix_exponential():
     """The closed form must equal expm(B u) -- lam_0 = lam_1 = 0 notwithstanding."""
     from scipy.linalg import expm

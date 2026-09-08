@@ -115,7 +115,7 @@ import argparse
 import json
 import sys
 from fractions import Fraction
-from math import comb
+from math import ceil, comb, log10
 from pathlib import Path
 
 import mpmath as mp
@@ -326,6 +326,21 @@ class ExactMomentEngine:
                            for ji, row in self._coeffs().items()}
         self._Ccache = {}
 
+    def required_dps(self, tau_i):
+        """Digits needed when a mutation has had only ``tau_i`` time to spread.
+
+        Reaching the largest sample-count classes from one copy requires up to
+        n-1 frequency-changing events.  As tau_i approaches zero their joint
+        probability scales as tau_i**(n-1); the numerator and denominator are
+        alternating sums of terms much larger than that probability.  The old
+        fixed 30+n budget therefore ceased to be exact on young table rows.
+        """
+        tau_i = float(tau_i)
+        if tau_i <= 0:
+            return self.dps
+        lost = (self.n - 1) * max(0.0, -log10(tau_i))
+        return max(self.dps, 30 + self.n + ceil(lost))
+
     def _coeffs(self):
         """D[(j, i)][k] with (e^{B u})_{ij} = sum_k D[(j,i)][k] e^{lam_k u}.
 
@@ -402,6 +417,12 @@ class ExactMomentEngine:
         Entries with tau_T >= tau_i (sample older than the mutation) are 0, matching
         MomentEngine.Emoments.
         """
+        needed = self.required_dps(tau_i)
+        if needed > self.dps:
+            # Coefficients converted from exact rationals in __init__ carry only
+            # self.dps digits, so a wider workdps context alone cannot recover
+            # them.  Reconstruct the engine at the required precision.
+            return ExactMomentEngine(self.n, dps=needed).grid(tau_i, tauT, eps)
         tauT = np.asarray(tauT, dtype=np.float64)
         p1 = np.zeros((self.n, tauT.size))
         p2 = np.zeros((self.n, tauT.size))
@@ -464,8 +485,12 @@ def build_table(args):
     table = np.full(shape, np.nan, dtype=np.float32)
     table2 = np.full(shape, np.nan, dtype=np.float32)
     for inx, n in enumerate(panel_sizes):
-        eng = (MomentEngine(int(n)) if args.float64
-               else ExactMomentEngine(int(n), dps=args.precision))
+        if args.float64:
+            eng = MomentEngine(int(n))
+        else:
+            base = ExactMomentEngine(int(n), dps=args.precision)
+            minimum_tau = tau_of_t(float(age[0]))
+            eng = ExactMomentEngine(int(n), dps=base.required_dps(minimum_tau))
         for ia, t_i in enumerate(age):
             tau_i = tau_of_t(t_i)
             eps = 1.0 / (2.0 * float(ne_of_t(t_i)[0]))
