@@ -92,9 +92,13 @@ abs err 857 against 971.
 A small residual panel-size effect survives (-25.8 generations per haplotype,
 t = -2.64; -0.00023 in tau, t = -2.21).
 
-Note this is the **opposite** behaviour to the bias in `bias_ideas.md` for the
-diffusion pipeline, which is near-constant in generations (2.4x) and fans 31x in
-tau. Different mechanisms; do not pool the two.
+Note this differs from the diffusion side, whose uniform estimator carries a
+**positive** bias growing sub-linearly with Ne (+250 / +434 / +651 at
+Ne = 10K / 50K / 100K), flat in neither generations nor tau. Different mechanisms;
+do not pool the two. An earlier version of this note compared against
+`bias_ideas.md`'s negative figures, which have since been shown to come from a
+denominator-weighted harness rather than the shipping estimator — see
+[working_diffusion.md](working_diffusion.md), "State of the bias".
 
 ## Hypotheses for the offset
 

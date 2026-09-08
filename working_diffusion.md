@@ -132,6 +132,14 @@ Three things to note about the real target:
   scales with something else.
 - **Weighting makes it worse, not better** — see H2b.
 
+**Measurement caveat carried over from `bias_ideas.md`:** the candidate-age grid
+stops at **15,000 generations**. With true ages up to ~9,300 and a positive bias
+growing with Ne, estimates approach that ceiling as Ne rises, so an upward bias
+measured at high Ne is **partly censored and may be understated**. At Ne=100,000
+(+651) there is still headroom; at 200K and above there is not, which is a second
+reason the 200K and 500K rows should not be trusted. Widen the grid before
+measuring bias at large Ne.
+
 ## Hypotheses for the bias
 
 Numbering follows `bias_ideas.md`; **H0 is new**, and the priority order below
@@ -144,7 +152,7 @@ differs from that file's.
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | **TESTED. Leverage is real; rare-site miscalibration is not supported.** Removing all d0=1 sites left 10K essentially unchanged (+241 vs +248 bias) and worsened 50K (+649 vs +423). Carried-only removal moved estimates older and absent-only removal moved them younger, as expected from deleting opposite likelihood terms. T3 independently finds singleton carriage essentially calibrated at 50K--200K. |
 | 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
 | **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a. `phi_lookup` averages the conditional uniformly along the branch (an integral of ratios); the alternative weights candidate ages by P(d0 \| t_i), giving a ratio of integrals. | **TESTED AND REJECTED as the bias explanation (T1).** In matched 10 Mb infinite-sites simulations, denominator weighting moved estimates strongly younger and generally increased RMSE. Across the complete 10K/50K/100K sets its bias was -836/-563/-612 generations, versus +248/+423/+632 for uniform; RMSE was 889/653/705 versus 479/613/726. Eight completed 200K replicates agreed (weighted bias -1270, RMSE 1326; uniform +480, 742). The `betabinom` calibration result does not transfer because its weight conditions on k observed at T, whereas this one conditions on d0 observed at the present. Retain uniform as the default. |
-| 3 | Insufficient conditioning on the ARG beyond d0 and age interval. | OPEN, untested. |
+| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **OPEN, and now the leading hypothesis by elimination** — H0, H1, H2a, H2b, H4, H5, H5b, H6, H7 are all closed or retired. The `betabinom` branch tested its own equivalent and found it undetectable, but that was a different weight (k observed at T rather than d0 at the present), so it does not transfer. Specified as **T5**. |
 | 4 | Wrong diffusion conditioning / boundary behaviour. | **TESTED AND REJECTED at the resolution relevant to the bias (T3).** Calibration was binned on predicted ancient carriage probability at true T. Singleton observed-minus-predicted differences were +0.00167, -0.00003, -0.00003 and -0.00021 from Ne=10K through 200K; all-site differences were +0.00355, +0.00077, +0.00026 and +0.00029. There is no systematic error with the magnitude or Ne pattern needed to explain the age bias. |
 | 5 | Edge quadrature and interpolation. | **IMPLEMENTATION FIXED; contribution to the bias now measured and negligible (T4).** The former 16-node boundary case was 30x high in a constructed regression case, but on real simulated data the switch to knot-split analytic integration moves the estimate by only **-2.7 / -11.3 / -18.9 generations** at Ne = 10K / 50K / 100K. The pathological geometry is rare enough not to matter in aggregate. Worth keeping fixed; not a bias explanation. |
 | 6 | Ne scaling / haploid-diploid convention mismatch. | **RETIRED.** A factor-of-two convention error would produce a clean factor-of-two displacement in diffusion time and an error in generations proportional to Ne. The observed offset is roughly generation-scale across Ne and has neither signature. |
@@ -289,42 +297,35 @@ conditional as the documented default; keep the weighted mode as a diagnostic.
 
 **Two caveats on T1, and the second is unresolved.**
 
-**(i) T1 changed two things at once, so it cannot attribute the difference.** The
-same commit replaced the 16-node trapezoid with exact analytic integration split
-at every age knot — in *both* arms. Neither arm is therefore the pre-T1
-behaviour, and the uniform-vs-weighted contrast is measured on top of a
-quadrature change worth up to 30x on the regression case. Bundling the two was
-recommended in this document and that was a mistake for attribution.
+**(i) T1 changed two things at once, so it could not attribute its own
+difference.** The same commit replaced the 16-node trapezoid with exact analytic
+integration in *both* arms, so neither was the pre-T1 behaviour. Bundling them was
+recommended in this document and that was a mistake for attribution. **Resolved by
+T4**, which separated them: the quadrature change is worth only -2.7 to -18.9
+generations on real data, so the bundling turned out not to matter for the
+conclusion.
 
-The more important number is buried by the framing above. Against
-`bias_ideas.md`'s -836 / RMSE 890 at Ne=10,000, the current uniform arm gives
-**+248 / RMSE 479**: the bias flips sign and shrinks, and RMSE nearly halves.
-That is a real improvement, but its cause is **not isolated** — it is the joint
-effect of the table precision fixes (d75b9b9, 54b9113, 33b23d6), the five
-inference bug fixes (bc5268d), and T1's quadrature change. Disentangling these is
-now the most valuable single run available: see T4.
+**(ii) The weighted column reproduces `bias_ideas.md` to within one generation.
+RESOLVED — and it is validation, not a problem.**
 
-**(ii) The weighted column reproduces `bias_ideas.md` to within one generation,
-which is unexplained.**
-
-| Ne | `bias_ideas.md` (pre-T1 production) | T1 "weighted" |
+| Ne | `bias_ideas.md` | T1 "weighted" |
 |---:|---:|---:|
 | 10,000 | -836 / 890 | -836 / 889 |
 | 50,000 | -564 / 653 | -563 / 653 |
 | 100,000 | -611 / 705 | -612 / 705 |
 
-Six quantities matching across three conditions. `bias_ideas.md` documents the
-pre-existing pipeline, which **could not** compute a den-weighted marginal — the
-denominator was not in the table until T1 added it. So the arm reproducing the
-old numbers ought to be the *uniform* one. The code's branches read correctly
-(`uniform` divides by branch length; `weighted` accumulates den-weighted
-numerator and denominator), so mislabelling in the implementation is not the
-explanation. Remaining possibilities: the weighted arm ran through a stale table
-or code path, the numbers were carried over rather than recomputed, or it is
-coincidence. **Until this is resolved, treat "H2b struck" as provisional** — if
-the arms are effectively transposed, the same data would instead say weighting
-moves -836 to +248 and nearly halves RMSE, i.e. H2b confirmed as a major
-contributor. The conclusion is currently inverted by an unexplained match.
+The explanation is that `bias_ideas.md` was itself den-weighted: its numbers came
+from `/tmp/dnAging-bigsims-estimate.py`, which implemented denominator weighting
+independently and never called production `phi_lookup`. Two unrelated
+implementations of the same weighted marginalisation — dense trapezoid with
+recomputed denominators, versus format5 `log_den` with analytic per-knot
+integration — agreeing to within one generation on six quantities is a strong
+cross-check of both. See "State of the bias" for the provenance.
+
+This document previously recorded a suspicion that the arms were transposed and
+that "H2b struck" might be inverted. That suspicion was **wrong**: T4 ran the
+actual pre-session code with uniform marginalisation and got +250 / RMSE 484,
+confirming the labels. H2b is struck, not provisional.
 
 ### T2. What a nonzero eps costs on error-free data
 
@@ -440,6 +441,45 @@ Per-step attribution, mean shift in generations:
 pattern was established at three Ne values; 500K was never run. The A_float64 and
 B_bugfixed arms were only run at Ne=10,000, since both were exactly zero there.
 
+### T5. Does the ARG carry information beyond d0 and the age interval? (bias H3)
+
+The last structural hypothesis standing. Test designs carried over from
+`bias_ideas.md` before that file was removed, plus what T4 now implies.
+
+**Why it survived.** Everything that lives in the age-marginalisation machinery
+has been measured and is negligible (T4: under 19 generations combined). eps is 0
+and the ARGs are true, so the remaining candidate is the *sampling model* itself:
+eq. (4) reduces the tree's dependence on x to the descendant count, and eq. (7)
+reweights ages by P(d0 | t). If the tree carries more than the count, the
+conditional is misspecified in a way no quadrature or precision fix can reach.
+
+**Tests, in order of directness.**
+
+1. **Exact sharing state.** In simulations that contain the ancient lineage,
+   compute whether that lineage actually descends from the mutation, and compare
+   with the model's p. This is a direct residual, not a calibration curve, and it
+   is available because the simulations know the truth.
+2. **Matched-edge comparison.** Compare empirical ancient-sharing frequencies
+   among edges matched on (d0, age interval) but differing in other tree
+   features. Any systematic difference is exactly the information eq. (4)
+   discards.
+3. **Residual structure.** Test whether residuals cluster by terminal versus
+   internal edges, branch length, tree height, or descendant topology. Terminal
+   versus internal is the sharpest single split, since a singleton on a terminal
+   branch and a singleton on a short internal branch have very different clade
+   shapes.
+
+**What would confirm it.** A residual that depends on a tree feature *at fixed*
+(d0, age interval), with the sign and magnitude to produce a 250-651 generation
+bias growing sub-linearly with Ne. Note the scaling requirement: whatever this is
+must reproduce the observed Ne dependence, which is neither generation-constant
+nor tau-constant. That is a strong constraint and worth checking against any
+candidate before running a full sweep.
+
+**Related, and cheaper:** characterise the bias scaling first (next steps step 3).
+If the Ne dependence turns out to match something simple, it may identify the
+mechanism without a matched-edge study.
+
 ## Next steps, in order
 
 Perfect simulated data only. Real-data work is parked under "Deferred".
@@ -447,10 +487,11 @@ Perfect simulated data only. Real-data work is parked under "Deferred".
 The hypothesis list has collapsed. H0, H1, H2a, H2b, H4, H5, H5b, H6 and H7 are
 now all closed or retired, and none of them was the bias. What survives:
 
-1. **Re-measure the baseline properly.** `bias_ideas.md` should be superseded: its
-   table describes the den-weighted harness, not the shipping estimator. Replace it
-   with the uniform numbers (+250 / +434 / +651) and note the provenance so nobody
-   diagnoses against it again.
+1. **Extend the re-measured baseline.** `bias_ideas.md` has been removed as
+   superseded — it described the den-weighted harness, not the shipping estimator.
+   The uniform baseline is +250 / +434 / +651 at Ne = 10K / 50K / 100K; widen the
+   candidate-age grid past 15,000 generations before adding 200K or 500K, since
+   those are censored at the current cap.
 2. **H3: information in the ARG beyond d0 and the age interval.** The last
    structural hypothesis standing, and now the leading one by elimination. The
    conditional keeps only the *count* of descendants (eq. 4); under the structured
@@ -465,7 +506,16 @@ now all closed or retired, and none of them was the bias. What survives:
 4. **Watch the variance.** bias/RMSE is 0.52 at Ne=10,000, so ten replicates no
    longer resolve the bias cleanly there. More replicates, or larger regions,
    before drawing fine conclusions at small Ne.
-5. H8 (composite-likelihood dependence) last, as before.
+5. **H8 (composite-likelihood dependence) last, as before.** Test designs, carried
+   over from `bias_ideas.md`: thin sites by genetic distance and compare point
+   estimates; use one mutation per tree or per recombination block; compare
+   ordinary posterior intervals against block-bootstrap uncertainty.
+
+**Retired without further work** (carried over from `bias_ideas.md`, which is now
+removed): the 20-generation T grid is far too fine to explain errors of hundreds
+of generations; the mutation-age cutoff removes few sites in these simulations;
+ARG inference error cannot apply because true ARGs are used; and genotype error
+cannot apply because these runs have none.
 
 ## Deferred: real data
 
