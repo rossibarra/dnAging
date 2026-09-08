@@ -23,7 +23,7 @@ keeping a site because it was polymorphic in a discovery panel of $n_B$ haplotyp
 reweights the present-frequency posterior by
 
 $$
-P(A \mid X) \;=\; 1 - X^{n_B} - (1-X)^{n_B},
+P(A \mid X) = 1 - X^{n_B} - (1-X)^{n_B},
 $$
 
 which is not constant in $X$. Since $X$ is linked to $p_T$ through the frequency
@@ -38,7 +38,7 @@ the site is polymorphic in the discovery panel. So $A$ has probability 1 given
 conditioning we already perform, and
 
 $$
-E[p_T \mid d_0, t_i, A] \;=\; E[p_T \mid d_0, t_i]
+E[p_T \mid d_0, t_i, A] = E[p_T \mid d_0, t_i]
 $$
 
 holds **identically**, not asymptotically, with no dependence on $n_B$.
@@ -49,7 +49,7 @@ see MATH.md §7).
 
 **What it would cost if the panels were disjoint.** Not much, but not zero. Under a
 neutral $1/X$ prior with $n = 26$, treating the 1500 as an independent panel shifts
-$E[X \mid d_0]$ by $+1.7\%$ at $d_0 = 1$ and by under $0.05\%$ for $d_0 \ge 2$. The
+$E[X \mid d_0]$ by +1.7% at $d_0 = 1$ and by under 0.05% for $d_0 \ge 2$. The
 controlling quantity is the posterior mass over $X$ below $1/n_B$, which for $d_0 = 1$
 is $0.40$ at $n_B = 52$ but only $0.005$ at $n_B = 5008$ — so the effect is confined
 to singletons and vanishes quickly in panel size.
@@ -60,9 +60,9 @@ $d_0 \ge 1$, so nesting gives no protection. With $n_B = 1500$:
 
 | discovery rule | shift in $E[X \mid d_0{=}1]$ | at $d_0 = 2$ |
 |---|---|---|
-| polymorphic, nested panel | $0\%$ (exact) | $0\%$ |
-| minor-allele count $\ge 5$ | $+8.5\%$ | $+0.4\%$ |
-| MAF $\ge 1\%$ | $+25.5\%$ | $+2.7\%$ |
+| polymorphic, nested panel | 0% (exact) | 0% |
+| minor-allele count $\ge 5$ | +8.5% | +0.4% |
+| MAF $\ge 1$% | +25.5% | +2.7% |
 
 So reusing this pipeline on a site set built with a frequency cutoff — or on a
 discovery panel that does not contain the ARG haplotypes — means the ascertainment
@@ -85,7 +85,7 @@ correction for missingness. What eq. (7) needs is that the called subset $R$ is 
 allele-blind sample of the panel,
 
 $$
-P(d_0 \mid n, x_0, R) \;=\; \binom{n}{d_0} x_0^{\,d_0}(1-x_0)^{\,n-d_0},
+P(d_0 \mid n, x_0, R) = \binom{n}{d_0} x_0^{d_0}(1-x_0)^{n-d_0},
 $$
 
 i.e. missing at random with respect to the allele a haplotype carries, given $n$.
@@ -94,7 +94,7 @@ i.e. missing at random with respect to the allele a haplotype carries, given $n$
 *how many* haplotypes were called, never on *which*. If one allele is systematically
 harder to call — reference bias in mapping or genotyping, an ALT-specific filter,
 low depth correlated with the derived haplotype background — then within the called
-subset that allele is under-represented, $E[d_0 \mid n] \neq n\,x_0$, and the bias
+subset that allele is under-represented, $E[d_0 \mid n] \neq n x_0$, and the bias
 passes straight through into $d_0$. The plane is then the correct likelihood for the
 wrong count: a downward-biased $d_0$ presents as a rarer allele, which the
 age-conditioned trajectory reads as a different frequency history.

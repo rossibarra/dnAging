@@ -218,8 +218,9 @@ The full test run reports 36 passed and 4 failed:
 These failures do not presently demonstrate errors in equations 6--9a, but a failing
 default suite weakens every validation claim in the README. The tests should be
 corrected or the implementation should be corrected, depending on an independent
-review of each expected value. The new variable-$n$ table build also lacks an
-end-to-end test that creates, saves, reloads, and uses a small multi-$n$ table.
+review of each expected value. The new variable-panel-size table build also lacks
+an end-to-end test that creates, saves, reloads, and uses a small table spanning
+several $n$.
 
 ### 12. Low/medium: some error-model wording exceeds what the code represents
 

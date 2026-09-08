@@ -109,7 +109,7 @@ each ancient lineage carries it. Binning by $(t_i, d_0)$ gives an empirical esti
 of exactly
 
 $$
-P(\text{ancient carries derived} \mid d_0, t_i) \;=\; E[p_T \mid d_0, t_i],
+P(\text{ancient carries derived} \mid d_0, t_i) = E[p_T \mid d_0, t_i],
 $$
 
 which is the table's contents, measured end to end under the full coalescent.

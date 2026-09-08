@@ -254,7 +254,7 @@ Ages are in **ARG generations**; convert to years with your generation time.
 Both moment planes of the table were checked against a forward Wright–Fisher Monte
 Carlo (agreement to MC noise, including rare present-counts —
 `validate_moments_vs_mc.py`), reproduce the $T \ge t_i \Rightarrow p_T=0$ boundary,
-and match Kimura's constant-$N_e$ limit. See MATH.md §5.
+and match Kimura's limit at constant $N_e$. See MATH.md §5.
 
 The alternating conditioning sums become numerically unstable at large diffusion
 times. Table construction measures cancellation for each moment and writes `NaN`

@@ -310,7 +310,7 @@ moments entering it.
 The legacy double-precision engine is retained behind `--float64` for comparison
 against tables built before this change, and its guard is still exercised by the
 test suite, but it should not be used to build a table. With the exact path,
-`NaN` in the table means only "$d_0$ exceeds this panel size"; entries with
+`NaN` in the table means only that $d_0$ exceeds this panel size; entries with
 $T\ge t_i$ are $0$. Inference still treats a `NaN` in **any** ARG draw as
 disqualifying the whole site, since the mixture in eq. (11) is defined over all
 $G$ draws and a single draw cannot simply be dropped
