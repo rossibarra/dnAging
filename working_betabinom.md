@@ -9,6 +9,20 @@ are only on that branch. This file sits on `main` so the two approaches can be
 read side by side, which is what the branch decision requires. Spec is `MATH2.md`
 on that branch (18 commits, all unpushed).
 
+## Scope and priority
+
+**Solve the bias in perfect simulated data first.** Real-data concerns —
+genotyping error, contamination, reference bias, damage, inferred rather than true
+ARGs — are deferred until the estimator is unbiased on error-free simulations.
+Worked-out-but-parked real-data material lives in
+[working_diffusion.md](working_diffusion.md) under "Deferred: real data", and
+applies to both approaches.
+
+For this branch that reclassifies one entry below: eps is a **confirmed
+contributor of ~1/3 of the offset**, but on error-free simulated data the true eps
+is zero, so that is a misspecification cost removable by setting eps small — not a
+modelling problem. The residual offset after doing so is the real target.
+
 ## Where this stands
 
 The likelihood is correct and well validated in its parts, and it was the better

@@ -7,6 +7,21 @@ for the alternative likelihood. Spec is [MATH.md](MATH.md); code is
 (table build) and [posterior_sample_age_infer.py](posterior_sample_age_infer.py)
 (inference).
 
+## Scope and priority
+
+**Solve the bias in perfect simulated data first.** Real-data concerns —
+genotyping error, contamination, reference bias, damage — are deferred until the
+estimator is unbiased on error-free simulations with true ARGs. See "Deferred:
+real data" at the end for what has already been worked out and parked.
+
+This has a sharp consequence for the eps hypotheses. On perfect simulated data
+there is **no** genotyping error and the ARG is true, so eps has no physical role
+at all: it is purely a numerical regulariser for the hard "carriage is impossible"
+wall. And that wall never fires — on the `betabinom` branch, mutations postdating
+the sample produced **0 carriers in 41,395 opportunities**. So on this data eps
+should simply be set as small as is numerically safe, and any residual bias is
+**not** eps. H0 reduces from a research question to a one-line setting.
+
 ## Where this stands
 
 The likelihood is sound and, at adequate precision, is the **better of the two
@@ -100,12 +115,12 @@ differs from that file's.
 | 5b | **Table numerics.** `bias_ideas.md` notes in passing that "a handful of entire very-young moment-table rows were NaN ... at Ne = 500,000". That was the tip of it: float64 discarded 11% of entries at n=12 and 59% at n=40, wrote 18% of a test build as silent zeros, and was already 0.8% wrong where it passed its own guard. | **FIXED** (d75b9b9, 54b9113, 33b23d6). Plausibly the main driver of the high-Ne rows in (a): larger Ne compresses a fixed generation grid into smaller tau, where the intermediate-d0 denominator underflows. **All of (a) must be re-measured.** |
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | OPEN, and probably the same object as H0. Note the *selective* filter test in `bias_ideas.md` cannot distinguish "model wrong about rare carried alleles" from "deleting terms of one sign moves the estimate": removing carried-but-not-absent singletons deletes the log p terms and keeps the log(1-p) terms, so an upward swing is guaranteed. The swings are 3–6x the bias being explained, which is the tell. Run the **symmetric** arms instead. |
 | 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
-| **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a, and much better supported. `phi_lookup` averages the conditional uniformly along the branch (`np.linspace(lo, hi, n_quad)`, trapezoidal), which is an integral of ratios. The weighted form needs P(d0 \| t_i), which is not in the table. | **OPEN, second priority after H0.** The `betabinom` branch **tested exactly this question** and the effect is large: uniform averaging gives observed/predicted of 0.09, 0.17, 0.31 across bins of the fraction of edge above T, against 1.12, 1.01, 0.92 den-weighted — up to **11x** miscalibration, and up to 2x inflation of p on long edges (MATH2.md sections 4 and 8). `main` currently uses the form that failed there. Caveats: the weights are analogous but not identical (k observed *at* T versus d0 observed at the present, much later), and a uniform inflation of p would push *older* whereas the observed bias is younger — so if this matters it acts through how the inflation varies with T, not its level. |
+| **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a. `phi_lookup` averages the conditional uniformly along the branch (an integral of ratios); the alternative weights candidate ages by P(d0 \| t_i), giving a ratio of integrals. | **TESTED AND REJECTED as the bias explanation (T1).** In matched 10 Mb infinite-sites simulations, denominator weighting moved estimates strongly younger and generally increased RMSE. Across the complete 10K/50K/100K sets its bias was -836/-563/-612 generations, versus +248/+423/+632 for uniform; RMSE was 889/653/705 versus 479/613/726. Eight completed 200K replicates agreed (weighted bias -1270, RMSE 1326; uniform +480, 742). The `betabinom` calibration result does not transfer because its weight conditions on k observed at T, whereas this one conditions on d0 observed at the present. Retain uniform as the default. |
 | 3 | Insufficient conditioning on the ARG beyond d0 and age interval. | OPEN, untested. |
 | 4 | Wrong diffusion conditioning / boundary behaviour. | OPEN. **Caution:** "biased upward at low true frequency" is what an *unbiased* posterior mean does — shrinkage toward the prior. Calibration must be binned on the *predicted* value, E[p_true \| p_hat], not on the true one. Bin on truth and you will reproduce the artifact. I withdrew a claim of my own for this reason. |
 | 5 | Edge quadrature and interpolation. | **PARTLY CONFIRMED, OPEN.** See "fixed 16-node quadrature" under open bugs — codex constructed a 30x overestimate. Directionally this pulls toward *younger* ages, matching (a). |
-| 6 | Ne scaling / haploid-diploid convention mismatch. | **Cheapest to retire; recommend retiring.** A factor-of-two error gives a clean 2x in tau, not this pattern. Checkable analytically. |
-| 7 | Modern-polymorphism ascertainment mismatch. | OPEN, overlaps H2. |
+| 6 | Ne scaling / haploid-diploid convention mismatch. | **RETIRED.** A factor-of-two convention error would produce a clean factor-of-two displacement in diffusion time and an error in generations proportional to Ne. The observed offset is roughly generation-scale across Ne and has neither signature. |
+| 7 | Modern-polymorphism ascertainment mismatch. | **RETIRED as an explanation for the simulation bias.** The simulated data are generated and analyzed under the same modern-polymorphism ascertainment, yet the bias remains. Ascertainment differences may still matter when transferring the method to real data, but they cannot cause the bias under diagnosis here. |
 | 8 | Composite-likelihood dependence. | OPEN, keep last. Dependence inflates precision without biasing calibrated marginals. My block-bootstrap SDs came out *conservative* (947 estimated vs 717 actual scatter), so on that evidence coverage failures here are bias, not underestimated variance. |
 
 Retired in `bias_ideas.md` already and not revisited: T-grid resolution, ARG
@@ -158,13 +173,11 @@ Decisions taken that a reader might reasonably want back.
   the real reader and now match it.
 - **eps = 0.01 remains the default**, unchanged pending H0. This is a judgement
   call by omission and the one I would revisit first.
-- **MATH.md eq. (10b) specifies an integral of ratios**, and the code implements
-  that faithfully — it cannot do otherwise, since the denominator is not in the
-  table. Whether it is *right* is a modelling question: uniform-along-edge is
-  correct as the conditional age distribution given the draw, but wrong as a prior
-  that still needs the sampling weight applied. **This is bias H2b and needs a
-  decision, not a patch**; storing the numerator and denominator separately is the
-  precondition for even testing the alternative.
+- **MATH.md eq. (10b) specifies an integral of ratios.** The code implements that
+  faithfully and retains it as the default. T1 added the discarded denominator to
+  the table as `log_den` and exposed the ratio-of-integrals alternative as
+  `--marginalise weighted`; the matched simulation comparison strongly worsened
+  the downward bias under weighting, so H2b is retired as an explanation.
 
   The same question appears in three places, which is worth seeing as one issue:
   here as eq. (10b); on the `betabinom` branch as the prior-versus-posterior
@@ -173,7 +186,8 @@ Decisions taken that a reader might reasonably want back.
   exist, so there is no binomial factor to weigh against); and in `bias_ideas.md`
   as hypothesis 2. On the `betabinom` branch the *order* question is settled in
   favour of the weighted form and verified; the *weight for the straddling
-  fraction* remains approximate there. Here neither is settled.
+  fraction* remains approximate there. That result does not transfer to `main`:
+  T1 directly tested it here and favours retaining the uniform conditional.
 
 ## Confirmed sound
 
@@ -191,73 +205,121 @@ tested, at every n and tau_i tried.
 Specified in enough detail to hand off. Add to this list rather than keeping test
 plans in chat.
 
-### T1. Marginalisation order: uniform average vs den-weighted (bias H2b)
+### T1. Marginalisation order: uniform average vs den-weighted (bias H2b) — COMPLETE
 
 **Question.** MATH.md eq. (10b) averages the conditional uniformly along the
 mutation's edge (an integral of ratios). The alternative weights each candidate
 age by the probability of the observed panel count, P(d0 | t_i), giving a ratio
 of integrals. On the `betabinom` branch the uniform form miscalibrates by up to
-11x; `main` uses the uniform form and has never been able to compute the other.
+11x; this test asked whether that result transfers to `main`.
 
-**Why it is now cheap.** den is already computed and discarded, and it does *not*
+**Implementation.** den was already computed and discarded, and it does *not*
 depend on T -- in `ExactMomentEngine.grid` it is built outside the `for it, tT`
 loop, so it is a function of (n, d0, age) alone. Since num = phi * den, the
 weighted form is a **den-weighted average of the phi already in the table**:
 
     p(T) = integral[ den(a) * phi(a,T) da ] / integral[ den(a) da ]
 
-**Prerequisite, already met.** den underflowing to zero was exactly the
+**Prerequisite.** den underflowing to zero was exactly the
 silent-zero bug fixed in 33b23d6 (576 of 3120 entries). Weighting by den before
 that fix would have been unreliable, which is part of why this is newly
 approachable rather than long-neglected.
 
-**Changes.**
+**Completed changes.**
 
-1. Return den from `ExactMomentEngine.grid` and write it as an extra table plane
+1. `ExactMomentEngine.grid` returns log den and writes it as an extra table plane
    of shape (n_panel, n_sample, n_age) -- **no T axis**, so about 1/300 the size
    of `table` at the default n_t=300. Store **log den**: it is essentially
    P(d0 | t_i) and will underflow float32 for rare configurations.
-2. In `phi_lookup`, multiply the trapezoidal node weights by den at each node.
-   Do this **together with** the quadrature fix (open bugs, and bias H5) -- both
-   live in the same few lines, and measuring one through the other's error would
-   waste the run.
-3. Expose `--marginalise {uniform,weighted}` so both are runnable from one table.
-   Commits to neither reading of eq. (10b).
+2. `phi_lookup` now integrates both alternatives analytically within each
+   log-age table segment, split at every age knot. This also fixes the 16-node
+   edge-quadrature boundary error (the regression case was previously 30x high).
+3. `--marginalise {uniform,weighted}` exposes both from one table; `uniform`
+   remains the default.
 
 **No separate w factor is needed.** The existence dilution falls out: for
 placements with a <= T, phi = 0 contributes nothing to the numerator while den
 stays in the denominator. That is the diffusion analogue of betabinom's explicit
 w -- see MATH2.md eq. (8).
 
-**Comparison.** Both settings over `~/Projects/mutrates/simbatch300` (harness
-exists from the head-to-head). Report bias, RMSE, slope, r, coverage, and
-parameter dependence in generations *and* in diffusion time, since the two
-approaches' offsets behave oppositely under that reparameterisation.
+**Comparison run.** Both settings used identical SNPs, true ARGs, no genotype
+error, and the same likelihood settings in the 10 Mb infinite-sites Ne sweep.
+The 10K, 50K, and 100K sets completed all ten replicates. Eight of ten 200K
+replicates were sufficient to establish the same direction, so the last two were
+stopped; 500K was excluded by design.
 
-**What counts as an answer.** The weighted form reducing the offset is the
-hypothesis. Two outcomes are informative and one is a trap:
+| Ne | Uniform bias / RMSE (generations) | Weighted bias / RMSE (generations) |
+|---:|---:|---:|
+| 10K | +248 / 479 | -836 / 889 |
+| 50K | +423 / 613 | -563 / 653 |
+| 100K | +632 / 726 | -612 / 705 |
+| 200K (8/10) | +480 / 742 | -1270 / 1326 |
 
-- Offset shrinks materially -> H2b confirmed, and eq. (10b) needs rewriting.
-- Offset unchanged -> H2b struck for `main`, and the betabinom calibration result
-  does not transfer. Record *why*: the weights are analogous but not identical
-  (k observed at T against d0 observed at the present, much later).
-- **Trap:** a uniform inflation of p pushes estimates *older*, while the observed
-  bias is *younger*. Do not read "wrong direction" as "no effect" -- if this
-  matters it acts through how the inflation varies with T, not through its level.
-  Compare the whole p(T) curve, not just the MAP.
+**Answer and decision.** Weighting does not merely leave the offset unchanged: it
+consistently shifts the posterior younger, creating or worsening downward bias.
+H2b is therefore struck as the source of the production bias. Retain the uniform
+conditional as the documented default; keep the weighted mode as a diagnostic.
 
-**Decision left open.** Which form becomes the default in MATH.md is a modelling
-call, not something the run settles by itself: uniform-along-edge is defensible as
-the conditional age distribution given the draw, and indefensible as a prior still
-awaiting its sampling weight.
+**Two caveats on T1, and the second is unresolved.**
 
-### T2. Split the error term into observation error and model failure
+**(i) T1 changed two things at once, so it cannot attribute the difference.** The
+same commit replaced the 16-node trapezoid with exact analytic integration split
+at every age knot — in *both* arms. Neither arm is therefore the pre-T1
+behaviour, and the uniform-vs-weighted contrast is measured on top of a
+quadrature change worth up to 30x on the regression case. Bundling the two was
+recommended in this document and that was a mistake for attribution.
 
-**Question.** A single `--epsilon` is doing two incompatible jobs: a genotype
-error rate, which should come from data quality, and a regulariser softening the
-"carriage is impossible" wall from -infinity to log eps. Setting it high enough to
-survive an ARG error destroys carried-site signal; setting it low makes one bad
-site catastrophic.
+The more important number is buried by the framing above. Against
+`bias_ideas.md`'s -836 / RMSE 890 at Ne=10,000, the current uniform arm gives
+**+248 / RMSE 479**: the bias flips sign and shrinks, and RMSE nearly halves.
+That is a real improvement, but its cause is **not isolated** — it is the joint
+effect of the table precision fixes (d75b9b9, 54b9113, 33b23d6), the five
+inference bug fixes (bc5268d), and T1's quadrature change. Disentangling these is
+now the most valuable single run available: see T4.
+
+**(ii) The weighted column reproduces `bias_ideas.md` to within one generation,
+which is unexplained.**
+
+| Ne | `bias_ideas.md` (pre-T1 production) | T1 "weighted" |
+|---:|---:|---:|
+| 10,000 | -836 / 890 | -836 / 889 |
+| 50,000 | -564 / 653 | -563 / 653 |
+| 100,000 | -611 / 705 | -612 / 705 |
+
+Six quantities matching across three conditions. `bias_ideas.md` documents the
+pre-existing pipeline, which **could not** compute a den-weighted marginal — the
+denominator was not in the table until T1 added it. So the arm reproducing the
+old numbers ought to be the *uniform* one. The code's branches read correctly
+(`uniform` divides by branch length; `weighted` accumulates den-weighted
+numerator and denominator), so mislabelling in the implementation is not the
+explanation. Remaining possibilities: the weighted arm ran through a stale table
+or code path, the numbers were carried over rather than recomputed, or it is
+coincidence. **Until this is resolved, treat "H2b struck" as provisional** — if
+the arms are effectively transposed, the same data would instead say weighting
+moves -836 to +248 and nearly halves RMSE, i.e. H2b confirmed as a major
+contributor. The conclusion is currently inverted by an unexplained match.
+
+### T2. What a nonzero eps costs on error-free data
+
+**Question.** On perfect simulated data the true eps is **zero**: no genotyping
+error, true ARGs, and the hard wall never fires (0 carriers in 41,395
+opportunities on the `betabinom` branch). So `--epsilon 0.01` is not a
+data-quality setting here, it is a **misspecification**, and the question is
+simply how much it costs.
+
+**Answer: +151 generations in a synthetic test.** With eps profiled, T_hat came
+out at one grid step from truth at every injected error level; with eps wrongly
+fixed at 0.01 on error-free data, T_hat moved from 2067 to 2218 against a truth
+of 2000 (see D1 for the full table). That is a substantial fraction of the offset
+under diagnosis, and it is removed by a one-line change.
+
+**Action: set eps as small as is numerically safe and re-measure.** Do this
+before any structural hypothesis, because it is nearly free and it takes H0 and
+H1 off the table for simulated data. Keep 1e-6 / 1e-3 / 0.01 as a reported
+sensitivity, not a calibration.
+
+**Why the cost is not a uniform shift** — this is the mechanism, and it is why
+the effect is a bias rather than a variance loss.
 
 **Measured, at n=26, Ne=20,000, mutation age 4,000 generations** (one point only —
 sweep before trusting the magnitudes). All figures in nats.
@@ -282,34 +344,64 @@ information each (0.04-0.37 nats against 1.2-3.0 carried), so the two channels a
 balanced by *counts*, not per-site weight. This is the quantitative content of
 bias H1, and it is why H0 and H1 are one hypothesis.
 
-**Proposed split.** Two independent failure channels:
+**Deferred to real data.** How eps would be estimated when it is *not* known —
+joint profiling, the violation-count check, radiocarbon anchoring, genotype
+likelihoods — is worked out and parked under "Deferred: real data" below. None of
+it is needed to solve the simulated bias, where the truth is eps = 0.
 
-    p~_i(T) = (1 - eps_m) p_i(T) + eps_m * b_i
-    r_i(T)  = eps_e + (1 - 2 eps_e) p~_i(T)
+### T4. Disentangle what actually fixed the bias
 
-with `eps_e` the observation error rate (fixed from damage and coverage), `eps_m`
-the probability the site's ARG-derived p is simply wrong (misplaced mutation,
-flipped polarity, wrong topology), and `b_i` a T-independent background carrier
-probability — natural choice d0/n.
+**Why.** Between `bias_ideas.md` (-836 / RMSE 890 at Ne=10,000) and T1's uniform
+arm (+248 / RMSE 479), three independent sets of changes landed: table precision
+(d75b9b9, 54b9113, 33b23d6), five inference bug fixes (bc5268d), and T1's exact
+edge integration. The bias flipped sign and RMSE nearly halved, and **we do not
+know which change did it.** That is now the most valuable thing to establish,
+because it decides where the remaining effort goes.
 
-**What the split does and does not buy.** It buys **nothing on signal**: at
-eps_e=1e-3 the split gives 2.021 nats against 2.027 for eps_e alone, because the
-flat term dominates. Its whole value is in the wall, and only when observation
-error is low:
+**Method.** Re-run the Ne sweep at each of these, uniform marginalisation
+throughout, on identical SNPs and ARGs:
 
-| scheme | wall at d0=1 | wall at d0=26 | gradient |
-|---|---:|---:|---:|
-| eps_e=1e-5 alone | 11.51 | 11.51 | 0.00 |
-| split eps_e=1e-5, eps_m=1e-2 | 7.84 | 4.60 | **3.23** |
-| eps_e=1e-3 alone | 6.91 | 6.91 | 0.00 |
-| split eps_e=1e-3, eps_m=1e-2 | 6.58 | 4.51 | 2.07 |
+1. Pre-T1 code with the OLD float64 table — reproduces `bias_ideas.md`, confirming
+   the comparison is like-for-like. If it does not reproduce, stop: something else
+   differs and the whole sweep is not comparable.
+2. Pre-T1 code with the NEW exact table — isolates the precision fixes.
+3. Current code (exact table + bug fixes + analytic integration) — the +248 arm.
+4. Current code with the 16-node trapezoid restored — isolates T1's quadrature
+   change from the bug fixes.
 
-The real argument is therefore **decoupling**, not signal recovery: it lets eps_e
-drop two orders of magnitude — recovering the 42% of carried-site signal that
-eps=0.01 destroys — without making a single ARG error cost 11.5 nats. And it makes
-the wall site-dependent, so a violation at a common allele (likely an ARG error) is
-cheap while one at a singleton stays expensive. That is the correct ordering and a
-single eps cannot express it.
+**Also settles caveat (ii) above**, since step 1 establishes which arm reproduces
+the old numbers and whether the weighted column's match is real.
+
+**Expected value.** If the precision fixes did it, the bias story is largely over
+and H1/H3/H4 can be closed. If the quadrature fix did it, H5 is confirmed and the
+remaining offset is whatever survives. Either way the hypothesis list collapses.
+
+## Next steps, in order
+
+Perfect simulated data only. Real-data work is parked under "Deferred".
+
+1. **T4: disentangle what already fixed the bias.** Between `bias_ideas.md`
+   (-836 / RMSE 890) and T1's uniform arm (+248 / RMSE 479) the bias flipped sign
+   and RMSE nearly halved, and the cause is not isolated. Most of the hypothesis
+   list may already be closed. Do this first — it decides where everything else
+   goes.
+2. **Resolve T1 caveat (ii)**: why the weighted column reproduces
+   `bias_ideas.md` to within one generation. Until it is explained, "H2b struck"
+   is provisional and could be inverted. T4 step 1 settles it.
+3. **T2: set eps small and re-measure.** Nearly free, and takes H0 and H1 off the
+   table for simulated data, where the truth is eps = 0.
+4. **Re-baseline everything** on the fixed table. Every number in
+   `bias_ideas.md` predates the precision and inference fixes.
+5. Then whatever offset survives: H3, H4 (binned on *predicted* frequency, not
+   true), H8.
+
+## Deferred: real data
+
+Parked by decision: the estimator must be unbiased on error-free simulations with
+true ARGs before any of this matters. Kept because it is worked out and verified,
+and because it is the reason eps is not simply "a number we do not know".
+
+### D1. Estimating eps when it is genuinely unknown
 
 **Do not sweep eps. Profile it.** A sweep implies we could then *set* eps to the
 right value, and we cannot: the genotyping error rate of real aDNA is not known a
@@ -370,23 +462,60 @@ generating the data is exactly the model being fit, sites are drawn independentl
 and phi is exact with no ARG uncertainty. Identifiability under correct
 specification does not imply it under misspecification.
 
-## Next steps, in order
+**Practical routes, ranked by what they deliver.**
 
-1. **Rebuild the tables with the fixed engine and re-measure the `bias_ideas.md`
-   table.** Blocks everything else; every existing bias number came through a
-   contaminated table.
-2. **Reconcile the sign disagreement** between the production pipeline and the
-   300-sim reimplementation. Most likely eps.
-3. **H0: profile eps jointly with T** on the same simulations, and check the
-   profile is peaked once linkage is present (see T2 — identification is lost
-   below ~500 effective independent units, and 10 Mb may be borderline). Fixed-eps
-   comparisons at 1e-6 / 1e-3 / 0.01 are still worth running alongside, as a
-   sensitivity report rather than a calibration.
-4. **H2b: the marginalisation order — see TODO test T1**, which is specified.
-   Currently untestable rather than tested, and the fix is small: den is already
-   computed and thrown away. Bundle with the quadrature fix below.
-5. Fix the edge quadrature (bias H5, and an open bug in its own right). Same few
-   lines as T1; do them together.
-6. H1's symmetric arms; likelihood pull by d0 and carried/absent state.
-7. H4 calibration, binned on predicted rather than true frequency.
-8. Retire H6 analytically. Then H3, H7, H8.
+1. **Radiocarbon-dated samples.** Fix T at the known age and fit eps. The only
+   route that identifies eps cleanly. Transfers only across comparable library
+   prep, coverage and ARG quality.
+2. **Joint profile with block-bootstrap uncertainty.** Works, but **never read
+   confidence off the profile depth**: under a composite likelihood the score is
+   unbiased, so eps_hat stays consistent, while the curvature is inflated by
+   pseudo-replication — the sum runs over all N sites while the information is
+   worth roughly N/k. Bootstrap the whole (T_hat, eps_hat) fit over genomic
+   blocks, which the pipeline already does for T.
+3. **The violation-count check — cheap, and can falsify an assumed eps today.**
+   Sites whose mutation postdates the sample have p = 0 exactly, so r = eps and
+   every observed carriage there is pure failure:
+   eps_hat(T) = carried among impossible sites / impossible sites.
+   Verified unbiased, but its precision is set by the expected event count
+   ~ eps * n_impossible: at eps=1e-3 and 6,240 impossible sites you expect ~6
+   events, so ~40% relative precision — a bound, not an estimate, at 10 Mb. It is
+   also monotone in T (0.0016 at T=856 rising to 0.0267 at T=6000), so it cannot
+   stand alone. **Its value is falsification:** 9 violations among 6,240
+   impossible sites is incompatible with eps=0.01, which predicts 62. Even zero
+   violations is informative — by the rule of three that bounds eps below
+   4.8e-4, ruling out 0.01 outright.
+4. **Replicate libraries or duplicated individuals.** Discordance gives the
+   genotyping component directly, cleanly separated from ARG error. Gives the
+   floor.
+5. **Per-site genotype likelihoods — the principled replacement.** Propagate
+   per-site, per-allele likelihoods from the BAM (base quality, position-specific
+   damage, coverage) instead of a scalar. MATH.md eq. (2)/(3) generalises cleanly:
+   replace the symmetric eps-flip with a per-site pair P(obs | derived),
+   P(obs | ancestral). This also fixes something a scalar structurally cannot —
+   damage is strand- and base-specific, and reference bias is asymmetric again.
+6. **Damage/quality models alone — a lower bound only**, since eps_hat is an
+   omnibus failure rate absorbing ARG and polarity error. The *gap* is the useful
+   part: eps_hat >> eps_damage quantifies ARG or model error.
+
+### D2. The error-term split (former T2)
+
+Splitting eps into eps_e (observation) and eps_m (model failure) with a
+T-independent background b_i = d0/n. **Twice demoted:** it gains nothing on signal
+(2.021 nats against 2.027 for eps_e alone, because the flat term dominates), and
+profiling a scalar eps already removes the T-sensitivity. Its only distinctive
+value is making the wall site-dependent — at eps_e=1e-5 a flat 11.51-nat wall
+becomes 7.84 at d0=1 against 4.60 at d0=26 — so a violation at a common allele
+(likely an ARG error) is cheap while one at a singleton stays expensive. Build it
+only if a profiled scalar leaves residual bias on real data.
+
+### D3. Other real-data exposures, not yet worked out
+
+- Reference bias and missing-to-ref: excluded by decision, controlled upstream.
+  Note the exposure is not symmetric — it under-calls derived alleles in both the
+  panel count and the ancient call, so errors point the same way rather than
+  cancelling, and it breaks the symmetric-eps form.
+- Contamination.
+- **Inferred rather than true ARGs.** The largest untested gap on either branch;
+  everything to date used true ARGs.
+- Store coordinate-convention validation (see open bugs).
