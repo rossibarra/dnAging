@@ -450,7 +450,7 @@ class ExactMomentEngine:
                 out.append(s)
             return out
 
-    def grid(self, tau_i, tauT, eps):
+    def grid(self, tau_i, tauT, eps, return_log_den=False):
         """(E[p_T|d0,t_i], E[p_T^2|d0,t_i]) for every (d0, T), shape (n, len(tauT)).
 
         Entries with tau_T >= tau_i (sample older than the mutation) are 0, matching
@@ -461,7 +461,8 @@ class ExactMomentEngine:
             # Coefficients are converted from exact rationals in __init__ and so
             # carry only self.dps digits; a wider workdps context cannot recover
             # them.  Use (and keep) an engine built at the required precision.
-            return self.at_precision(self.n, needed).grid(tau_i, tauT, eps)
+            return self.at_precision(self.n, needed).grid(
+                tau_i, tauT, eps, return_log_den=return_log_den)
         tauT = np.asarray(tauT, dtype=np.float64)
         p1 = np.zeros((self.n, tauT.size))
         p2 = np.zeros((self.n, tauT.size))
@@ -476,6 +477,10 @@ class ExactMomentEngine:
             Mpres = self.moms(tau_i, eps)
             den = {d0: mp.fsum(c * Mpres[m] for m, c in self.coeff[d0].items())
                    for d0 in range(1, self.n + 1)}
+            log_den = np.array([
+                float(mp.log(den[d0])) if den[d0] > 0 and mp.isfinite(den[d0]) else np.nan
+                for d0 in range(1, self.n + 1)
+            ])
             for it, tT in enumerate(tauT):
                 if tT >= tau_i:
                     continue        # sample older than the mutation: a true zero
@@ -503,7 +508,8 @@ class ExactMomentEngine:
         if bad.any():
             if self.dps < self.max_dps:
                 nxt = min(self.max_dps, max(self.dps * 2, self.dps + 40))
-                return self.at_precision(self.n, nxt).grid(tau_i, tauT, eps)
+                return self.at_precision(self.n, nxt).grid(
+                    tau_i, tauT, eps, return_log_den=return_log_den)
             # Exhausted the budget.  Report NaN, as the legacy engine does for
             # numerical failure; inference already treats NaN as disqualifying.
             # Never leave one of these at 0.0 -- a wrong zero is indistinguishable
@@ -511,8 +517,10 @@ class ExactMomentEngine:
             p1 = np.where(bad, np.nan, p1)
             p2 = np.where(bad, np.nan, p2)
             self.exhausted += int(bad.sum())
-            return p1, p2
-        return np.clip(p1, 0.0, 1.0), np.clip(p2, p1 * p1, p1)
+            result = (p1, p2)
+            return result + (log_den,) if return_log_den else result
+        result = (np.clip(p1, 0.0, 1.0), np.clip(p2, p1 * p1, p1))
+        return result + (log_den,) if return_log_den else result
 
     def Emoments(self, d0, tau_i, tau_T, eps):
         """Scalar form, for parity with MomentEngine.Emoments."""
@@ -541,6 +549,7 @@ def build_table(args):
     shape = (len(panel_sizes), args.n_sample, args.n_age, len(Tgrid))
     table = np.full(shape, np.nan, dtype=np.float32)
     table2 = np.full(shape, np.nan, dtype=np.float32)
+    log_den = np.full(shape[:-1], np.nan, dtype=np.float64)
     dps_used, exhausted = [], 0
     for inx, n in enumerate(panel_sizes):
         legacy = MomentEngine(int(n)) if args.float64 else None
@@ -554,19 +563,24 @@ def build_table(args):
             tau_i = tau_of_t(t_i)
             eps = 1.0 / (2.0 * float(ne_of_t(t_i)[0]))
             if args.float64:
+                Mpres = legacy._moms(tau_i, eps)
                 for id0, d0 in enumerate(range(1, n + 1)):
                     row = np.array([legacy.Emoments(d0, tau_i, tt, eps) for tt in tauT])
                     table[inx, id0, ia] = row[:, 0]
                     table2[inx, id0, ia] = row[:, 1]
+                    den = sum(c * Mpres[m] for m, c in legacy.coeff[d0].items())
+                    if den > 0 and np.isfinite(den):
+                        log_den[inx, id0, ia] = np.log(den)
             else:
                 eng = ExactMomentEngine.at_precision(
                     int(n), max(floor.dps, floor.required_dps(tau_i)))
                 before = eng.exhausted
                 # one (d0, T) block per age: C = e^{B tau_T} and M(tau_i) are
                 # shared across d0, so they are computed once instead of n times
-                p1, p2 = eng.grid(tau_i, tauT, eps)
+                p1, p2, ld = eng.grid(tau_i, tauT, eps, return_log_den=True)
                 table[inx, :n, ia] = p1
                 table2[inx, :n, ia] = p2
+                log_den[inx, :n, ia] = ld
                 dps_used.append(eng.dps)
                 exhausted += eng.exhausted - before
             if not args.quiet:
@@ -583,7 +597,7 @@ def build_table(args):
         raise SystemExit(f"--age-max={args.age_max:g} reaches only tau={age_tau[-1]:.6g}; "
                          "increase --age-max so the table extends beyond the default "
                          "inference cutoff tau=3")
-    return (table, table2, np.arange(1, args.n_sample + 1), panel_sizes, age,
+    return (table, table2, log_den, np.arange(1, args.n_sample + 1), panel_sizes, age,
             age_tau, Tgrid, windows)
 
 
@@ -632,19 +646,21 @@ def main(argv=None):
         p.error("--precision below 20 digits defeats the purpose; omit it for the "
                 "panel-size default")
 
-    table, table2, d0, n_panel, age, age_tau, Tgrid, windows = build_table(args)
+    table, table2, log_den, d0, n_panel, age, age_tau, Tgrid, windows = build_table(args)
     meta = {"n_sample": args.n_sample, "ne_file": str(args.ne),
             "ne_series": args.ne_series, "method": "neutral WF moment recursion",
             "ne_windows": int(len(windows[0])),
             # format 4 adds an n_panel axis for partially called panel sites
-            "format_version": 4, "planes": ["table (E[p_T])", "table2 (E[p_T^2])"],
+            "format_version": 5, "planes": ["table (E[p_T])", "table2 (E[p_T^2])",
+                                               "log_den (log P[d0|t_i], up to n,d0 constant)"],
             # provenance: which arithmetic produced this table
             # provenance records the precision ACTUALLY used, per age row, not
             # the requested floor -- the two differ wherever a row escalated
             "arithmetic": ("float64 (legacy, cancellation-limited)" if args.float64
                            else "mpmath dps={}-{}".format(*args._dps_used)),
             "unreachable_entries": int(getattr(args, "_exhausted", 0))}
-    np.savez_compressed(args.output, table=table, table2=table2, d0=d0, age=age,
+    np.savez_compressed(args.output, table=table, table2=table2, log_den=log_den,
+                        d0=d0, age=age,
                         n_panel=n_panel, age_tau=age_tau, Tgrid=Tgrid,
                         n_sample=args.n_sample, min_n=args.min_n,
                         meta=json.dumps(meta))

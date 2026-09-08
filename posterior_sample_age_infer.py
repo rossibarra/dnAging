@@ -210,10 +210,13 @@ def load_table(path):
         t["age_tau"] = d["age_tau"]
     if "table2" in d.files:                      # E[p_T^2|d0,t_i]: diploid only
         t["table2"] = d["table2"]
+    if "log_den" in d.files:
+        t["log_den"] = d["log_den"]
     return t
 
 
-def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table", n_called=None):
+def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table", n_called=None,
+               marginalise="uniform"):
     """E[p_T | d0, t_i] as a T-grid vector, marginalised over the mutation age t_i.
 
     Under the infinite-sites model the mutation age is UNIFORM on its branch
@@ -262,6 +265,40 @@ def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table", n_called=None):
         # mutation-existence boundary, so re-impose p_T = 0 at the interpolated age
         return np.where(Tg >= a, 0.0, r)
 
+    if marginalise not in {"uniform", "weighted"}:
+        raise ValueError("marginalise must be 'uniform' or 'weighted'")
+    if marginalise == "weighted":
+        if "log_den" not in tab:
+            raise SystemExit("--marginalise weighted requires a frequency table "
+                             "containing log_den; rebuild it with current precompute")
+        LDplane = np.asarray(tab["log_den"])
+        if LDplane.ndim == 3:
+            LD = LDplane[int(matches[0]), d0 - 1]
+        else:
+            LD = LDplane[d0 - 1]
+        if not np.all(np.isfinite(LD)):
+            return np.full(T.shape[1], np.nan)
+
+    def raw_row_at(a):
+        """Log-age interpolation without applying the T >= mutation-age mask."""
+        k = np.interp(np.log(max(a, 1e-9)), la, np.arange(len(age)))
+        k0 = int(np.floor(k)); k1 = min(k0 + 1, len(age) - 1); w = k - k0
+        return T[k0] if w == 0.0 else (1 - w) * T[k0] + w * T[k1]
+
+    def log_den_at(a):
+        k = np.interp(np.log(max(a, 1e-9)), la, np.arange(len(age)))
+        k0 = int(np.floor(k)); k1 = min(k0 + 1, len(age) - 1); w = k - k0
+        return float(LD[k0] if w == 0.0 else (1 - w) * LD[k0] + w * LD[k1])
+
+    def primitives(beta, y):
+        """Integrals of y**beta and y**beta*log(y), with stable beta=-1 limit."""
+        z = beta + 1.0
+        ly = np.log(y)
+        if abs(z) < 1e-10:
+            return ly, 0.5 * ly * ly
+        yz = np.exp(z * ly)
+        return yz / z, yz * (ly / z - 1.0 / (z * z))
+
     b_lo = float(min(t_lo, t_hi)); b_hi = float(max(t_lo, t_hi))   # true branch
     lo = max(b_lo, age[0])
     hi = min(max(b_hi, lo), age[-1])
@@ -273,24 +310,50 @@ def phi_lookup(tab, d0, t_lo, t_hi, n_quad=16, key="table", n_called=None):
         # where p_T = 0 is certain. Mask on the true branch top instead; for a
         # genuine point age b_hi == lo and this is what row_at already did.
         return np.where(Tg >= b_hi, 0.0, row_at(lo))
-    nodes = np.linspace(lo, hi, n_quad)          # UNIFORM in time along the branch
-    wts = np.full(n_quad, 1.0); wts[0] = wts[-1] = 0.5   # trapezoidal weights
+
+    # Split at every table-age knot. Within a piece phi is affine in log(age),
+    # while exp(log_den) is a power law. Both uniform and den-weighted integrals
+    # therefore have closed forms. The lower integration limit is max(piece left,
+    # T), which resolves the narrow existence-boundary region exactly instead of
+    # handing it half of a fixed trapezoid panel.
+    knots = np.unique(np.concatenate(([lo], age[(age > lo) & (age < hi)], [hi])))
     acc = np.zeros(T.shape[1])
-    for a, wt in zip(nodes, wts):
-        acc += wt * row_at(a)
-    avg = acc / wts.sum()                        # mean over the COVERED part [lo,hi]
-    # Renormalise onto the TRUE branch length. Mutation ages in the uncovered
-    # [b_lo, age[0]) are younger than any sample age T >= age[0], so they contribute
-    # p_T = 0 exactly: the covered integral is already the whole numerator, and
-    # dividing by (hi-lo) instead of (b_hi-b_lo) inflates the site by
-    # (b_hi-b_lo)/(hi-lo). This is EXACT for T >= age[0] only; below age[0] the
-    # uncovered ages in (T, age[0]) do contribute and this underestimates.
-    # ASYMMETRIC ON PURPOSE -- do NOT mirror it at the upper end, where uncovered
-    # ages are OLDER than the sample and genuinely contribute; that end is handled
-    # by capping t_hi at --mutation-age-max before we are called.
-    if lo > b_lo and hi >= b_hi and b_hi > b_lo:
-        avg = avg * (hi - lo) / (b_hi - b_lo)
-    return avg
+    if marginalise == "weighted":
+        ld_knots = np.array([log_den_at(x) for x in knots])
+        shift = float(np.max(ld_knots))
+        denominator = 0.0
+        # Below table coverage phi contributes zero for supported T>=age[0], but
+        # the mutation-age weight still belongs in the denominator. Continue the
+        # youngest tabulated density as the only available boundary convention.
+        if b_lo < lo:
+            denominator += np.exp(log_den_at(lo) - shift) * (lo - b_lo)
+    else:
+        denominator = b_hi - b_lo
+
+    for left, right in zip(knots[:-1], knots[1:]):
+        f0 = raw_row_at(left); f1 = raw_row_at(right)
+        log_ratio = np.log(right / left)
+        slope = (f1 - f0) / log_ratio
+        lower = np.maximum(left, Tg)
+        active = lower < right
+        y0 = lower / left; y1 = right / left
+        if marginalise == "uniform":
+            term = (f0 * (right - lower)
+                    + slope * ((right * np.log(y1) - right)
+                               - (lower * np.log(y0) - lower)))
+        else:
+            ld0 = log_den_at(left); ld1 = log_den_at(right)
+            beta = (ld1 - ld0) / log_ratio
+            scale = np.exp(ld0 - shift) * left
+            j0_hi, j1_hi = primitives(beta, y1)
+            j0_lo, j1_lo = primitives(beta, y0)
+            term = scale * (f0 * (j0_hi - j0_lo)
+                            + slope * (j1_hi - j1_lo))
+            denominator += scale * (j0_hi - primitives(beta, 1.0)[0])
+        acc += np.where(active, term, 0.0)
+    if not np.isfinite(denominator) or denominator <= 0:
+        return np.full(T.shape[1], np.nan)
+    return np.clip(acc / denominator, 0.0, 1.0)
 
 
 # =============================================================================
@@ -502,12 +565,14 @@ def run_chromosome(args, tab):
             if t_lo < age_min_generations:       # branch reaches below the table
                 low_clipped = True
             d0 = ca if a == rb else n_called - ca
-            phi = phi_lookup(tab, d0, t_lo, t_hi, n_called=n_called)
+            phi = phi_lookup(tab, d0, t_lo, t_hi, n_called=n_called,
+                             marginalise=args.marginalise)
             if phi is None:
                 stats["draws_table_unavailable"] += 1
                 table_rejected = True
                 continue
-            phi2 = (phi_lookup(tab, d0, t_lo, t_hi, key="table2", n_called=n_called)
+            phi2 = (phi_lookup(tab, d0, t_lo, t_hi, key="table2", n_called=n_called,
+                               marginalise=args.marginalise)
                     if need2 else None)
             if not np.all(np.isfinite(phi)) or (phi2 is not None and
                                                 not np.all(np.isfinite(phi2))):
@@ -662,7 +727,8 @@ def write_outputs(outdir, order, grid, log_prior, ll, stats, args):
                      f"{m['ci95_lower_T']:.6g}\t{m['ci95_upper_T']:.6g}\n")
     (outdir / "run.json").write_text(json.dumps({"counts": stats,
         "settings": {"epsilon": args.epsilon, "chrom": args.chrom,
-                     "mutation_age_max": args.mutation_age_max}}, indent=2))
+                     "mutation_age_max": args.mutation_age_max,
+                     "marginalise": args.marginalise}}, indent=2))
     try:
         import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
         maps = np.array([m["map_T"] for _, m in rows])
@@ -709,8 +775,12 @@ def parse_args(argv=None):
                    help="drop panel sites with fewer than this many called haplotypes [20].")
     p.add_argument("--mutation-age-max", type=float, default=3.0,
                    help="maximum mutation age in diffusion units tau; older mutation-"
-                        "age mass is discarded and crossing intervals are truncated "
-                        "[3.0]. At constant Ne=10000, tau=3 is 60000 generations.")
+                   "age mass is discarded and crossing intervals are truncated "
+                   "[3.0]. At constant Ne=10000, tau=3 is 60000 generations.")
+    p.add_argument("--marginalise", choices=("uniform", "weighted"), default="uniform",
+                   help="mutation-age averaging along an ARG edge: uniform is the "
+                        "integral of conditional ratios; weighted uses P(d0|t_i) "
+                        "and requires a current table containing log_den [uniform].")
     p.add_argument("--prior-file", type=Path, default=None)
     p.add_argument("--chunk-records", type=int, default=20000)
     p.add_argument("--merge", type=Path, nargs="+", default=None,

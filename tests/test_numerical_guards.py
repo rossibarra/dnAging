@@ -54,6 +54,12 @@ def test_mutation_age_max_defaults_to_tau_three():
     assert args.mutation_age_max == 3.0
 
 
+def test_marginalisation_defaults_to_uniform_and_is_selectable():
+    base = ["--freq-table", "x", "--output", "y", "--merge", "z"]
+    assert inf.parse_args(base).marginalise == "uniform"
+    assert inf.parse_args(base + ["--marginalise", "weighted"]).marginalise == "weighted"
+
+
 def test_epsilon_defaults_to_one_percent_and_is_validated():
     base = ["--freq-table", "x", "--output", "y", "--merge", "z"]
     assert inf.parse_args(base).epsilon == 0.01

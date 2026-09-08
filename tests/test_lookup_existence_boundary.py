@@ -59,6 +59,32 @@ def test_nan_that_the_answer_does_depend_on_is_still_propagated():
     assert not np.isfinite(got).all()
 
 
+def test_exact_knot_integration_resolves_narrow_existence_boundary():
+    """A one-generation sliver must not receive half a fixed quadrature panel."""
+    tab = _tab([100.0, 1000.0, 10000.0], [999.0], value=0.0)
+    tab["table"][0, :, 0] = [0.0, 0.5, 0.5]
+    got = inf.phi_lookup(tab, 1, 100.0, 1000.0)
+    assert got[0] == pytest.approx(0.000555435, rel=2e-6)
+
+
+def test_constant_den_weight_reproduces_uniform_integral():
+    tab = _tab([100.0, 1000.0, 10000.0], [50.0, 500.0], value=0.0)
+    tab["table"][0, :, :] = [[0.1, 0.0], [0.4, 0.2], [0.8, 0.6]]
+    tab["log_den"] = np.zeros((1, 3))
+    uniform = inf.phi_lookup(tab, 1, 100.0, 5000.0, marginalise="uniform")
+    weighted = inf.phi_lookup(tab, 1, 100.0, 5000.0, marginalise="weighted")
+    assert np.allclose(weighted, uniform, rtol=1e-12, atol=1e-12)
+
+
+def test_weighted_integral_uses_panel_count_probability():
+    tab = _tab([100.0, 1000.0], [50.0], value=0.0)
+    tab["table"][0, :, 0] = [0.1, 0.9]
+    tab["log_den"] = np.array([[0.0, np.log(100.0)]])
+    uniform = inf.phi_lookup(tab, 1, 100.0, 1000.0, marginalise="uniform")[0]
+    weighted = inf.phi_lookup(tab, 1, 100.0, 1000.0, marginalise="weighted")[0]
+    assert weighted > uniform
+
+
 def test_resolver_eligibility_is_honoured():
     """Resolved-but-ineligible rows must not be returned as usable.
 

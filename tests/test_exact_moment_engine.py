@@ -57,6 +57,14 @@ def test_grid_agrees_with_scalar_calls(n):
             assert p2[d0 - 1, it] == pytest.approx(b, abs=1e-12)
 
 
+def test_grid_can_return_finite_log_conditioning_denominators():
+    p1, p2, log_den = pre.ExactMomentEngine(12).grid(
+        0.7, np.array([0.0, 0.2]), EPS, return_log_den=True)
+    assert p1.shape == p2.shape == (12, 2)
+    assert log_den.shape == (12,)
+    assert np.isfinite(log_den).all()
+
+
 def test_grid_is_free_of_nan_where_the_mutation_predates_the_sample():
     """Every entry with tau_T < tau_i is computable; none may come back NaN."""
     n = 40
