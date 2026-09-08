@@ -81,19 +81,32 @@ Output (.npz, --output)
     n_sample int                           n chromosomes (= 26)
     meta    (json)  parameters / provenance
 
-Numerics note: the alternating binomial sums can lose all float64 precision for
-large diffusion times. Entries with fewer than two estimated significant decimal
-digits are written as NaN rather than clipped into apparently valid probabilities.
+Numerics note: the conditioning step sums binom(n-d0,m-d0)(-1)^{m-d0} M_m with
+alternating signs, which loses roughly 0.3 decimal digits per chromosome. float64
+cannot carry that for realistic panels, so the table is built by
+ExactMomentEngine, which works at 30 + n digits and reaches the value exactly (it
+agrees with the independent reference in tests/_reference.py to the last digit
+tested). The float64 engine remains available as --float64 for comparison against
+older tables, but it fails in two ways and should not be used to build one: at
+n=40 it returns 59% of entries as NaN, and -- less obviously -- entries that pass
+its max_cancellation guard can already be wrong in the third significant digit
+(n=26, d0=8, tau_i=3, tau_T=1: 0.470396 against the true 0.466832). Only the
+legacy path writes NaN for numerical failure; the exact path writes NaN solely for
+d0 above a given panel size, and 0 where T >= t_i.
 
 Cost note: one exponential of this size is trivial, but build_table() loops over
-every panel size n, every d0 in 1..n, every mutation age and every sample age, and
-Emoments() recomputes all three of expm(B*u1), expm(B*tau_T) and expm(B*tau_i) on
-each call (entries with T >= t_i return 0 before doing any work). The default grid
-(n = 20..26, 100 log-spaced ages, 300 sample ages) therefore issues ~7.8e6
-exponentials of dimension 23..29 -- of order an hour on one core, and the dominant
-cost of the build. All three depend only on (n, tau_i, tau_T) and NOT on d0, so
-hoisting them out of the d0 loop would cut that to ~3.4e5. That reuse is NOT
-implemented; it is the obvious optimisation if this grid is ever refined.
+every panel size n, every d0 in 1..n, every mutation age and every sample age.
+Emoments() used to recompute all three of expm(B*u1), expm(B*tau_T) and
+expm(B*tau_i) per call, ~7.8e6 exponentials of dimension 23..29 for the default
+grid (n = 20..26, 100 log-spaced ages, 300 sample ages). All three depend only on
+(n, tau_i, tau_T) and NOT on d0, and ExactMomentEngine.grid() exploits that: it
+evaluates a whole (d0, T) block per mutation age, caching C = e^{B tau_T} per
+tau_T and M(tau_i) per age, so each entry costs O(n^2) high-precision multiplies
+instead of an exponential. It also never forms a general matrix exponential at
+all -- B is lower-bidiagonal with eigenvalues -k(k-1)/2, so e^{B u} has an exact
+partial-fraction expansion whose rational coefficients are computed once per panel
+size. Net effect: the default build is ~36 min on one core at 56 digits, i.e. the
+higher precision costs less than the arrangement it replaced.
 """
 
 from __future__ import annotations
@@ -101,9 +114,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from fractions import Fraction
 from math import comb
 from pathlib import Path
 
+import mpmath as mp
 import numpy as np
 from scipy.linalg import expm
 
@@ -261,6 +276,177 @@ class MomentEngine:
         return self.Emoments(d0, tau_i, tau_T, eps)[0]
 
 
+class ExactMomentEngine:
+    """MomentEngine's conditional evaluated to `dps` digits instead of in float64.
+
+    The conditioning step needs the alternating sum
+
+        sum_{m=d0}^{n} binom(n-d0, m-d0) (-1)^{m-d0} M_m ,
+
+    which loses roughly 0.3*n decimal digits to cancellation. float64 therefore
+    runs out of precision as the panel grows: at n=40, 59% of table entries trip
+    MomentEngine.max_cancellation and are returned as NaN, and -- worse -- entries
+    that survive the guard can already be wrong in the third significant digit
+    (n=26, d0=8, tau_i=3, tau_T=1: float64 gives 0.470396, the true value is
+    0.466832). Carrying `dps` digits removes the loss; the guard then never fires.
+
+    Doing that naively would mean an mpmath matrix exponential per (d0, T) entry.
+    Two structural facts make it affordable instead:
+
+    * B is lower-bidiagonal with eigenvalues lam_k = -k(k-1)/2, so e^{B u} has an
+      exact partial-fraction expansion in the e^{lam_k u}, with rational
+      coefficients computed once per panel size (`_coeffs`). No general-purpose
+      matrix exponential is ever formed.
+    * Of the three exponentials Emoments needs, C = e^{B tau_T} depends only on
+      tau_T and M(tau_i) only on tau_i -- neither depends on d0. `grid()`
+      evaluates a whole (d0, T) block per mutation age, caching C per tau_T, so
+      each entry costs O(n^2) high-precision multiplies rather than an O(n^3)
+      exponential.
+
+    This is the same closed form the independent reference in tests/_reference.py
+    uses; the two implementations are kept separate on purpose so the reference
+    stays an independent check.
+    """
+
+    def __init__(self, n, dps=None):
+        self.n = int(n)
+        self.K = self.n + 1
+        self.N = self.K + 2          # E[X_T^2 X_pres^m] reaches M_{j+2}
+        # ~0.3 digits lost per chromosome, plus float64's 16 and a safety margin
+        self.dps = int(dps) if dps else 30 + self.n
+        self.coeff = {d0: {m: comb(self.n - d0, m - d0) * (-1) ** (m - d0)
+                           for m in range(d0, self.n + 1)}
+                      for d0 in range(1, self.n + 1)}
+        self._lam_int = [-(k * (k - 1) // 2) for k in range(self.N)]
+        with mp.workdps(self.dps):
+            self._lam = [mp.mpf(l) for l in self._lam_int]
+            # rational -> mpf once; these are hit O(n^2) times per table entry
+            self._Ccoef = {ji: [(k, mp.mpf(v.numerator) / v.denominator)
+                                for k, v in row.items()]
+                           for ji, row in self._coeffs().items()}
+        self._Ccache = {}
+
+    def _coeffs(self):
+        """D[(j, i)][k] with (e^{B u})_{ij} = sum_k D[(j,i)][k] e^{lam_k u}.
+
+        For a lower-bidiagonal generator the (i, j) entry is a single cascade
+        j -> i, giving the standard partial-fraction form
+
+            (prod_{m=j+1}^{i} c_m) * sum_{k=j}^{i} e^{lam_k u}
+                                     / prod_{l != k} (lam_k - lam_l),  c_m = -lam_m.
+
+        lam_0 = lam_1 = 0 are the only repeated eigenvalues, and c_1 = 0 kills the
+        prefactor of every block whose range spans both, so no repeated root ever
+        reaches a denominator (asserted below).
+        """
+        lam = [Fraction(l) for l in self._lam_int]
+        c = [-l for l in lam]
+        D = {}
+        for j in range(self.N):
+            pref = Fraction(1)
+            for i in range(j, self.N):
+                if i > j:
+                    pref *= c[i]
+                row = {}
+                if pref != 0:
+                    for k in range(j, i + 1):
+                        den = Fraction(1)
+                        for l in range(j, i + 1):
+                            if l != k:
+                                assert lam[k] != lam[l], (
+                                    "repeated eigenvalue reached a partial-fraction "
+                                    f"denominator at (j={j}, i={i}, k={k}, l={l})")
+                                den *= lam[k] - lam[l]
+                        row[k] = pref / den
+                D[(j, i)] = row
+        return D
+
+    def _C(self, tau_T):
+        """C[m][j] = coefficient of y^j in E[X(tau_T)^m | X(0)=y]. Cached per tau_T."""
+        key = float(tau_T)
+        hit = self._Ccache.get(key)
+        if hit is not None:
+            return hit
+        with mp.workdps(self.dps):
+            t = mp.mpf(float(tau_T))
+            e = [mp.e ** (l * t) for l in self._lam]
+            C = [[mp.mpf(0)] * self.K for _ in range(self.N)]
+            for j in range(self.K):
+                for i in range(j, self.N):
+                    row = self._Ccoef[(j, i)]
+                    if row:
+                        C[i][j] = mp.fsum(v * e[k] for k, v in row)
+        self._Ccache[key] = C
+        return C
+
+    def moms(self, u, eps):
+        """M_k(u) = E[X(u)^k] for a mutation entering at frequency eps."""
+        with mp.workdps(self.dps):
+            t = mp.mpf(float(u))
+            e = [mp.e ** (l * t) for l in self._lam]
+            x0 = mp.mpf(float(eps))
+            m0 = [mp.mpf(1)] + [x0 ** k for k in range(1, self.N)]
+            out = []
+            for i in range(self.N):
+                s = mp.mpf(0)
+                for j in range(i + 1):
+                    row = self._Ccoef[(j, i)]
+                    if row and m0[j]:
+                        s += m0[j] * mp.fsum(v * e[k] for k, v in row)
+                out.append(s)
+            return out
+
+    def grid(self, tau_i, tauT, eps):
+        """(E[p_T|d0,t_i], E[p_T^2|d0,t_i]) for every (d0, T), shape (n, len(tauT)).
+
+        Entries with tau_T >= tau_i (sample older than the mutation) are 0, matching
+        MomentEngine.Emoments.
+        """
+        tauT = np.asarray(tauT, dtype=np.float64)
+        p1 = np.zeros((self.n, tauT.size))
+        p2 = np.zeros((self.n, tauT.size))
+        with mp.workdps(self.dps):
+            Mpres = self.moms(tau_i, eps)
+            den = {d0: mp.fsum(c * Mpres[m] for m, c in self.coeff[d0].items())
+                   for d0 in range(1, self.n + 1)}
+            for it, tT in enumerate(tauT):
+                if tT >= tau_i:
+                    continue
+                C = self._C(tT)
+                Mu1 = self.moms(tau_i - tT, eps)
+                EjX = [mp.fsum(C[m][j] * Mu1[j + 1] for j in range(self.K))
+                       for m in range(self.N)]
+                EjX2 = [mp.fsum(C[m][j] * Mu1[j + 2] for j in range(self.K))
+                        for m in range(self.N)]
+                for d0, cs in self.coeff.items():
+                    d = den[d0]
+                    if d == 0:
+                        continue
+                    a = mp.fsum(c * EjX[m] for m, c in cs.items()) / d
+                    b = mp.fsum(c * EjX2[m] for m, c in cs.items()) / d
+                    p1[d0 - 1, it] = float(a)
+                    p2[d0 - 1, it] = float(b)
+        # exact moment constraints; with dps digits these hold, so assert rather
+        # than clip -- a violation now means a real bug, not roundoff
+        bad = (p1 < -1e-12) | (p1 > 1 + 1e-12) | (p2 < p1 * p1 - 1e-12) | (p2 > p1 + 1e-12)
+        if bad.any():
+            i = np.argwhere(bad)[0]
+            raise AssertionError(
+                f"moment constraints violated at d0={i[0]+1}, tau_T={tauT[i[1]]:g}, "
+                f"tau_i={tau_i:g}: E[p]={p1[tuple(i)]!r}, E[p^2]={p2[tuple(i)]!r}")
+        return np.clip(p1, 0.0, 1.0), np.clip(p2, p1 * p1, p1)
+
+    def Emoments(self, d0, tau_i, tau_T, eps):
+        """Scalar form, for parity with MomentEngine.Emoments."""
+        if tau_T >= tau_i:
+            return 0.0, 0.0
+        a, b = self.grid(tau_i, [tau_T], eps)
+        return float(a[d0 - 1, 0]), float(b[d0 - 1, 0])
+
+    def Efreq(self, d0, tau_i, tau_T, eps):
+        return self.Emoments(d0, tau_i, tau_T, eps)[0]
+
+
 # ---------------------------------------------------------------------------
 # Table build
 # ---------------------------------------------------------------------------
@@ -278,14 +464,22 @@ def build_table(args):
     table = np.full(shape, np.nan, dtype=np.float32)
     table2 = np.full(shape, np.nan, dtype=np.float32)
     for inx, n in enumerate(panel_sizes):
-        eng = MomentEngine(int(n))
+        eng = (MomentEngine(int(n)) if args.float64
+               else ExactMomentEngine(int(n), dps=args.precision))
         for ia, t_i in enumerate(age):
             tau_i = tau_of_t(t_i)
             eps = 1.0 / (2.0 * float(ne_of_t(t_i)[0]))
-            for id0, d0 in enumerate(range(1, n + 1)):
-                row = np.array([eng.Emoments(d0, tau_i, tt, eps) for tt in tauT])
-                table[inx, id0, ia] = row[:, 0]
-                table2[inx, id0, ia] = row[:, 1]
+            if args.float64:
+                for id0, d0 in enumerate(range(1, n + 1)):
+                    row = np.array([eng.Emoments(d0, tau_i, tt, eps) for tt in tauT])
+                    table[inx, id0, ia] = row[:, 0]
+                    table2[inx, id0, ia] = row[:, 1]
+            else:
+                # one (d0, T) block per age: C = e^{B tau_T} and M(tau_i) are
+                # shared across d0, so they are computed once instead of n times
+                p1, p2 = eng.grid(tau_i, tauT, eps)
+                table[inx, :n, ia] = p1
+                table2[inx, :n, ia] = p2
             if not args.quiet:
                 print(f"[n={n} age {ia+1}/{args.n_age}] t_i={t_i:.3g} "
                       f"tau_i={tau_i:.3g}", file=sys.stderr)
@@ -324,17 +518,32 @@ def main(argv=None):
     p.add_argument("--n-age", type=int, default=100,
                    help="log-spaced mutation-age grid points [100].")
     p.add_argument("--output", type=Path, required=True, help="output .npz")
+    p.add_argument("--precision", type=int, default=None,
+                   help="digits carried through the conditioning sum "
+                        "[30 + n_sample]. The sum loses ~0.3 digits per "
+                        "chromosome to cancellation, so float64 is not enough.")
+    p.add_argument("--float64", action="store_true",
+                   help="use the legacy float64 engine. Loses ~0.3*n digits to "
+                        "cancellation: at n=40 it drops 59%% of entries as NaN, "
+                        "and surviving entries can be wrong in the third digit. "
+                        "For comparison against old tables only.")
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)
     if not 2 <= args.min_n <= args.n_sample:
         p.error("--min-n must satisfy 2 <= min-n <= n-sample")
+    if args.precision is not None and args.precision < 20:
+        p.error("--precision below 20 digits defeats the purpose; omit it for the "
+                "panel-size default")
 
     table, table2, d0, n_panel, age, age_tau, Tgrid, windows = build_table(args)
     meta = {"n_sample": args.n_sample, "ne_file": str(args.ne),
             "ne_series": args.ne_series, "method": "neutral WF moment recursion",
             "ne_windows": int(len(windows[0])),
             # format 4 adds an n_panel axis for partially called panel sites
-            "format_version": 4, "planes": ["table (E[p_T])", "table2 (E[p_T^2])"]}
+            "format_version": 4, "planes": ["table (E[p_T])", "table2 (E[p_T^2])"],
+            # provenance: which arithmetic produced this table
+            "arithmetic": ("float64 (legacy, cancellation-limited)" if args.float64
+                           else f"mpmath dps={args.precision or 30 + args.n_sample}")}
     np.savez_compressed(args.output, table=table, table2=table2, d0=d0, age=age,
                         n_panel=n_panel, age_tau=age_tau, Tgrid=Tgrid,
                         n_sample=args.n_sample, min_n=args.min_n,

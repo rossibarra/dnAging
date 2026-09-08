@@ -82,7 +82,7 @@ $$
 $$
 
 **Ploidy.** The ancient calls are **pseudo-haploid**, so we take $c_i = 1$
-throughout: one allele per called site, $a_i\in\{0,1\}$. A single read is sampled
+throughout: one allele per called site, $a_i\in\lbrace 0,1\rbrace$. A single read is sampled
 per site, and although it is written as `0/0` or `1/1` the homozygous call is
 collapsed to one observation rather than counted twice. Equation (3) is then
 *linear* in $r_i$ and collapses to
@@ -203,7 +203,7 @@ i.e. at frequency $1/(2N_e(t_i))$, so $M_k(0) = \bigl(1/(2N_e(t_i))\bigr)^{k}$.
 **Sampling to the observed count.** We observe not $x_0$ but a **count**
 $d_0 \sim \text{Binom}(n, x_0)$ among the $n$ called panel haplotypes. Because $n$
 can vary with panel missingness, the implementation tabulates each
-$n\in\{n_{\min},\ldots,n_{\text{sam}}\}$ separately and drops sites below `--min-n` (default
+$n\in\lbrace n_{\min},\ldots,n_{\text{sam}}\rbrace$ separately and drops sites below `--min-n` (default
 20). The binomial pmf is a
 polynomial in $x_0$ of degree $n$,
 
@@ -285,20 +285,41 @@ and (9a) are prone to catastrophic cancellation: the binomial weights grow like
 $2^{n}$ while the moments are small, so the sum loses on the order of $0.3n$
 decimal digits. The loss also grows with $\tau_i$: once the allele is almost surely
 lost or fixed, the denominator of (9)/(9a) — the sampling weight of an intermediate
-$d_0$ — underflows to cancellation noise, and *both* moments become meaningless
-(clipping them into the mathematically valid range would hide the failure rather
-than recover the information). The implementation therefore measures the cancellation ratio
-$\sum|\mathrm{term}|/|\sum\mathrm{term}|$ for each conditioning sum and writes
-`NaN` once only roughly 1–2 significant decimal digits remain. Inference treats a
-`NaN` in **any** ARG draw as disqualifying the whole site: the mixture in eq. (11)
-is defined over all $G$ draws, so a single draw cannot simply be dropped ([section 6](#6-draws-polarity-chromosomes)).
+$d_0$ — underflows to cancellation noise. Double precision cannot carry this for
+panels of realistic size, so the table is **not** built in double precision. The
+build carries $30+n$ decimal digits (`ExactMomentEngine`), which is enough that the
+cancellation is no longer a limitation at all: the result agrees with the
+independent 80-digit reference (`tests/_reference.py`) to every digit tested, at
+every $n$ and $\tau_i$ tried, and no entry with $\tau_T \lt \tau_i$ is ever lost.
 
-At the full panel size ($n=n_{\text{sam}}=26$ here) the relative error against an 80-digit
-`mpmath` reference (`tests/_reference.py`, `dps=80`) is $\sim10^{-3}$ for
-$\tau_i\lesssim3$, reaches a few percent by $\tau_i\approx 5$ to $6$, and the
-values are noise by $\tau_i\approx10$. As an additional operational safeguard,
+This matters more than a tolerance audit would suggest, because double precision
+fails in two distinct ways. The visible one is outright loss: measuring the
+cancellation ratio $\sum|\mathrm{term}|/|\sum\mathrm{term}|$ and writing `NaN`
+once only 1–2 significant digits remain discards 11% of table entries at $n=12$
+and 59% at $n=40$. The quantities so discarded are perfectly well defined — at
+$n=26$, $d_0=8$, $\tau_i=10$, $\tau_T=0$ the value is $0.3214285713$, returned as
+`NaN`. The second failure mode is quieter and worse: entries that **pass** the
+guard can already be wrong. At $n=26$, $d_0=8$, $\tau_i=3$, $\tau_T=1$ — inside
+the advertised range, and reported as reliable — double precision gives $0.470396$
+against the true $0.466832$, an error of 0.8%. On the same small grid, entries
+where both arithmetics report success disagree by up to 1.7% in the first
+moment and 11% in the second. A guard on the cancellation ratio bounds the
+digits lost in the final sum; it does not bound the error already present in the
+moments entering it.
+
+The legacy double-precision engine is retained behind `--float64` for comparison
+against tables built before this change, and its guard is still exercised by the
+test suite, but it should not be used to build a table. With the exact path,
+`NaN` in the table means only "$d_0$ exceeds this panel size"; entries with
+$T\ge t_i$ are $0$. Inference still treats a `NaN` in **any** ARG draw as
+disqualifying the whole site, since the mixture in eq. (11) is defined over all
+$G$ draws and a single draw cannot simply be dropped
+([section 6](#6-draws-polarity-chromosomes)).
+
+As an additional operational safeguard,
 `--mutation-age-max` defaults to a cutoff of $\tau_i=3$ in diffusion units and
-discards mutation-age mass beyond it. The table stores the diffusion time
+discards mutation-age mass beyond it — a modelling cutoff, no longer a numerical
+one. The table stores the diffusion time
 $\tau(t)=\int_0^t ds/(2N_e(s))$ of every generation-age row, and inference recovers
 the cutoff *in generations* by **linear interpolation between those log-spaced
 rows**; it does not re-evaluate $N_e(t)$. For a piecewise-constant $N_e$, $\tau(t)$
@@ -308,26 +329,37 @@ falling between two neighbouring rows leaves the recovered cutoff age approximat
 by up to the spacing of the age grid (100 log-spaced rows by default, i.e. ~17% in
 $t$ per step). At constant $N_e=100{,}000$, $\tau=3$ is about 600,000 generations.
 Table construction requires `--age-max` to extend beyond $\tau=3$, and inference
-rejects insufficient table coverage. This is a numerical cutoff, not an assertion
-that all older mutations are biologically uninformative. Double precision is
-therefore comfortable for panels up to a few tens of haplotypes (the ARG regime
-here) at moderate $\tau_i$, but the method degrades and eventually breaks beyond
-roughly $n \approx 40$ to $50$ — there one must switch to extended precision
-(e.g. `mpmath`) or reformulate the conditioning in a numerically stable basis
-(orthogonal-polynomial / spectral moments rather than the raw power moments).
+rejects insufficient table coverage. This is an operational cutoff, not an
+assertion that all older mutations are biologically uninformative. Because the
+precision now scales with $n$, panel size is no longer what limits the method;
+the previous ceiling of roughly $n\approx40$ to $50$ no longer applies. The
+alternative of reformulating the conditioning in a numerically stable basis
+(orthogonal-polynomial or spectral moments rather than raw power moments) would
+reduce the digits required and remains worth doing if the panel grows by orders
+of magnitude, but it is not needed at ARG scale.
 
 **Cost of the build.** A *single* matrix exponential is cheap ($O((n+3)^3)$ on a
-matrix this small), but the number of them is not negligible: `Emoments()`
-recomputes all three per $(n,d_0,t_i,T)$ entry, and the build loops over every
-panel size $n$, every $d_0\in\{1,\ldots,n\}$, every mutation age and every sample
-age (entries with $T\ge t_i$ return $0$ before doing any work). The default grid
-($n=20\ldots n_{\text{sam}}$, $d_0$ up to $n$, 100 log-spaced ages, 300 sample ages) issues, at
-$n_{\text{sam}}=26$, $\approx7.8\times10^{6}$ exponentials of dimension 23–29, of order an hour
-on one core — that is the dominant term in precomputation, not a rounding error. All three
-depend only on $(n,\tau_i,\tau_T)$ and **not** on $d_0$, so hoisting them out of the
-$d_0$ loop would cut the count by a factor of $n$, to $\approx3.4\times10^{5}$.
-That reuse is **not** implemented; it is the obvious optimisation should the grid
-ever be refined.
+matrix this small), but the number of them was not negligible: the old
+`Emoments()` recomputed all three per $(n,d_0,t_i,T)$ entry, and the build loops
+over every panel size $n$, every $d_0\in\lbrace 1,\ldots,n\rbrace$, every mutation age and
+every sample age (entries with $T\ge t_i$ return $0$ before doing any work). The
+default grid ($n=20\ldots n_{\text{sam}}$, $d_0$ up to $n$, 100 log-spaced ages,
+300 sample ages) issued, at $n_{\text{sam}}=26$, $\approx7.8\times10^{6}$
+exponentials of dimension 23–29, of order an hour on one core.
+
+Two structural facts remove that cost, and they are what make the higher precision
+affordable. First, all three exponentials depend only on $(n,\tau_i,\tau_T)$ and
+**not** on $d_0$, so `ExactMomentEngine.grid()` evaluates a whole $(d_0,T)$ block
+per mutation age, caching $e^{B\tau_T}$ per $\tau_T$ and $M(\tau_i)$ per age; this
+cuts the count by a factor of $n$. Second, no general matrix exponential is formed
+at all: $B$ is lower-bidiagonal with eigenvalues $\lambda_k=-k(k-1)/2$, so
+$e^{B u}$ has an exact partial-fraction expansion in the $e^{\lambda_k u}$ whose
+rational coefficients are computed once per panel size. The repeated pair
+$\lambda_0=\lambda_1=0$ never reaches a denominator, because the prefactor of any
+block spanning both vanishes. Each entry then costs $O(n^2)$ high-precision
+multiplies rather than an exponential. The default build takes $\approx36$ minutes
+on one core at 56 digits, so the exact table is **cheaper** than the double-precision
+arrangement it replaces.
 
 ---
 
@@ -467,7 +499,7 @@ independent draw mixture, which is why the marginalisation in (11) is per
 chromosome and only the resulting log-marginals are summed here. Each run computes
 one $\log\mathcal L_c$; the merge step sums them over the $C$ chromosomes. (Here
 $c$ indexes chromosomes, distinct from the per-site allele count $c_i$.) Sites
-monomorphic in the panel ($c_{\text{alt}}\in\{0,n\}$) carry no trajectory and are
+monomorphic in the panel ($c_{\text{alt}}\in\lbrace 0,n\rbrace$) carry no trajectory and are
 skipped.
 
 ---
@@ -511,7 +543,7 @@ Not used for the pseudo-haploid aDNA above ([section 2](#2-the-per-site-likeliho
 but implemented as `--ploidy 2` for genuine diploid genotype calls, and the reason
 the second-moment machinery of (9a) and (A2) exists at all.
 
-With $c_i = 2$ the observation is the true genotype, $a_i\in\{0,1,2\}$, and (3) is
+With $c_i = 2$ the observation is the true genotype, $a_i\in\lbrace 0,1,2\rbrace$, and (3) is
 *quadratic* in $r_i$, so the three genotype probabilities are
 
 $$

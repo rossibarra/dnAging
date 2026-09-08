@@ -4,16 +4,28 @@ import posterior_sample_age_infer as inf
 import precompute_freq_trajectory_moments as pre
 
 
-def test_large_tau_moments_fail_loudly():
+def test_legacy_float64_engine_fails_loudly_at_large_tau():
+    """The legacy engine must keep failing loudly rather than returning garbage.
+
+    The quantity itself is perfectly well defined here (0.3214285712736...,
+    see test_exact_moment_engine); float64 simply cannot reach it. The exact
+    engine is what build_table uses now -- this only pins the legacy fallback.
+    """
     e1, e2 = pre.MomentEngine(26).Emoments(8, 10.0, 0.0, 1.0 / 20000)
     assert np.isnan(e1)
     assert np.isnan(e2)
 
 
-def test_tau_three_remains_available_at_typical_panel_size():
+def test_legacy_float64_engine_passes_its_guard_while_already_inaccurate():
+    """tau_i=3 is inside the legacy engine's advertised range, yet wrong.
+
+    The guard reports success and the value is off by 0.8% -- 0.470396 against
+    the true 0.466832. Cancellation degrades the result well before it trips
+    max_cancellation, which is the reason build_table no longer uses float64.
+    """
     e1, e2 = pre.MomentEngine(26).Emoments(8, 3.0, 1.0, 1.0 / 20000)
-    assert np.isfinite(e1)
-    assert np.isfinite(e2)
+    assert np.isfinite(e1) and np.isfinite(e2)
+    assert abs(e1 - 0.466831559522) > 1e-3
 
 
 def test_phi_lookup_preserves_nan():
