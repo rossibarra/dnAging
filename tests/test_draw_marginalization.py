@@ -59,7 +59,7 @@ def _run_two_sites(monkeypatch, tmp_path, *, second_site_draw_values,
 )
 def test_haploid_sites_are_multiplied_within_draw_before_marginalizing(
         monkeypatch, tmp_path, second_site_draw_values, expected):
-    _order, _grid, ll, stats = _run_two_sites(
+    _order, _grid, ll, stats, _epsilon_data = _run_two_sites(
         monkeypatch, tmp_path,
         second_site_draw_values=second_site_draw_values)
 
@@ -72,7 +72,7 @@ def test_haploid_sites_are_multiplied_within_draw_before_marginalizing(
 
 
 def test_diploid_likelihood_also_preserves_draw_identity(monkeypatch, tmp_path):
-    _order, _grid, ll, stats = _run_two_sites(
+    _order, _grid, ll, stats, _epsilon_data = _run_two_sites(
         monkeypatch, tmp_path, second_site_draw_values=(0.9, 0.1), ploidy=2)
 
     expected = (0.9 ** 4 + 0.1 ** 4) / 2

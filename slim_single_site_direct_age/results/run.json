@@ -1,0 +1,27 @@
+{
+  "model": "known-frequency independent-SNP Bernoulli likelihood",
+  "n_replicates": 10000,
+  "n_samples": 7,
+  "sample_generations": [
+    34000,
+    35000,
+    36000,
+    37000,
+    38000,
+    39000,
+    39500
+  ],
+  "true_ages": [
+    6000,
+    5000,
+    4000,
+    3000,
+    2000,
+    1000,
+    500
+  ],
+  "end_generation": 40000,
+  "prior": "discrete uniform over candidate generations 1..END_GEN",
+  "derived_frequency": "1 - recorded ancestral frequency",
+  "genotyping_error": 0.0
+}

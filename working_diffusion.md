@@ -1,6 +1,6 @@
 # Working notes: the diffusion approach (`main`)
 
-Status as of 2026-09-08. Live working document: **status lines are the point**, so
+Status as of 2026-09-10. Live working document: **status lines are the point**, so
 update them rather than appending. Companion: [working_betabinom.md](working_betabinom.md)
 for the alternative likelihood. Spec is [MATH.md](MATH.md); code is
 [precompute_freq_trajectory_moments.py](precompute_freq_trajectory_moments.py)
@@ -29,9 +29,51 @@ approaches** — see the head-to-head below. What was wrong with it was arithmet
 and plumbing, not model. Six commits today; the numerics are now believed correct
 and the inference module has had one review pass.
 
-The bias is **not** resolved. It is also not yet cleanly characterised, because
-every bias measurement to date was taken through a table that we now know carried
-percent-level errors and silent zeros. **Re-baselining is the blocking task.**
+The bias is **not** resolved, but a new known-frequency control localises it. The
+shared Bernoulli age likelihood is calibrated when given the true population
+frequency at every candidate time. The remaining target is therefore upstream:
+frequency estimation/conditioning, or plumbing that associates an estimated
+frequency with the wrong allele, site, ARG draw, or time. This does **not** by
+itself prove that the diffusion equation is wrong; it rules out the final
+genotype-given-frequency likelihood and posterior normalisation as the source.
+
+### Known-frequency end-to-end control — PASSED
+
+Ten thousand independent one-base SLiM 5.2 Wright-Fisher simulations were run at
+constant diploid Ne = 10,000 for 40,000 generations, with neutral mutation rate
+1e-6 and no selection. Each replicate was treated as one independent biallelic
+SNP. For each candidate generation the analysis used the **true simulated
+derived frequency**, collapsed across recurrent mutation IDs, and the exact
+haploid likelihood
+
+    log L(T) = sum_i [g_i log p_i(T) + (1-g_i) log(1-p_i(T))].
+
+There was no diffusion, beta-binomial approximation, ARG uncertainty, or
+genotyping-error term. All 10,000 seeds were retained and unique
+(202609090001--202609100000), in both filenames and TSV columns. The simulation
+actually produced seven sample ages, not six:
+
+| true age | MAP | equal-tailed 95% interval |
+|---:|---:|---:|
+| 6000 | 5993 | 5948--6079 |
+| 5000 | 5018 | 4979--5051 |
+| 4000 | 3891 | 3840--4001 |
+| 3000 | 3005 | 2970--3056 |
+| 2000 | 1985 | 1930--2008 |
+| 1000 | 1000 | 941--1060 |
+| 500 | 479 | 376--541 |
+
+Coverage was 7/7, MAP mean absolute error 25 generations, and MAP RMSE 43. The
+4000-generation posterior is the closest to a miss (true age at CDF 0.9741), so
+this is a strong end-to-end sanity check, not a claim of formal 95% coverage from
+seven non-independent age points. Code and tests are
+`direct_frequency_age_infer.py` and `tests/test_direct_frequency_age_infer.py`;
+the 100-way SLURM calculation used
+`slurm/run_direct_frequency_age_chunks.sbatch` and
+`slurm/merge_direct_frequency_age.sbatch`. Compact committed artifacts are the
+[summary](slim_single_site_direct_age/results/age_summary.tsv),
+[posterior plot](slim_single_site_direct_age/results/age_posteriors.png), and
+[MAP calibration plot](slim_single_site_direct_age/results/age_calibration.png).
 
 ## Head-to-head against the beta-binomial
 
@@ -152,7 +194,7 @@ differs from that file's.
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | **TESTED. Leverage is real; rare-site miscalibration is not supported.** Removing all d0=1 sites left 10K essentially unchanged (+241 vs +248 bias) and worsened 50K (+649 vs +423). Carried-only removal moved estimates older and absent-only removal moved them younger, as expected from deleting opposite likelihood terms. T3 independently finds singleton carriage essentially calibrated at 50K--200K. |
 | 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
 | **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a. `phi_lookup` averages the conditional uniformly along the branch (an integral of ratios); the alternative weights candidate ages by P(d0 \| t_i), giving a ratio of integrals. | **TESTED AND REJECTED as the bias explanation (T1).** In matched 10 Mb infinite-sites simulations, denominator weighting moved estimates strongly younger and generally increased RMSE. Across the complete 10K/50K/100K sets its bias was -836/-563/-612 generations, versus +248/+423/+632 for uniform; RMSE was 889/653/705 versus 479/613/726. Eight completed 200K replicates agreed (weighted bias -1270, RMSE 1326; uniform +480, 742). The `betabinom` calibration result does not transfer because its weight conditions on k observed at T, whereas this one conditions on d0 observed at the present. Retain uniform as the default. |
-| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **OPEN, and now the leading hypothesis by elimination** — H0, H1, H2a, H2b, H4, H5, H5b, H6, H7 are all closed or retired. The `betabinom` branch tested its own equivalent and found it undetectable, but that was a different weight (k observed at T rather than d0 at the present), so it does not transfer. Specified as **T5**. |
+| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **OPEN, and now the leading model hypothesis by elimination.** The 10,000-SNP known-frequency control is calibrated, so the bias arises before the final Bernoulli likelihood. That is consistent with an error in the frequency conditional, but also with upstream allele/site/time wiring; distinguish those before changing the mathematics. The `betabinom` branch tested its own equivalent and found it undetectable, but that used a different weight (k observed at T rather than d0 at present), so it does not transfer. Specified as **T5**. |
 | 4 | Wrong diffusion conditioning / boundary behaviour. | **TESTED AND REJECTED at the resolution relevant to the bias (T3).** Calibration was binned on predicted ancient carriage probability at true T. Singleton observed-minus-predicted differences were +0.00167, -0.00003, -0.00003 and -0.00021 from Ne=10K through 200K; all-site differences were +0.00355, +0.00077, +0.00026 and +0.00029. There is no systematic error with the magnitude or Ne pattern needed to explain the age bias. |
 | 5 | Edge quadrature and interpolation. | **IMPLEMENTATION FIXED; contribution to the bias now measured and negligible (T4).** The former 16-node boundary case was 30x high in a constructed regression case, but on real simulated data the switch to knot-split analytic integration moves the estimate by only **-2.7 / -11.3 / -18.9 generations** at Ne = 10K / 50K / 100K. The pathological geometry is rare enough not to matter in aggregate. Worth keeping fixed; not a bias explanation. |
 | 6 | Ne scaling / haploid-diploid convention mismatch. | **RETIRED.** A factor-of-two convention error would produce a clean factor-of-two displacement in diffusion time and an error in generations proportional to Ne. The observed offset is roughly generation-scale across Ne and has neither signature. |
@@ -234,6 +276,14 @@ excluded; whole-site rejection precedes accumulation, so no partially-accepted
 site contributes. The closed-form partial-fraction expansion of e^{B tau} matches
 `scipy.linalg.expm` and the independent 80-digit reference to the last digit
 tested, at every n and tau_i tried.
+
+The shared terminal likelihood is also confirmed independently of all frequency
+approximations: with 10,000 independent SLiM loci and the true p_i(T), all seven
+true ages were inside the 95% posterior intervals (MAP MAE 25, RMSE 43
+generations). Therefore a residual age bias cannot be attributed to multiplying
+the per-site Bernoulli terms, normalising the age posterior, or converting forward
+generation to age-before-present. This control does not validate estimated
+p_i(T), polarity, coordinate matching, or ARG-to-frequency lookup.
 
 ## TODO tests
 

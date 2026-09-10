@@ -1,6 +1,6 @@
 # Working notes: the beta-binomial approach (`betabinom` branch)
 
-Status as of 2026-09-08. Live working document: **status lines are the point**, so
+Status as of 2026-09-10. Live working document: **status lines are the point**, so
 update them rather than appending. Companion: [working_diffusion.md](working_diffusion.md)
 for the approach on `main`.
 
@@ -44,6 +44,20 @@ independent check on the diffusion — it conditions on the ARG at time T rather
 than on the present-day panel count, so the two share no numerics and few
 assumptions, and agreement between them is real evidence. Keep the branch, keep
 the validation suite, do not build on it.
+
+**New shared-core control: PASSED.** Ten thousand independent one-base SLiM 5.2
+replicates (constant diploid Ne = 10,000, 40,000 generations, neutral mutation
+rate 1e-6) were treated as 10,000 independent SNPs. Supplying the true simulated
+derived-frequency trajectory directly to the haploid Bernoulli likelihood — no
+diffusion, beta-binomial, ARG uncertainty, or error term — recovered all seven
+sample ages inside their 95% intervals. MAP MAE was 25 generations and RMSE 43;
+the true/MAP pairs were 6000/5993, 5000/5018, 4000/3891, 3000/3005, 2000/1985,
+1000/1000, and 500/479. All 10,000 seeds are unique and retained
+(202609090001--202609100000). This validates the shared terminal likelihood and
+age-coordinate conversion. It moves the bias search upstream to frequency
+estimation/conditioning or frequency-to-allele/site/time wiring; it does not
+validate this branch's beta-binomial frequency approximation. Compact artifacts
+are linked from the companion diffusion working document.
 
 ## The idea, in one paragraph
 
@@ -111,11 +125,18 @@ denominator-weighted harness rather than the shipping estimator — see
 | Age-marginalisation order (ratio of integrals vs integral of ratios) | **STRUCK *for this branch*, and the evidence matters for `main`.** This branch uses the den-weighted ratio-of-integrals form, which is what makes calibration flat; the uniform average gives observed/predicted of 0.09, 0.17, 0.31 across bins of the fraction of edge above T against 1.12, 1.01, 0.92 with it, i.e. up to **11x** miscalibration, and inflates p by up to 2x on long edges. Struck here means "we do it right and checked", **not** "it does not matter" — `main` uses the uniform average, so this is live evidence for H2b in [working_diffusion.md](working_diffusion.md) — specified there as TODO test T1 — not a closed question. |
 | Panel ascertainment | **STRUCK** by test. |
 | Multiallelic exclusion | **STRUCK** by test. |
-| Residual: whatever remains of the ~0.015 tau offset after eps | **OPEN.** Unexplained. Note the diffusion at 50 digits carries a same-signed tau offset of ~0.005 (2.12x spread across Ne), so part of this may be common to both likelihoods rather than specific to this one. |
+| Residual: whatever remains of the ~0.015 tau offset after eps | **OPEN, now localised upstream of the terminal likelihood.** The known-frequency SLiM control has no material bias, so the residual must enter through estimated frequencies/conditioning or through allele/site/time wiring. The diffusion at 50 digits carries a same-signed tau offset of ~0.005 (2.12x spread across Ne), making shared upstream plumbing a concrete alternative to two independent approximation errors. |
 
 ## What is validated
 
 Established against msprime with true ARGs:
+
+- **The shared genotype-given-frequency likelihood is calibrated when p_i(T) is
+  known exactly.** In the independent 10,000-SNP SLiM control, all seven true
+  ages were in their 95% intervals; MAP MAE was 25 and RMSE 43 generations. This
+  validates Bernoulli accumulation, posterior normalisation, and the forward-time
+  to age-before-present conversion, while deliberately bypassing the
+  beta-binomial calculation.
 
 - **p = 0 for mutations postdating the sample is exact**: 0 carriers in 41,395
   opportunities.
@@ -224,9 +245,11 @@ an independent check even though it is not the way forward.
 
 ## Open questions
 
-1. What is the residual tau offset after eps is accounted for, and is it shared
-   with the diffusion? Both carry same-signed tau offsets (~0.015 here, ~0.005
-   there), which would suggest a common cause rather than two coincidences.
+1. Which upstream layer creates the residual tau offset after eps is accounted
+   for: the frequency approximation itself, or shared allele/site/time plumbing?
+   The exact-frequency control clears the terminal likelihood, and both methods
+   carry same-signed tau offsets (~0.015 here, ~0.005 diffusion), so a shared
+   upstream cause must be tested before assuming two approximation errors.
 2. Does the correction hold under **inferred** rather than true ARGs? Everything
    here used true ARGs. This is the largest untested gap.
 3. Does it hold under non-constant Ne? All benchmarking was constant-Ne.

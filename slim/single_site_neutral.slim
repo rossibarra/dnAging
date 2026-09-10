@@ -1,0 +1,81 @@
+// One neutral, one-base locus in a constant-size diploid Wright-Fisher population.
+// Command-line constants supplied by slurm/run_single_site_slim.sbatch:
+//   NE, MUT_RATE, END_GEN, REPLICATE, FREQ_FILE, SAMPLE_FILE
+
+initialize()
+{
+    initializeSLiMModelType("WF");
+    initializeMutationRate(MUT_RATE);
+
+    // h=0.5 is immaterial because s=0.  Retain fixed mutations so the state of
+    // this locus remains observable, and let a new mutation at the same site
+    // replace the previous allele on that haplosome (infinite-alleles model).
+    initializeMutationType("m1", 0.5, "f", 0.0);
+    m1.convertToSubstitution = F;
+    m1.mutationStackPolicy = "l";
+
+    initializeGenomicElementType("g1", m1, 1.0);
+    initializeGenomicElement(g1, 0, 0);
+    initializeRecombinationRate(0.0);
+}
+
+1 early()
+{
+    sim.addSubpop("p1", NE);
+
+    writeFile(FREQ_FILE,
+        "replicate\tseed\tgeneration\tallele_state\tmutation_id\torigin_generation\tpopulation_frequency");
+    writeFile(SAMPLE_FILE,
+        "replicate\tseed\tgeneration\thaploid_genotype\tmutation_id");
+}
+
+1:END_GEN late()
+{
+    generation = sim.cycle;
+    seed = getSeed();
+    muts = sim.mutationsOfType(m1);
+
+    // Emit the ancestral frequency and one row per extant mutation lineage;
+    // the population_frequency values therefore sum to one each generation.
+    ancestralFrequency = 1.0;
+    if (size(muts) > 0)
+        ancestralFrequency = max(c(0.0,
+            1.0 - sum(sim.mutationFrequencies(p1, muts))));
+    writeFile(FREQ_FILE,
+        paste(c(asString(REPLICATE), asString(seed), asString(generation),
+            "ancestral", "NA", "NA", asString(ancestralFrequency)), sep="\t"),
+        append=T);
+
+    if (size(muts) > 0)
+    {
+        freqs = sim.mutationFrequencies(p1, muts);
+        for (i in seqAlong(muts))
+        {
+            mut = muts[i];
+            writeFile(FREQ_FILE,
+                paste(c(asString(REPLICATE), asString(seed),
+                    asString(generation), "derived", asString(mut.id),
+                    asString(mut.originTick), asString(freqs[i])), sep="\t"),
+                append=T);
+        }
+    }
+
+    sampleGenerations = c(34000, 35000, 36000, 37000, 38000, 39000, 39500);
+    if (any(generation == sampleGenerations))
+    {
+        sampledHaplosome = sample(p1.haplosomes, 1);
+        carried = sampledHaplosome.mutationsOfType(m1);
+        genotype = asInteger(size(carried) > 0);
+        mutationID = "NA";
+        if (genotype == 1)
+            mutationID = asString(carried.id);
+
+        writeFile(SAMPLE_FILE,
+            paste(c(asString(REPLICATE), asString(seed),
+                asString(generation), asString(genotype), mutationID), sep="\t"),
+            append=T);
+    }
+
+    if (generation == END_GEN)
+        sim.simulationFinished();
+}

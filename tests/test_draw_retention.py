@@ -28,7 +28,7 @@ def _run_one_site(monkeypatch, tmp_path, draw_ids, polarity):
 
 
 def test_site_with_missing_arg_draw_is_dropped(monkeypatch, tmp_path):
-    _order, _grid, ll, stats = _run_one_site(
+    _order, _grid, ll, stats, _epsilon_data = _run_one_site(
         monkeypatch, tmp_path, draw_ids=[0], polarity=[0, 0])
 
     assert np.array_equal(ll, np.zeros_like(ll))
@@ -38,7 +38,7 @@ def test_site_with_missing_arg_draw_is_dropped(monkeypatch, tmp_path):
 
 
 def test_site_with_rejected_arg_draw_is_dropped(monkeypatch, tmp_path):
-    _order, _grid, ll, stats = _run_one_site(
+    _order, _grid, ll, stats, _epsilon_data = _run_one_site(
         monkeypatch, tmp_path, draw_ids=[0, 1], polarity=[0, MISS])
 
     assert np.array_equal(ll, np.zeros_like(ll))
@@ -49,7 +49,7 @@ def test_site_with_rejected_arg_draw_is_dropped(monkeypatch, tmp_path):
 
 
 def test_site_with_all_arg_draws_is_used(monkeypatch, tmp_path):
-    _order, _grid, ll, stats = _run_one_site(
+    _order, _grid, ll, stats, _epsilon_data = _run_one_site(
         monkeypatch, tmp_path, draw_ids=[0, 1], polarity=[0, 0])
 
     assert np.any(ll != 0.0)

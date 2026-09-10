@@ -26,6 +26,7 @@
 #      All of these are optional and pass-if-set; the Python CLI owns the
 #      defaults, so nothing is duplicated here:
 #        EPSILON  PLOIDY  MIN_N  MUT_AGE_MAX  MARGINALISE  PER_SAMPLE_TSV=1
+#        SAVE_EPSILON_DATA=1  DRAW_IDS=0,8,16
 
 set -euo pipefail
 PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
@@ -60,6 +61,8 @@ EXTRA=()
 [[ -n "${MUT_AGE_MAX:-}" ]]   && EXTRA+=(--mutation-age-max "$MUT_AGE_MAX")
 [[ -n "${MARGINALISE:-}" ]]   && EXTRA+=(--marginalise "$MARGINALISE")
 [[ "${PER_SAMPLE_TSV:-0}" == "1" ]] && EXTRA+=(--per-sample-tsv)
+[[ "${SAVE_EPSILON_DATA:-0}" == "1" ]] && EXTRA+=(--save-epsilon-data)
+[[ -n "${DRAW_IDS:-}" ]]       && EXTRA+=(--draw-ids "$DRAW_IDS")
 
 CHROMS_FILE="${CHROMS_FILE:-chroms.txt}"
 [[ -f "$CHROMS_FILE" ]] || { echo "ERROR: no such file: $CHROMS_FILE" >&2; exit 91; }

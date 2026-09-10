@@ -243,3 +243,17 @@ slurm-*.out
 # large simulation result bundles (multi-GB, not for version control)
 simarg-results.tar.gz
 *.tar.gz
+
+# Local SLiM validation inputs and distributed intermediates.  Compact summary
+# artifacts under slim_single_site_direct_age/results are committed explicitly.
+slim_single_site_output/
+slim_single_site_direct_age/chunks/
+slim_single_site_direct_age/logs/
+slim_single_site_direct_age/results/*.svg
+
+# Real-data exploratory arrays; keep the small analysis scripts themselves.
+logan_try/**/calls/
+logan_try/**/moment_table/
+logan_try/**/results/
+logan_try/store_draw100/
+logan_try/polarity_draw100/

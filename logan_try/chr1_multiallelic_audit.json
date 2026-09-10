@@ -1,0 +1,16 @@
+{
+  "chrom": "1",
+  "ancient_records": 1015080,
+  "ancient_biallelic_positions": 891496,
+  "ancient_multiallelic_positions_not_assessed": 0,
+  "panel_records": 7678531,
+  "same_position_with_biallelic_ancient": 23693,
+  "current_biallelic_compatible_positions": 7754,
+  "recoverable_panel_multiallelic_positions": 725,
+  "recoverable_same_ref_and_alt_present": 725,
+  "recoverable_ref_alt_swapped": 0,
+  "recoverable_after_target_pair_min_n_20": 438,
+  "recoverable_after_min_n_20_and_polymorphic": 438,
+  "candidate_total_current_plus_recoverable": 8479,
+  "candidate_gain_percent": 9.350012896569513
+}

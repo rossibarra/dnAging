@@ -473,7 +473,21 @@ def run_chromosome(args, tab):
                            args.quiet, n)
 
     open_store, open_pol, _rv, _nc = _import_repo()
-    store = open_store(args.store); n_draws = int(store.n_posterior_draws)
+    store = open_store(args.store)
+    n_store_draws = int(store.n_posterior_draws)
+    if args.draw_ids is None:
+        store_draw_ids = np.arange(n_store_draws, dtype=np.int64)
+    else:
+        try:
+            store_draw_ids = np.asarray(
+                [int(x) for x in args.draw_ids.split(",")], dtype=np.int64)
+        except ValueError:
+            raise SystemExit("--draw-ids must be comma-separated integers") from None
+        if store_draw_ids.size == 0 or np.unique(store_draw_ids).size != store_draw_ids.size:
+            raise SystemExit("--draw-ids must be non-empty and contain no duplicates")
+        if np.any(store_draw_ids < 0) or np.any(store_draw_ids >= n_store_draws):
+            raise SystemExit(f"--draw-ids must be within 0..{n_store_draws - 1}")
+    n_draws = int(store_draw_ids.size)
     polarity, _pm = open_pol(args.draw_polarity, store)
 
     N = len(order); G = len(grid)
@@ -481,6 +495,15 @@ def run_chromosome(args, tab):
     # identity while multiplying site likelihoods; marginalising site by site
     # would destroy the across-site dependence carried by an ARG draw.
     ll_by_draw = np.zeros((N, n_draws, G))
+    epsilon_rows = None
+    if args.save_epsilon_data:
+        # Preserve the minimal site-level quantities needed to evaluate the
+        # pseudo-haploid observation likelihood at any later epsilon and any
+        # age on Tgrid, without rescanning either VCF.  Keeping phi separate by
+        # ARG draw also preserves the chromosome-wide draw mixture.
+        epsilon_rows = {"position": [], "phi_alt": [], "observed_alt": [],
+                        "called": [], "panel_alt_count": [],
+                        "panel_called": []}
     stats = {"n_samples": N, "sites_used": 0, "sites_no_panel": 0,
              "sites_monomorphic": 0, "sites_allele_mismatch": 0,
              "sites_age_filtered": 0, "sites_numerical_failure": 0,
@@ -491,7 +514,8 @@ def run_chromosome(args, tab):
              "draws_numerical_failure": 0,
              "sites_multiple_mapped": 0, "sites_age_clipped_low": 0,
              "sites_panel_below_min_n": 0,
-             "chrom": args.chrom}
+             "chrom": args.chrom, "store_draw_ids": store_draw_ids.tolist(),
+             "n_arg_draws": n_draws}
 
     # resolve store rows for all ancient positions
     positions = np.array(sorted(calls), dtype=np.int64)
@@ -523,21 +547,22 @@ def run_chromosome(args, tab):
             stats["sites_monomorphic"] += 1; continue
 
         below, above, draw_id = _row_intervals(store, row)
+        valid_store_id = (draw_id >= 0) & (draw_id < n_store_draws)
+        unexpected_draws = len(set(int(d) for d in np.unique(draw_id[~valid_store_id])))
+        selected = np.isin(draw_id, store_draw_ids)
+        below, above, draw_id = below[selected], above[selected], draw_id[selected]
         if _is_multiply_mapped(draw_id):
             stats["sites_multiple_mapped"] += 1
             continue
-        anc = _ancestral_per_draw(polarity, row, n_draws)
+        anc = _ancestral_per_draw(polarity, row, n_store_draws)[store_draw_ids]
 
         # A posterior expectation is defined over all requested ARG draws.  Do
         # not silently change it to an expectation conditional on the subset
         # for which this site survived mapping/filtering.  Missing contributions
         # also cannot safely be imputed as zero (e.g. missing polarity does not
         # imply zero ALT frequency), so use only complete-draw sites.
-        present_draws = set(int(d) for d in np.unique(draw_id)
-                            if 0 <= int(d) < n_draws)
-        missing_draws = n_draws - len(present_draws)
-        unexpected_draws = len(set(int(d) for d in np.unique(draw_id)
-                                   if int(d) < 0 or int(d) >= n_draws))
+        present_draws = set(int(d) for d in np.unique(draw_id))
+        missing_draws = len(set(store_draw_ids.tolist()) - present_draws)
         if missing_draws or unexpected_draws:
             stats["sites_incomplete_draws"] += 1
             stats["draws_missing_interval"] += missing_draws
@@ -548,13 +573,13 @@ def run_chromosome(args, tab):
         phi2_by_draw = np.zeros((n_draws, G))
         age_rejected = polarity_rejected = table_rejected = False
         numerical_rejected = low_clipped = False
-        for d in range(n_draws):
+        for d, store_d in enumerate(store_draw_ids):
             a = int(anc[d])
             if a == _MISS or a not in (rb, ab):
                 stats["draws_bad_polarity"] += 1
                 polarity_rejected = True
                 continue
-            m = draw_id == d
+            m = draw_id == store_d
             t_lo = float(below[m].min()); t_hi = float(above[m].max())
             if t_lo >= mutation_age_max_generations:
                 stats["draws_age_filtered"] += 1
@@ -623,6 +648,13 @@ def run_chromosome(args, tab):
             c_eff = (cl >= 1).astype(np.float64)
             ll_by_draw += (a_eff[:, None, None] * logA[None, :, :]
                            + (c_eff - a_eff)[:, None, None] * logR[None, :, :])
+            if epsilon_rows is not None:
+                epsilon_rows["position"].append(pos)
+                epsilon_rows["phi_alt"].append(phi_by_draw.astype(np.float32))
+                epsilon_rows["observed_alt"].append(a_eff.astype(np.uint8))
+                epsilon_rows["called"].append(c_eff.astype(np.uint8))
+                epsilon_rows["panel_alt_count"].append(ca)
+                epsilon_rows["panel_called"].append(n_called)
         else:
             # true diploid genotypes: the two alleles are iid Bernoulli(r) only GIVEN
             # the latent frequency X, and P(dosage) is QUADRATIC in r, so plugging the
@@ -643,7 +675,19 @@ def run_chromosome(args, tab):
 
     peak = np.max(ll_by_draw, axis=1)
     ll = peak + np.log(np.mean(np.exp(ll_by_draw - peak[:, None, :]), axis=1))
-    return order, grid, ll, stats
+    epsilon_data = None
+    if epsilon_rows is not None:
+        epsilon_data = {
+            "position": np.asarray(epsilon_rows["position"], dtype=np.int64),
+            "phi_alt": np.asarray(epsilon_rows["phi_alt"], dtype=np.float32),
+            "observed_alt": np.asarray(epsilon_rows["observed_alt"], dtype=np.uint8),
+            "called": np.asarray(epsilon_rows["called"], dtype=np.uint8),
+            "panel_alt_count": np.asarray(
+                epsilon_rows["panel_alt_count"], dtype=np.int16),
+            "panel_called": np.asarray(
+                epsilon_rows["panel_called"], dtype=np.int16),
+        }
+    return order, grid, ll, stats, epsilon_data
 
 
 def load_prior(args, grid):
@@ -704,7 +748,8 @@ def summarize(grid, lp):
             "median_T": q(.5), "ci95_lower_T": q(.025), "ci95_upper_T": q(.975)}, dens
 
 
-def write_outputs(outdir, order, grid, log_prior, ll, stats, args):
+def write_outputs(outdir, order, grid, log_prior, ll, stats, args,
+                  epsilon_data=None):
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "samples.txt").write_text("\n".join(order) + "\n")
     np.save(outdir / "grid.npy", grid); np.save(outdir / "ll_marginal.npy", ll)
@@ -728,7 +773,25 @@ def write_outputs(outdir, order, grid, log_prior, ll, stats, args):
     (outdir / "run.json").write_text(json.dumps({"counts": stats,
         "settings": {"epsilon": args.epsilon, "chrom": args.chrom,
                      "mutation_age_max": args.mutation_age_max,
-                     "marginalise": args.marginalise}}, indent=2))
+                     "marginalise": args.marginalise,
+                     "save_epsilon_data": args.save_epsilon_data}}, indent=2))
+    if epsilon_data is not None:
+        meta = json.dumps({
+            "format_version": 1,
+            "description": "site-level sufficient data for epsilon profiling",
+            "chrom": args.chrom,
+            "ploidy": args.ploidy,
+            "dimensions": {
+                "phi_alt": ["site", "ARG_draw", "sample_age_grid"],
+                "observed_alt": ["site", "sample"],
+                "called": ["site", "sample"],
+            },
+            "non_target_multiallelic_policy": "skip entire VCF record",
+            "store_draw_ids": stats.get("store_draw_ids"),
+        })
+        np.savez_compressed(outdir / "epsilon_calibration_data.npz",
+                            Tgrid=grid, samples=np.asarray(order), meta=meta,
+                            **epsilon_data)
     try:
         import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
         maps = np.array([m["map_T"] for _, m in rows])
@@ -761,6 +824,10 @@ def parse_args(argv=None):
     io.add_argument("--include-positions", type=Path,
                     help="'chrom pos' site list (e.g. an approximately-neutral set).")
     io.add_argument("--per-sample-tsv", action="store_true")
+    io.add_argument(
+        "--save-epsilon-data", action="store_true",
+        help="save retained-site calls and age-dependent ALT frequencies for "
+             "later epsilon estimation without rescanning the VCFs")
     p.add_argument("--ploidy", type=int, choices=(1, 2), default=1,
                    help="ploidy of the ANCIENT-sample genotypes: 1 = haploid / "
                         "pseudo-haploid (one allele per called site; homozygous "
@@ -771,6 +838,9 @@ def parse_args(argv=None):
                         "diploid, or 2 would double-count each site.")
     p.add_argument("--epsilon", type=float, default=0.01,
                    help="per-ALLELE ancient-VCF genotype-error probability [0.01].")
+    p.add_argument(
+        "--draw-ids", default=None,
+        help="comma-separated zero-based draw IDs from the store; default uses all")
     p.add_argument("--min-n", type=int, default=20,
                    help="drop panel sites with fewer than this many called haplotypes [20].")
     p.add_argument("--mutation-age-max", type=float, default=3.0,
@@ -806,10 +876,12 @@ def main(argv=None):
     tab = load_table(args.freq_table)
     if args.merge is not None:
         order, grid, ll, stats = merge(args, tab)
+        epsilon_data = None
     else:
-        order, grid, ll, stats = run_chromosome(args, tab)
+        order, grid, ll, stats, epsilon_data = run_chromosome(args, tab)
     log_prior = load_prior(args, grid)
-    write_outputs(args.output, order, grid, log_prior, ll, stats, args)
+    write_outputs(args.output, order, grid, log_prior, ll, stats, args,
+                  epsilon_data=epsilon_data)
     if not args.quiet:
         print(f"[infer] {len(order)} samples chrom={args.chrom or stats.get('mode')} "
               f"sites_used={stats.get('sites_used','-')} -> {args.output}/ages_table.tsv",
