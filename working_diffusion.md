@@ -35,8 +35,8 @@ at every candidate time, and the production diffusion frequency lookup is
 essentially unbiased when given the exact simulated mutation time. The remaining
 target is therefore the replacement of an exact mutation time by an ARG edge
 interval, including what information from that edge/tree is retained and how the
-unknown time is marginalised. A paired edge-interval run on the same simulations
-is in progress.
+unknown time is marginalised. The paired run confirms that this transition alone
+creates a +364-generation MAP bias at Ne=50K.
 
 ### Known-frequency end-to-end control — PASSED
 
@@ -120,10 +120,15 @@ slope reject the diffusion conditional itself as the source of the sustained age
 offset when mutation time is known. Results and code are under
 `msprime_exact_time_ne50k/results/` and `msprime_exact_time_validation.py`.
 
-**Paired edge-interval test now running.** Jobs 38223776 (100 inference tasks) and
-38223803 (merge) reuse those exact simulations, VCF calls, known ARGs, table and
-eps = 0. The sole change is replacing `t_i` with the known ARG interval
-`[time(child), time(parent)]` and applying production's uniform marginalisation.
+**Paired edge-interval test — COMPLETE.** Jobs 38223776/38223803 reused those
+exact simulations, VCF calls, known ARGs, table and eps = 0. The sole change was
+replacing `t_i` with the known ARG interval `[time(child), time(parent)]` and
+applying production's uniform marginalisation. That raised MAP bias from +10.1
+to **+363.6 generations** (posterior-mean bias +351.3, MAE 418.8, RMSE 523.0,
+slope 1.0194, intercept +268.0; 7,631,501 sites). Naive 95% coverage fell from
+0.68 to 0.44. Thus the true edge interval is sufficient to recreate most of the
+old Ne=50K production bias (+423 generations), without ARG error, variable Ne,
+allele mapping error or epsilon.
 
 ## Head-to-head against the beta-binomial
 
@@ -244,7 +249,7 @@ differs from that file's.
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | **TESTED. Leverage is real; rare-site miscalibration is not supported.** Removing all d0=1 sites left 10K essentially unchanged (+241 vs +248 bias) and worsened 50K (+649 vs +423). Carried-only removal moved estimates older and absent-only removal moved them younger, as expected from deleting opposite likelihood terms. T3 independently finds singleton carriage essentially calibrated at 50K--200K. |
 | 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
 | **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a. `phi_lookup` averages the conditional uniformly along the branch (an integral of ratios); the alternative weights candidate ages by P(d0 \| t_i), giving a ratio of integrals. | **TESTED AND REJECTED as the bias explanation (T1).** In matched 10 Mb infinite-sites simulations, denominator weighting moved estimates strongly younger and generally increased RMSE. Across the complete 10K/50K/100K sets its bias was -836/-563/-612 generations, versus +248/+423/+632 for uniform; RMSE was 889/653/705 versus 479/613/726. Eight completed 200K replicates agreed (weighted bias -1270, RMSE 1326; uniform +480, 742). The `betabinom` calibration result does not transfer because its weight conditions on k observed at T, whereas this one conditions on d0 observed at the present. Retain uniform as the default. |
-| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **OPEN, and now isolated to the edge representation.** The 100-replicate msprime experiment is unbiased when exact `Mutation.time` is supplied (+10 generation MAP bias at Ne=50K). It uses the same diffusion conditional, modern counts, VCF calls and terminal likelihood as the paired edge test. The active exact-time-versus-edge comparison therefore removes ARG error, allele mapping, variable Ne and eps from the contrast. Specified as **T5**. T6 narrows it further: of the three ways the point-to-edge transition can fail — information beyond `(d0, interval)`, the wrong measure on candidate times, the wrong marginalisation order — the order is now proven exact and the measure was tested under H2b, leaving the retained information. |
+| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **CONFIRMED at the level of localisation; the mechanism within edge treatment remains open.** Exact `Mutation.time` gives +10 generation bias, while replacing only that point with its true ARG edge interval gives +364 at Ne=50K. This removes ARG error, allele mapping, variable Ne and eps. T6 proves the marginalisation composition; T1 tested the alternative mutation-time measure. The surviving candidate is information in the tree beyond `(d0, interval)`. Specified as **T5**. |
 | 4 | Wrong diffusion conditioning / boundary behaviour. | **TESTED AND REJECTED.** T3 found no predicted-probability error with the magnitude or Ne pattern needed to explain the bias. More decisively, 100 constant-Ne msprime simulations using exact mutation times gave +10 generation MAP bias, -6 generation posterior-mean bias and slope 0.992 across 7.35 million sites. The conditional is calibrated when `t_i` is known; any remaining failure is introduced by representing `t_i` as an edge interval or conditioning on that representation. |
 | 5 | Edge quadrature and interpolation. | **IMPLEMENTATION FIXED; contribution to the bias now measured and negligible (T4).** The former 16-node boundary case was 30x high in a constructed regression case, but on real simulated data the switch to knot-split analytic integration moves the estimate by only **-2.7 / -11.3 / -18.9 generations** at Ne = 10K / 50K / 100K. The pathological geometry is rare enough not to matter in aggregate. Worth keeping fixed; not a bias explanation. |
 | 6 | Ne scaling / haploid-diploid convention mismatch. | **RETIRED.** A factor-of-two convention error would produce a clean factor-of-two displacement in diffusion time and an error in generations proportional to Ne. The observed offset is roughly generation-scale across Ne and has neither signature. |
@@ -561,9 +566,9 @@ unbiased, so the diffusion conditional given `(d0, t_i)` is no longer the generi
 suspect. The remaining candidate is specifically what changes when exact `t_i`
 is replaced by its containing edge: eq. (4) reduces the tree's dependence on x to
 the descendant count, while the mutation time is treated as unknown across the
-edge. If the tree carries more than the count and endpoints, or if the implied
-mutation-time measure is wrong, the point-age control will pass and the edge
-version will fail. The paired run now in progress tests exactly that transition.
+edge. The paired run gives the predicted separation: +10 generations with the
+point age and +364 with the true edge interval. The remaining task is to identify
+which information discarded by the interval conditional produces that shift.
 
 **One of the three candidates in that transition is now excluded.** Replacing a
 point time by an edge admits three distinct failures: the tree carries
@@ -577,10 +582,10 @@ retains, which is what tests 2-4 below address.
 
 **Tests, in order of directness.**
 
-1. **Exact-time versus edge-interval inference. IN PROGRESS.** On the same 100
-   Ne=50K simulations, exact mutation times give +10 generation bias. Replace only
-   the point time with its true edge interval and rerun production uniform
-   marginalisation (jobs 38223776/38223803).
+1. **Exact-time versus edge-interval inference. COMPLETE.** On the same 100
+   Ne=50K simulations, exact mutation times give +10 generation MAP bias and true
+   edge intervals give +364. Results are in
+   `msprime_exact_time_ne50k/edge_interval_uniform_results/`.
 2. **Exact sharing state.** In simulations that contain the ancient lineage,
    compute whether that lineage actually descends from the mutation, and compare
    with the model's p. This is a direct residual, not a calibration curve, and it
@@ -703,28 +708,26 @@ Perfect simulated data only. Real-data work is parked under "Deferred".
 The hypothesis list has collapsed. H0, H1, H2a, H2b, H4, H5, H5b, H6 and H7 are
 now all closed or retired, and none of them was the bias. What survives:
 
-1. **Finish the paired edge-interval run.** Exact mutation times are essentially
-   unbiased at Ne=50K. The active run changes only point `t_i` to the true ARG edge
-   interval. This is now the most direct localisation test.
-2. **If the edge run is biased, decompose edge conditioning.** Compare uniform
+1. **Decompose edge conditioning.** The paired run is biased: exact `t_i` gives
+   +10 generations and the true edge interval gives +364. Compare uniform
    versus denominator-weighted mutation-time measures, exact sharing residuals,
    and matched edges differing in within-clade topology. Do this on these same 100
    simulations before adding another simulation suite.
-3. **Extend the re-measured baseline only if needed.** The old uniform baseline is
+2. **Extend the re-measured baseline only if needed.** The old uniform baseline is
    +250 / +434 / +651 at Ne = 10K / 50K / 100K. The new exact-time result provides
    a much cleaner zero-bias reference. Widen the candidate-age grid before any
    200K or 500K run.
-4. **Characterise the scaling.** The bias is +250 / +434 / +651 across a 10x range
+3. **Characterise the scaling.** The bias is +250 / +434 / +651 across a 10x range
    of Ne: neither constant in generations nor in diffusion time. Identifying what
    it *is* proportional to would point at the mechanism. Worth doing before more
    hypothesis testing, because it is cheap and discriminating.
-5. **Watch the variance.** The exact-time run's ordinary 95% coverage is 0.68
+4. **Watch the variance.** The exact-time run's ordinary 95% coverage is 0.68
    because linked sites are treated as independent. Use a block bootstrap for
    interval calibration; do not confuse this precision problem with point bias.
    In the old baseline, bias/RMSE is 0.52 at Ne=10,000, so ten replicates no
    longer resolve the bias cleanly there. More replicates, or larger regions,
    before drawing fine conclusions at small Ne.
-6. **H8 (composite-likelihood dependence) last, as before.** Test designs, carried
+5. **H8 (composite-likelihood dependence) last, as before.** Test designs, carried
    over from `bias_ideas.md`: thin sites by genetic distance and compare point
    estimates; use one mutation per tree or per recombination block; compare
    ordinary posterior intervals against block-bootstrap uncertainty.
