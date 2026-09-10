@@ -1,8 +1,9 @@
 # TODO
 
 Deferred work, with enough context to pick up cold. Items graduate here from
-JUDGEMENT_CALLS.md once a decision has been made about *what* to do but the work
-itself is out of scope for the current pass.
+the working documents — [working_diffusion.md](working_diffusion.md) and
+[working_betabinom.md](working_betabinom.md) — once a decision has been made
+about *what* to do but the work itself is out of scope for the current pass.
 
 ---
 
@@ -124,9 +125,13 @@ which is the table's contents, measured end to end under the full coalescent.
 4. The second moment $E[p_T^2 \mid d_0, t_i]$, by sampling **two** ancient lineages
    at time $T$ and measuring the probability that *both* carry the derived allele.
    That is a direct, independent check on `table2` and hence on `--ploidy 2`.
-5. As a by-product, the harness would give real (rather than synthetic) ARG draws,
-   which is what REVIEW.md finding 1 — the ARG-draw marginalisation order — needs in
-   order to be settled empirically.
+5. As a by-product, the harness would give real (rather than synthetic) ARG draws
+   *with known truth*. The marginalisation order itself is settled — it is composed
+   correctly, the within-edge integral commutes with the likelihood exactly, and the
+   cost of getting it wrong is measured on real data (working_diffusion.md T6, T7).
+   What real draws over known truth would still add is the matched-scope version of
+   T7: whether the draw mixture is *calibrated*, not merely correctly composed, and
+   how its effective sample size behaves as site counts reach genome scale.
 
 **Cost.** Rare $(t_i, d_0)$ cells need many replicates, so this belongs in a
 `@pytest.mark.slow` test or a standalone script rather than the default suite.

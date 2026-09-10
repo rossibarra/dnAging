@@ -244,7 +244,7 @@ differs from that file's.
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | **TESTED. Leverage is real; rare-site miscalibration is not supported.** Removing all d0=1 sites left 10K essentially unchanged (+241 vs +248 bias) and worsened 50K (+649 vs +423). Carried-only removal moved estimates older and absent-only removal moved them younger, as expected from deleting opposite likelihood terms. T3 independently finds singleton carriage essentially calibrated at 50K--200K. |
 | 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
 | **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a. `phi_lookup` averages the conditional uniformly along the branch (an integral of ratios); the alternative weights candidate ages by P(d0 \| t_i), giving a ratio of integrals. | **TESTED AND REJECTED as the bias explanation (T1).** In matched 10 Mb infinite-sites simulations, denominator weighting moved estimates strongly younger and generally increased RMSE. Across the complete 10K/50K/100K sets its bias was -836/-563/-612 generations, versus +248/+423/+632 for uniform; RMSE was 889/653/705 versus 479/613/726. Eight completed 200K replicates agreed (weighted bias -1270, RMSE 1326; uniform +480, 742). The `betabinom` calibration result does not transfer because its weight conditions on k observed at T, whereas this one conditions on d0 observed at the present. Retain uniform as the default. |
-| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **OPEN, and now isolated to the edge representation.** The 100-replicate msprime experiment is unbiased when exact `Mutation.time` is supplied (+10 generation MAP bias at Ne=50K). It uses the same diffusion conditional, modern counts, VCF calls and terminal likelihood as the paired edge test. The active exact-time-versus-edge comparison therefore removes ARG error, allele mapping, variable Ne and eps from the contrast. Specified as **T5**. |
+| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **OPEN, and now isolated to the edge representation.** The 100-replicate msprime experiment is unbiased when exact `Mutation.time` is supplied (+10 generation MAP bias at Ne=50K). It uses the same diffusion conditional, modern counts, VCF calls and terminal likelihood as the paired edge test. The active exact-time-versus-edge comparison therefore removes ARG error, allele mapping, variable Ne and eps from the contrast. Specified as **T5**. T6 narrows it further: of the three ways the point-to-edge transition can fail — information beyond `(d0, interval)`, the wrong measure on candidate times, the wrong marginalisation order — the order is now proven exact and the measure was tested under H2b, leaving the retained information. |
 | 4 | Wrong diffusion conditioning / boundary behaviour. | **TESTED AND REJECTED.** T3 found no predicted-probability error with the magnitude or Ne pattern needed to explain the bias. More decisively, 100 constant-Ne msprime simulations using exact mutation times gave +10 generation MAP bias, -6 generation posterior-mean bias and slope 0.992 across 7.35 million sites. The conditional is calibrated when `t_i` is known; any remaining failure is introduced by representing `t_i` as an edge interval or conditioning on that representation. |
 | 5 | Edge quadrature and interpolation. | **IMPLEMENTATION FIXED; contribution to the bias now measured and negligible (T4).** The former 16-node boundary case was 30x high in a constructed regression case, but on real simulated data the switch to knot-split analytic integration moves the estimate by only **-2.7 / -11.3 / -18.9 generations** at Ne = 10K / 50K / 100K. The pathological geometry is rare enough not to matter in aggregate. Worth keeping fixed; not a bias explanation. |
 | 6 | Ne scaling / haploid-diploid convention mismatch. | **RETIRED.** A factor-of-two convention error would produce a clean factor-of-two displacement in diffusion time and an error in generations proportional to Ne. The observed offset is roughly generation-scale across Ne and has neither signature. |
@@ -326,6 +326,16 @@ excluded; whole-site rejection precedes accumulation, so no partially-accepted
 site contributes. The closed-form partial-fraction expansion of e^{B tau} matches
 `scipy.linalg.expm` and the independent 80-digit reference to the last digit
 tested, at every n and tau_i tried.
+
+Two of those are now measurements rather than assertions. **The within-edge age
+marginalisation commutes with the likelihood exactly** — averaging the frequency
+along the edge and then forming the site likelihood is the same number as
+averaging the likelihood, because the site term is affine in the tabulated
+moments (T6). **The draw mixture is doing real work at chromosome scale**: its
+effective sample size is 7.8 of 10 draws, and collapsing it to the per-site
+average costs a median total variation of 0.025 with 90% intervals 1.9% *wider*,
+so the wrong order overstates uncertainty rather than understating it (T7). That
+settles a direction REVIEW.md asserted without derivation, in the opposite sense.
 
 The shared terminal likelihood is also confirmed independently of all frequency
 approximations: with 10,000 independent SLiM loci and the true p_i(T), all seven
@@ -555,6 +565,16 @@ edge. If the tree carries more than the count and endpoints, or if the implied
 mutation-time measure is wrong, the point-age control will pass and the edge
 version will fail. The paired run now in progress tests exactly that transition.
 
+**One of the three candidates in that transition is now excluded.** Replacing a
+point time by an edge admits three distinct failures: the tree carries
+information beyond `(d0, interval)`; the measure on candidate times within the
+edge is wrong; or the marginalisation is composed in the wrong order relative to
+the likelihood. The third is now proven exact (T6), and the second was tested and
+rejected as an explanation of the bias (T1, H2b — though note it *is* worth
+hundreds of generations, so it is influential without being the culprit). If the
+paired edge run is biased, the surviving candidate is the information the edge
+retains, which is what tests 2-4 below address.
+
 **Tests, in order of directness.**
 
 1. **Exact-time versus edge-interval inference. IN PROGRESS.** On the same 100
@@ -585,6 +605,96 @@ candidate before running a full sweep.
 **Related, and cheaper:** characterise the bias scaling first (next steps step 3).
 If the Ne dependence turns out to match something simple, it may identify the
 mechanism without a matched-edge study.
+
+### T6. Does the within-edge marginalisation commute with the likelihood? — COMPLETE
+
+**Question, as raised externally.** Eq. (10b) marginalises the mutation age into
+the *frequency* and only then forms the site likelihood. The estimand is the
+other order — marginalise the *likelihood* over the age. Written out, the worry
+is that the code computes `prod_i integral p(a_i | t_i) p(t_i | edge) dt_i` where
+the estimand is `integral prod_i p(a_i | t_i) p(t_i | edge) d(all t_i)`, i.e.
+that a product of integrals has been substituted for an integral of a product.
+
+**Answer: the two are identical here, and the reason is worth stating.** The
+swap is valid iff the `t_i` are independent under the age prior and each factor
+depends only on its own `t_i`. Given one ARG draw the tree is fixed, and under
+infinite sites a mutation's placement time is uniform on its own edge
+independently across sites — so the integral belongs inside the product, exactly.
+The latent that is *not* site-local is the draw index, which fixes every site's
+age at once; that one sits outside the site product (T7), and must.
+
+A second, narrower commutation is also load-bearing: the branch integral is
+applied to the frequency table rather than to `ell`. That is exact because `ell`
+is affine in the tabulated quantities — `qA = eps + (1-2 eps) phi` is linear in
+`phi`, and the diploid dosage probabilities are linear in `(phi, phi2)` jointly.
+The diploid case only works because `phi_lookup` averages the second-moment
+plane over the same edge with the same weights; averaging one plane and not the
+other would be wrong, since `P(dosage)` is quadratic in `r`.
+
+**Result** (`tests/test_branch_marginalisation_commutes.py`, 49 tests pass).
+Averaging `ell` over point ages along the edge equals `ell` of the averaged
+`phi` to `rtol=1e-12` — machine precision, since it is pure algebra — for
+haploid carried and absent sites, for all three diploid dosages, and under both
+`uniform` and `weighted` measures. Separately, the production knot-splitting
+integrator matches an independent 40,001-node trapezoid over production
+*point-age* lookups to `rtol=2e-3`; that reference resolves the `T >= t_i`
+boundary at node spacing while production resolves it as an exact integration
+limit, so it is a genuine check of the integrator rather than a restatement of
+it. The low-clip convention is checked too: normalising by the covered width
+instead of the true edge width would inflate affected sites, and it does not.
+
+**What this rules out.** The order of the within-edge marginalisation as a bias
+candidate, and any future change that quietly breaks affinity in the tabulated
+moments — a frequency-dependent eps, a clip applied before the average, or a
+likelihood needing a third moment would all now fail these tests.
+
+### T7. Is the draw mixture actually integrating the ARG posterior? — COMPLETE
+
+**Question.** Eq. (11) is composed in the right order, but `sum_i log ell_ig` is
+O(n_sites), so the mixture weights `w_g = exp(sum_i log ell_ig - max)` can
+collapse onto one draw. If the effective sample size is 1, the answer is
+conditional on the modal draw and the correct ordering buys nothing beyond
+choosing it. My prior expectation was ESS ~ 1; that was wrong.
+
+**Method, with no rerun required.** `--save-epsilon-data` already stores per-site
+per-draw `phi_alt` over the sample-age grid together with the ancient calls, so
+the per-draw log-likelihoods can be reconstructed exactly outside the production
+run. `scripts/draw_mixture_ess.py` does that and reports both the ESS and the
+cost of the swapped order. Applied to the real 10-draw maize output
+(`logan_try/results/genome_parts_10draw_eps001`, 10 chromosomes, 15,058 sites, 50
+ancient samples, eps = 0.01); outputs in `results/draw_mixture_ess/`.
+
+**Result 1: the mixture does not collapse at this scale.** ESS at the MAP is a
+median 7.82 of 10 draws (min 1.16, max 9.97 over chromosome x sample); nothing
+falls below 1.05. It does decline with site count, monotonically:
+
+| sites | mean ESS | median | p05 |
+|---|---:|---:|---:|
+| 1 | 10.00 | 10.00 | 9.99 |
+| 100 | 9.70 | 9.93 | 8.69 |
+| 300 | 8.81 | 9.41 | 4.97 |
+| 1000 | 7.67 | 8.34 | 3.25 |
+
+Whole chromosomes here are 834-2,803 sites. Extrapolating the decline to the
+125K-site or genome scale is a projection, not a measurement — the collapse rate
+depends on how much the draws actually differ — but the direction is established
+and the ESS should be reported per run rather than assumed.
+
+**Result 2: the swapped order is cheap here, and errs the other way.** Replacing
+eq. (11) with the per-site draw average (exactly the old behaviour, and for
+pseudo-haploid calls an exact algebraic alternative rather than an approximation
+of one) gives, across the 50 samples: total variation between posteriors median
+0.0245, p95 0.0864, max 0.1211; `|MAP shift|` median 15.0 generations — one grid
+cell of 15.04, i.e. nothing — p95 53, max 346; and 90% interval width ratio
+swapped/correct median **1.019**, wider in 84% of samples. So the wrong order
+**overstates** uncertainty slightly. REVIEW.md asserted it understates it, with
+no derivation; the flattening argument was right and the assertion was not.
+
+**Caveat on scope.** These two numbers are real-data measurements at G=10 with
+eps = 0.01, not the perfect-simulation setting this document is scoped to. The
+script takes any `epsilon_calibration_data.npz`, so pointing it at a simulation
+run with `--save-epsilon-data` would give the matched-scope version, and at the
+125K-site simarg output would settle the ESS extrapolation directly.
 
 ## Next steps, in order
 
