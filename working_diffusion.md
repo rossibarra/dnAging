@@ -249,7 +249,7 @@ differs from that file's.
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | **TESTED. Leverage is real; rare-site miscalibration is not supported.** Removing all d0=1 sites left 10K essentially unchanged (+241 vs +248 bias) and worsened 50K (+649 vs +423). Carried-only removal moved estimates older and absent-only removal moved them younger, as expected from deleting opposite likelihood terms. T3 independently finds singleton carriage essentially calibrated at 50K--200K. |
 | 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
 | **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a. `phi_lookup` averages the conditional uniformly along the branch (an integral of ratios); the alternative weights candidate ages by P(d0 \| t_i), giving a ratio of integrals. | **TESTED AND REJECTED as the bias explanation (T1).** In matched 10 Mb infinite-sites simulations, denominator weighting moved estimates strongly younger and generally increased RMSE. Across the complete 10K/50K/100K sets its bias was -836/-563/-612 generations, versus +248/+423/+632 for uniform; RMSE was 889/653/705 versus 479/613/726. Eight completed 200K replicates agreed (weighted bias -1270, RMSE 1326; uniform +480, 742). The `betabinom` calibration result does not transfer because its weight conditions on k observed at T, whereas this one conditions on d0 observed at the present. Retain uniform as the default. |
-| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **CONFIRMED at the level of localisation; the mechanism within edge treatment remains open.** Exact `Mutation.time` gives +10 generation bias, while replacing only that point with its true ARG edge interval gives +364 at Ne=50K. This removes ARG error, allele mapping, variable Ne and eps. T6 proves the marginalisation composition; T1 tested the alternative mutation-time measure. The surviving candidate is information in the tree beyond `(d0, interval)`. Specified as **T5**. |
+| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **CONFIRMED at the level of localisation; the mechanism within edge treatment remains open.** Exact `Mutation.time` gives +10 generation bias, while replacing only that point with its true ARG edge interval gives +364 at Ne=50K. This removes ARG error, allele mapping, variable Ne and eps. T6 proves the marginalisation composition; T1 tested the alternative mutation-time measure. The surviving candidate is information in the tree beyond `(d0, interval)`. Specified as **T5**. **T8 constrains it further: the damage scales with edge width and is zero (-27 +- 14 generations) at edges averaging 5.5K generations, rising to +1,922 at 58.6K.** So the missing term is not a fixed per-site defect — its effect must grow with the width of the interval and vanish as the interval closes. |
 | 4 | Wrong diffusion conditioning / boundary behaviour. | **TESTED AND REJECTED.** T3 found no predicted-probability error with the magnitude or Ne pattern needed to explain the bias. More decisively, 100 constant-Ne msprime simulations using exact mutation times gave +10 generation MAP bias, -6 generation posterior-mean bias and slope 0.992 across 7.35 million sites. The conditional is calibrated when `t_i` is known; any remaining failure is introduced by representing `t_i` as an edge interval or conditioning on that representation. |
 | 5 | Edge quadrature and interpolation. | **IMPLEMENTATION FIXED; contribution to the bias now measured and negligible (T4).** The former 16-node boundary case was 30x high in a constructed regression case, but on real simulated data the switch to knot-split analytic integration moves the estimate by only **-2.7 / -11.3 / -18.9 generations** at Ne = 10K / 50K / 100K. The pathological geometry is rare enough not to matter in aggregate. Worth keeping fixed; not a bias explanation. |
 | 6 | Ne scaling / haploid-diploid convention mismatch. | **RETIRED.** A factor-of-two convention error would produce a clean factor-of-two displacement in diffusion time and an error in generations proportional to Ne. The observed offset is roughly generation-scale across Ne and has neither signature. |
@@ -570,6 +570,14 @@ edge. The paired run gives the predicted separation: +10 generations with the
 point age and +364 with the true edge interval. The remaining task is to identify
 which information discarded by the interval conditional produces that shift.
 
+**T8 adds the shape of that shift.** It is not uniform across sites: stratified by
+edge width on identical site sets, the point-to-edge cost is -27 +- 14 generations
+at edges averaging 5.5K generations and +1,922 +- 105 at 58.6K. Any candidate
+mechanism must reproduce that width dependence, which is a much stronger
+constraint than reproducing the pooled +364 — and it means tests 2-4 below should
+be run *within* width strata rather than pooled, or they will average a strong
+effect against a null one.
+
 **One of the three candidates in that transition is now excluded.** Replacing a
 point time by an edge admits three distinct failures: the tree carries
 information beyond `(d0, interval)`; the measure on candidate times within the
@@ -700,6 +708,74 @@ eps = 0.01, not the perfect-simulation setting this document is scoped to. The
 script takes any `epsilon_calibration_data.npz`, so pointing it at a simulation
 run with `--save-epsilon-data` would give the matched-scope version, and at the
 125K-site simarg output would settle the ESS extrapolation directly.
+
+### T8. Does the point-to-edge bias scale with edge width? — COMPLETE
+
+**Question.** The paired run localises the offset to the point-to-edge
+substitution, but two mechanisms produce that. Either the edge is simply **wide**
+— the uniform-on-edge prior spreads the mutation age over a range far larger than
+the resolution being sought, and the damage vanishes as edges narrow — or the
+edge **representation** discards information, in which case narrowing it need not
+help, because what is lost is not the width.
+
+**The obvious test is confounded, and the design has to remove it.** Edge width
+is tightly coupled to allele-frequency class: at Ne=50K the median width runs
+17K generations for singletons to 137K for `d0 >= 13`, because common alleles
+essentially never sit on short branches. A bare width split is therefore also a
+`d0` split. `scripts/edge_width_scaling.py` instead evaluates **both arms —
+exact point age and true edge interval — on the identical site set within each
+width stratum**, and reports the paired difference, so `d0`, mutation age, carried
+fraction and site count are common to the two arms of a stratum and cancel.
+That also removes a filter asymmetry in the original paired run: exact mode drops
+mutations younger than the table's youngest age while edge mode does not, and
+edge mode drops root mutations while exact mode does not, which is why those arms
+used 7,354,754 and 7,631,501 sites rather than one shared set. Here a site enters
+only if it passes both filters.
+
+**Scale of the problem, worth stating on its own.** Edge widths at Ne=50K run
+4.1K / 16.9K / **50.3K** / 134K / 258K generations at the 5th/25th/50th/75th/95th
+percentiles, against true ancient ages of 0--10,000. The median edge is 1.24x the
+mutation's own age, and even the 5th-percentile edge is wider than the typical age
+being inferred. Uniform-on-edge spreads the mutation age over a range one to two
+orders of magnitude wider than the resolution the estimator is asked for.
+
+**Result** (100 replicates, jobs 38224460/38224461, `msprime_exact_time_ne50k/edge_width_scaling_results/`):
+
+| width stratum | sites/rep | mean width | mean d0 | bias exact | bias edge | paired shift | t |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 0--10K | 11,440 | 5,462 | 2.35 | -34 | -61 | **-27 +- 14** | -1.9 |
+| 10--30K | 16,720 | 18,850 | 3.74 | +122 | +561 | **+439 +- 38** | 11.6 |
+| 30--100K | 22,760 | 58,570 | 6.61 | +134 | +2056 | **+1922 +- 105** | 18.3 |
+| 100K+ | 22,620 | 184,800 | 9.89 | -303 | +791 | **+1094 +- 72** | 15.3 |
+| all | 73,550 | 80,120 | 6.30 | +10 | +363 | **+353 +- 23** | 15.7 |
+
+**It scales, and it vanishes at narrow edges.** At edges averaging 5,462
+generations — comparable to the ages being estimated — the substitution costs
+-27 +- 14 generations, indistinguishable from zero. By 58,570 generations it costs
++1,922. The fall-back to +1,094 in the widest bin is expected rather than
+anomalous: those mutations average ~135K generations old, so they carry little
+information about a 0--10,000-generation sample age in *either* arm, and the
+tau = 3 cutoff truncates their edges.
+
+**The shared-site pooled row reproduces the headline**, `bias_exact` +10.06 against
+the original +10.06 and `bias_edge` +362.6 against +363.6, so the 3.8% filter
+asymmetry was immaterial and the +364 is entirely the point-to-edge substitution.
+
+**What it constrains, stated as inference.** If uniform-on-edge were the correct
+conditional given everything else conditioned on, marginalising it would be
+unbiased at *any* width. That the error grows with width says the uniform
+placement is wrong, and wrong in a way that costs more the more room there is to
+be wrong in. That sharpens H3's surviving candidate: whatever information the
+interval discards must have an effect that scales with interval width and is
+negligible at ~5K generations. It also sits awkwardly with H2b — the obvious
+reweighting, by `P(d0 | t)`, was tested and made things worse — so the right
+measure is apparently neither uniform nor `P(d0 | t)`. That is a sharper statement
+of the open problem than "the edge discards information".
+
+**Caveat on generality.** Narrow edges are overwhelmingly rare alleles (mean
+`d0` 2.35 in the 0--10K bin). The paired design cancels `d0` within a stratum, so
+the -27 is clean, but it is a statement about narrow edges *as they actually
+occur*, not about narrow edges of common alleles, which barely exist.
 
 ## Next steps, in order
 
