@@ -752,10 +752,36 @@ orders of magnitude wider than the resolution the estimator is asked for.
 **It scales, and it vanishes at narrow edges.** At edges averaging 5,462
 generations — comparable to the ages being estimated — the substitution costs
 -27 +- 14 generations, indistinguishable from zero. By 58,570 generations it costs
-+1,922. The fall-back to +1,094 in the widest bin is expected rather than
-anomalous: those mutations average ~135K generations old, so they carry little
-information about a 0--10,000-generation sample age in *either* arm, and the
-tau = 3 cutoff truncates their edges.
++1,922. The fall-back to +1,094 in the widest bin should **not** be read as a
+property of very wide edges, because that bin is contaminated by the `tau = 3`
+truncation — see the next paragraph.
+
+**How much of this is the truncation?** `t_hi = min(parent_time, cutoff)`, so an
+edge whose parent is older than `tau = 3` (300,000 generations at Ne=50K) has its
+top cut off, and the uniform measure is then uniform over a *truncated* edge
+rather than the real one. Measured over 3 replicates and 221,028 sites:
+
+| stratum | sites | truncated | fraction | mean width lost |
+|---|---:|---:|---:|---:|
+| 0--10K | 34,549 | 1 | 0.00% | 1 |
+| 10--30K | 50,116 | 3 | 0.00% | 3 |
+| 30--100K | 68,685 | 202 | 0.3% | 299 (0.5% of width) |
+| 100K+ | 67,678 | 18,440 | **27.2%** | 27,564 (15% of width) |
+
+So the truncation does **not** explain the width scaling: the largest effect,
++1,922 at 30--100K, sits in a stratum where 0.3% of edges are touched and they
+lose 0.5% of their width. It does contaminate the top bin, where 27% of edges are
+truncated — so +1,094 is what production does to those sites under `tau = 3`,
+not what a 185K-wide edge does. Separating the two needs a table reaching past
+`tau = 3`; `constant_ne_50000.freq_table.npz` stops at `tau = 3.01`, so that is a
+table rebuild, not a rerun.
+
+**A finding in its own right:** 8.4% of all sites have a truncated edge, and for
+those the mutation-age prior is uniform over a range that has been cut short,
+which shifts it younger. MATH.md specifies capping `above` deliberately, so this
+is the documented behaviour rather than a bug — but the consequence is a
+mutation-age measure that is not the model's on one site in twelve, and on more
+than a quarter of the widest edges.
 
 **The shared-site pooled row reproduces the headline**, `bias_exact` +10.06 against
 the original +10.06 and `bias_edge` +362.6 against +363.6, so the 3.8% filter
@@ -784,19 +810,34 @@ Perfect simulated data only. Real-data work is parked under "Deferred".
 The hypothesis list has collapsed. H0, H1, H2a, H2b, H4, H5, H5b, H6 and H7 are
 now all closed or retired, and none of them was the bias. What survives:
 
-1. **Decompose edge conditioning.** The paired run is biased: exact `t_i` gives
-   +10 generations and the true edge interval gives +364. Compare uniform
-   versus denominator-weighted mutation-time measures, exact sharing residuals,
-   and matched edges differing in within-clade topology. Do this on these same 100
-   simulations before adding another simulation suite.
+1. **Decompose edge conditioning, stratified by edge width.** The paired run is
+   biased: exact `t_i` gives +10 generations and the true edge interval gives
+   +364. Compare uniform versus denominator-weighted mutation-time measures,
+   exact sharing residuals, and matched edges differing in within-clade topology.
+   Do this on these same 100 simulations before adding another simulation suite —
+   and do it **within the T8 width strata, not pooled**. Pooling averages a
+   +1,922-generation effect at 30--100K-wide edges against a null one at
+   <10K, and will return something in between that belongs to neither.
 2. **Extend the re-measured baseline only if needed.** The old uniform baseline is
    +250 / +434 / +651 at Ne = 10K / 50K / 100K. The new exact-time result provides
    a much cleaner zero-bias reference. Widen the candidate-age grid before any
    200K or 500K run.
-3. **Characterise the scaling.** The bias is +250 / +434 / +651 across a 10x range
-   of Ne: neither constant in generations nor in diffusion time. Identifying what
-   it *is* proportional to would point at the mechanism. Worth doing before more
-   hypothesis testing, because it is cheap and discriminating.
+3. **Characterise the scaling — and T8 now suggests what it is proportional to.**
+   The bias is +250 / +434 / +651 across a 10x range of Ne: neither constant in
+   generations nor in diffusion time. T8 supplies a candidate. Coalescent branch
+   lengths scale with Ne, so mean edge width scales with Ne; the bias scales with
+   edge width; therefore the Ne dependence of the bias may be nothing more than
+   the Ne dependence of edge width. **This is a hypothesis, not a measurement** —
+   it is consistent with the sub-linear Ne scaling only because T8's width
+   response is itself non-monotone, and that is arithmetic that has not been done.
+
+   The test is cheap and decisive, and it varies one thing: run the T8 width
+   stratification at Ne = 10K and 100K, then ask whether the per-stratum paired
+   shift collapses onto a single function of **width in generations**, or of
+   **width in diffusion time** (width / 2Ne), or of neither. A collapse onto
+   absolute width would say the mechanism has an intrinsic generation scale; a
+   collapse in tau would say it is pure drift. Either answer names the mechanism
+   far more sharply than the pooled +250 / +434 / +651 can.
 4. **Watch the variance.** The exact-time run's ordinary 95% coverage is 0.68
    because linked sites are treated as independent. Use a block bootstrap for
    interval calibration; do not confuse this precision problem with point bias.

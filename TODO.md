@@ -135,3 +135,31 @@ which is the table's contents, measured end to end under the full coalescent.
 
 **Cost.** Rare $(t_i, d_0)$ cells need many replicates, so this belongs in a
 `@pytest.mark.slow` test or a standalone script rather than the default suite.
+
+## Repository provenance gaps
+
+Found 2026-09-10 while reviewing [PROJECT_MAP.md](PROJECT_MAP.md). Not a science
+problem; a "can this be reproduced from the repository" problem.
+
+**Completed controls whose generator is untracked.** Two PASSED controls in
+[working_diffusion.md](working_diffusion.md) cite code that git does not hold:
+
+| Untracked | Cited as the code behind |
+|---|---|
+| `msprime_exact_time_validation.py`, `tests/test_msprime_exact_time_validation.py` | The exact-mutation-time control (+10.1 generation MAP bias over 7,354,754 sites) *and* the paired true-edge run (+363.6) |
+| `diffusion_frequency_validation.py`, `tests/test_diffusion_frequency_validation.py` | SLiM Test A, the corrected one-lineage diffusion check |
+| `slurm/run_msprime_exact_time_simulations.sbatch`, `precompute_msprime_ne50k_exact_time.sbatch`, `run_msprime_exact_time_inference.sbatch`, `merge_msprime_exact_time_inference.sbatch`, `run_msprime_edge_interval_inference.sbatch`, `merge_msprime_edge_interval_inference.sbatch`, `run_diffusion_frequency_validation.sbatch`, `merge_diffusion_frequency_validation.sbatch`, `precompute_constant_ne_frequency_table.sbatch` | The SLURM stages for both |
+
+These are the load-bearing results for retiring H4 and localising H3, so the
+numbers currently rest on files that exist only in one working tree. They are the
+concurrent Codex session's work, which is why they were not swept into a commit
+by whoever noticed. Commit them, or record deliberately why not.
+
+**Also uncommitted:** the `.gitignore` entry adding `msprime_exact_time_ne50k/`,
+which pairs with those outputs.
+
+**In progress, deliberately left alone:** `slim_edge_interval_validation.py`,
+`slim/single_site_edge_validation.slim`, `slim_single_site_edge_validation/` and
+the three `*slim_edge_validation*` wrappers. Job `slim-edge-sim` was running at
+2026-09-10 16:00; PROJECT_MAP.md records these as IN PROGRESS rather than as
+artifacts. Revisit once that run lands.
