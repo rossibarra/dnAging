@@ -863,12 +863,18 @@ Ranked by scientific value rather than implementation convenience.
    tests agree with high-order quadrature. On the 1,233 T9 loci satisfying the
    infinite-sites identity `d0 = edge descendant count`, MAP bias falls from
    +376 to **+184 generations**, RMSE from 522 to **458**, and all seven true
-   ages enter their nominal 95% intervals. This is improvement, not validation:
-   exact mutation time remains much better (+33 bias, RMSE 128), the seven age
-   estimates share loci, and the 6,000-generation estimate remains close to the
-   7,000 grid ceiling. Next test the insertion likelihood across the 100 linked
-   msprime replicates, which provide a distribution of 100 point errors rather
-   than one seven-point calibration curve.
+   ages enter their nominal 95% intervals. This seven-point result alone is not
+   validation: exact mutation time remains much better (+33 bias, RMSE 128), the
+   estimates share loci, and the oldest estimate is close to the grid ceiling.
+
+   **The 100-replicate msprime calibration is now complete.** Across 7,632,487
+   linked sites, insertion gives MAP bias **-46 generations**, slope 0.972,
+   intercept 92, MAE 378 and RMSE 498. Production edge diffusion gives +364 bias,
+   slope 1.019, MAE 419 and RMSE 523; exact-time diffusion gives +10 bias and
+   RMSE 243. This validates insertion for point calibration under constant Ne:
+   it removes the sustained edge bias on 100 independent true ARGs. Nominal 95%
+   coverage remains only 0.49 (edge 0.44; exact time 0.68), so linked-site
+   composite-likelihood overprecision remains and still needs block calibration.
 2. **Edge-conditioned diffusion.** Replace `P(g_T | d0,t)` with
    `P(g_T | d0,t,E)`, incorporating the focal lineage's observed
    survival/coalescence event. A killed-diffusion or Feynman--Kac weighting is a

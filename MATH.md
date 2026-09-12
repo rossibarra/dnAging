@@ -532,7 +532,114 @@ skipped.
 
 ---
 
-## 7. Assumptions and caveats
+## 7. Direct ancient-lineage insertion likelihood
+
+The diffusion likelihood above conditions on the present count and mutation
+time. T9 shows that it is calibrated when mutation time is exact but biased when
+that time is integrated over its true ARG edge, even with one independent locus
+per tree. Mutation placement itself is uniform on the correct edge. The
+`insertion` branch therefore tests a different conditional: retain the fixed
+modern tree and integrate where an additional ancient lineage first coalesces
+into it.
+
+Let $E_i=(v_i,w_i)$ be the directed mutation-bearing edge, with child $v_i$ and
+parent $w_i$, and let its time interval be $[b_i,a_i)$, where
+$b_i=t(v_i)<a_i=t(w_i)$. For time $u$ backwards from the present, define
+
+- $k(u)$ as the total number of modern-tree ancestral lineages extant at $u$;
+- $d_i(u)$ as the number of those lineages descended from $v_i$.
+
+For diploid effective size $N_e(u)$, a newly inserted lineage coalesces with each
+extant lineage at rate $1/(2N_e(u))$. Conditional on surviving without a
+coalescence from ancient sampling time $T$ to time $u$, its survival probability
+is
+
+$$
+S_T(u)=\exp\left\{-\int_T^u \frac{k(s)}{2N_e(s)}\,ds\right\}.
+\tag{13}
+$$
+
+If the mutation occurred at exact time $m_i$, the ancient haplotype is derived
+only when $T<m_i$ and its first coalescence before $m_i$ is into one of the
+$d_i(u)$ focal-descendant lineages. Thus
+
+$$
+q_i(T\mid m_i,E_i,\mathcal T)=
+\mathbf 1\{T<m_i\}
+\int_T^{m_i} S_T(u)\frac{d_i(u)}{2N_e(u)}\,du,
+\tag{14}
+$$
+
+where $\mathcal T$ is the observed modern tree. A first coalescence into any of
+the other $k(u)-d_i(u)$ lineages makes the ancient allele ancestral; survival
+past $m_i$ also makes it ancestral because the ancient lineage then lies above
+the mutation event.
+
+Under the infinite-sites mutation model, T9 empirically confirms that $m_i$ is
+uniform on its assigned edge. The edge-marginal insertion probability is
+therefore
+
+$$
+q_i(T\mid E_i,\mathcal T)=
+\frac{1}{a_i-b_i}\int_{b_i}^{a_i}
+q_i(T\mid m,E_i,\mathcal T)\,dm.
+\tag{15}
+$$
+
+For a pseudo-haploid observation with symmetric error $\varepsilon$, replace
+$\bar p_i(T)$ by $q_i(T\mid E_i,\mathcal T)$ in eq. (2), and use the Bernoulli
+site likelihood in eq. (3a). The prototype currently uses $\varepsilon=0$.
+
+**Efficient constant-$N_e$ evaluation.** Between modern-tree node times, both
+$k(u)$ and $d_i(u)$ are constant. Define
+
+$$
+K(x)=\int_0^x\frac{k(u)}{2N_e}\,du,\qquad
+B(x)=\int_0^x e^{-K(u)}\frac{d_i(u)}{2N_e}\,du,\qquad
+C(x)=\int_0^x B(u)\,du.
+\tag{16}
+$$
+
+Then eq. (14) is $e^{K(T)}[B(m_i)-B(T)]$ for $T<m_i$, and with
+$L=\max(T,b_i)$, eq. (15) becomes
+
+$$
+q_i(T\mid E_i,\mathcal T)=
+\frac{e^{K(T)}}{a_i-b_i}
+\left[C(a_i)-C(L)-(a_i-L)B(T)\right]
+\mathbf 1\{L<a_i\}.
+\tag{17}
+$$
+
+`insertion_likelihood.py` evaluates $K,B,C$ analytically across the piecewise
+tree intervals. Analytic two-tip cases agree with high-order quadrature.
+
+**Current evidence and limitations.** On 1,233 independent T9 loci satisfying
+$d_0=$ focal-edge descendant count, insertion reduces mean MAP bias from +376 to
++184 generations and restores coverage of all seven nominal 95% intervals, but
+does not match the exact-time control (+33 bias). This is improvement, not yet
+validation by itself because those seven estimates share loci and one hits the
+age-grid boundary.
+
+The decisive second calibration uses 100 independent 10 Mb msprime replicates at
+$N_e=50{,}000$, each with a different ancient age and a recombining true modern
+ARG. Across 7,632,487 sites, insertion gives MAP bias **-46 generations**, slope
+0.972, intercept 92, MAE 378 and RMSE 498. The corresponding production edge-diffusion
+arm gives +364 bias, slope 1.019, MAE 419 and RMSE 523; exact-mutation-time
+diffusion gives +10 bias and RMSE 243. Thus insertion removes the sustained
+point bias caused by edge marginalisation, although exact mutation times remain
+more informative. Nominal 95% coverage is only 0.49 for insertion (0.44 for edge
+diffusion and 0.68 even with exact times), confirming that conditioning the mean
+correctly does not fix composite-likelihood overprecision from linked sites.
+
+The current implementation assumes a haploid ancient observation, a fixed true
+modern tree and constant diploid $N_e$. Piecewise $N_e(t)$, ARG-draw mixtures,
+diploid observations, production caching and block-calibrated uncertainty remain
+future work.
+
+---
+
+## 8. Assumptions and caveats
 
 1. **Neutrality.** Eq. (4) is the *neutral* trajectory — right for the vast
    majority of sites; strongly selected sites are not neutral. Guard with an
