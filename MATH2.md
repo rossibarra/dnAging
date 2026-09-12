@@ -4,6 +4,14 @@ This note derives the likelihood implemented in [betabinom/](./betabinom/). It i
 alternative to [MATH.md](./MATH.md), not a revision of it. The two differ in what
 they condition on:
 
+> **Archived 2026-09-12.** This branch is retained as an independent
+> methodological reference and is not being merged wholesale into `main`.
+> Direct ancient-lineage insertion subsequently removed systematic point bias in
+> the varied 300-replicate benchmark (MAP bias +12.9 generations, slope 1.001),
+> while this approach remained biased before calibration and less accurate after
+> calibration. The beta-binomial derivation is now summarized alongside the
+> other approaches in `main:MATH.md`.
+
 | | MATH.md | this note |
 |---|---|---|
 | conditions on | present count $d_0$ and mutation age $t_i$ | the marginal tree at time $T$ |

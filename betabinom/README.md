@@ -5,6 +5,17 @@ Prototype and validation for an alternative to the diffusion likelihood in
 work establishing whether the reformulation is correct and whether it recovers a
 known age.
 
+## Archived status
+
+As of 2026-09-12 this branch is a tagged methodological reference and will not be
+merged wholesale into `main`. Direct ancient-lineage insertion later removed
+systematic point bias across the varied 300-replicate benchmark (MAP bias +12.9
+generations; slope 1.001). Beta-binomial remains valuable as an independently
+conditioned diagnostic, but it was biased before calibration and less accurate
+after calibration. Reusable tests may be ported selectively. The production entry
+point remains `posterior_sample_age_infer.py`; insertion should become its default
+only after it supports variable Ne and the production ARG store.
+
 ## The model
 
 For a pseudohaploid ancient sample at time `T`, the probability it carries a
