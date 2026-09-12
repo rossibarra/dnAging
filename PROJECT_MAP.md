@@ -120,3 +120,15 @@ composite-likelihood interval calibration remains open. Alternatives, in order,
 are an analytic edge-conditioned diffusion,
 simulation-calibrated edge tables, and a non-production empirical MAP
 correction. See `working_diffusion.md` for the modelling tradeoffs.
+
+## Branch and production policy
+
+As of 2026-09-12, `insertion` is the integration branch to fast-forward into
+`main`. The beta-binomial branch is an archived, tagged methodological reference;
+do not merge its exploratory directory wholesale. Preserve
+`posterior_sample_age_infer.py` as the production entry point and keep its current
+default unchanged until insertion supports variable `Ne(t)`, consumes the
+production SNP/ARG store or equivalent full trees, handles posterior ARG draws
+and chromosomes, and passes an end-to-end real-data-shaped simulation. Point
+bias is resolved by insertion; linked composite-likelihood interval calibration
+is still an independent open requirement.

@@ -4,6 +4,16 @@ Status as of 2026-09-10. Live working document: **status lines are the point**, 
 update them rather than appending. Companion: [working_diffusion.md](working_diffusion.md)
 for the approach on `main`.
 
+**Archived decision (2026-09-12).** This branch is retained and tagged as an
+independent methodological reference, but will not be merged wholesale into
+`main`. Direct ancient-lineage insertion has now removed systematic point bias in
+the varied 300-replicate benchmark (MAP bias +12.9 generations; slope 1.001),
+whereas beta-binomial remained biased before calibration and less accurate after
+calibration. Its useful derivation is summarized in `MATH.md`; reusable tests may
+be ported selectively. `posterior_sample_age_infer.py` remains the production
+entry point, and insertion will not become its default until variable Ne and the
+production ARG store are supported.
+
 **Code lives on the `betabinom` branch, not here** — `betabinom/` and `MATH2.md`
 are only on that branch. This file sits on `main` so the two approaches can be
 read side by side, which is what the branch decision requires. Spec is `MATH2.md`

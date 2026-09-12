@@ -925,6 +925,17 @@ should not be read at the top.
 
 Perfect simulated data only. Real-data work is parked under "Deferred".
 
+**Branch/default decision (2026-09-12).** The validated insertion work is being
+fast-forwarded into `main`; `posterior_sample_age_infer.py` remains the production
+entry point and its current diffusion behavior remains explicit and unchanged.
+Insertion is the preferred development direction but is **not yet the production
+default**. Promote it only after it supports variable `Ne(t)`, reads the
+production SNP/ARG store (or its required full-tree representation), handles ARG
+draw mixtures and chromosomes, and passes a real-data-shaped simulation test.
+The beta-binomial branch is retained as a tagged archival reference rather than
+merged wholesale. Linked-site interval calibration remains separate from this
+point-estimator decision.
+
 ### Candidate solutions to the edge-conditioning failure
 
 Ranked by scientific value rather than implementation convenience.
