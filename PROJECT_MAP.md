@@ -104,3 +104,15 @@ Main pipeline: **precompute → infer array (one chromosome per task) → merge*
 ## Retention and reproducibility
 
 Retain source, tests, documentation, seeds, `run.json`, final tables and figures, and real-data inputs. Raw simulation chunks and job logs are removable only after confirming seeds, parameters, and compact summaries remain. Generated directories are not source. In particular, preserve `logan_try/` unless its real-data inputs and outputs have an external archive. Retain `slim_single_site_edge_validation/results_exact_time/`, `results_random_focal/`, and `edge_uniformity/`; the 10,000 compact trees are reproducible from the fixed seeds and may be removed only after the completed T9 result is committed and archived. The 2.6 GB `msprime_exact_time_ne50k/simulations/` directory can eventually be regenerated from its per-replicate metadata, but retain it until all paired edge analyses are documented. Reproduction requires [environment.yml](environment.yml), the pinned `normalizeTEs` submodule, and external VCF/ARG/demography files listed in [README.md](README.md). Mathematical definitions are in [MATH.md](MATH.md), with implementation notes in [working_diffusion.md](working_diffusion.md) and [working_betabinom.md](working_betabinom.md).
+
+## Edge-conditioning solution roadmap
+
+T9 establishes the current development boundary: exact mutation-time diffusion
+is calibrated, mutation positions are uniform within correctly assigned edges,
+and true-edge marginalisation is biased even across independent loci. The
+preferred replacement is a direct ancient-lineage insertion likelihood
+conditioned on the modern tree. Develop it on branch `insertion`, using the T9
+independent SLiM trees as the first test and the linked msprime suite as the
+second. Alternatives, in order, are an analytic edge-conditioned diffusion,
+simulation-calibrated edge tables, and a non-production empirical MAP
+correction. See `working_diffusion.md` for the modelling tradeoffs.

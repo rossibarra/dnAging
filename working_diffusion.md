@@ -843,6 +843,36 @@ edge-conditioned probability `P(g_T | d0,t,E)`.
 
 Perfect simulated data only. Real-data work is parked under "Deferred".
 
+### Candidate solutions to the edge-conditioning failure
+
+Ranked by scientific value rather than implementation convenience.
+
+1. **Direct ancient-lineage insertion likelihood — preferred.** Condition on
+   the observed modern tree and insert a lineage sampled at candidate age `T`.
+   Integrate its first-coalescence hazard into the mutation-bearing ancestry
+   versus competing modern lineages, then integrate the mutation time uniformly
+   along its validated edge. This targets `P(g_T | T, modern tree, E)` directly
+   and removes population frequency as an intermediate approximation. It should
+   support piecewise `Ne(t)` through the time-dependent coalescence hazard. First
+   validate at constant Ne on T9, then on the linked msprime suite; optimize and
+   add variable Ne only after both calibrate.
+2. **Edge-conditioned diffusion.** Replace `P(g_T | d0,t)` with
+   `P(g_T | d0,t,E)`, incorporating the focal lineage's observed
+   survival/coalescence event. A killed-diffusion or Feynman--Kac weighting is a
+   possible formulation. This retains the current frequency framework but adds
+   a difficult conditional and likely increases table dimensionality.
+3. **Simulation-calibrated edge tables.** Tabulate
+   `P(g_T=1 | d0,t,edge,Ne)` from neutral simulations. This is a useful benchmark
+   and faster route to a working correction, but edge width/endpoints and
+   demography make the table high-dimensional and limit transferability.
+4. **Empirical MAP correction.** Regress the observed displacement on Ne, age
+   and edge-width summaries. Reserve this for exploratory use: it is unlikely to
+   transfer cleanly across demographies, panel sizes or ARG methods.
+
+Changing the uniform mutation-time measure, drawing one uniform time per edge,
+beta-binomial frequency uncertainty, thinning linked SNPs, or adding ARG draws
+does not address the failure isolated by T9.
+
 The hypothesis list has collapsed. H0, H1, H2a, H2b, H4, H5, H5b, H6 and H7 are
 now all closed or retired, and none of them was the bias. What survives:
 
