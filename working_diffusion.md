@@ -29,14 +29,31 @@ approaches** — see the head-to-head below. What was wrong with it was arithmet
 and plumbing, not model. Six commits today; the numerics are now believed correct
 and the inference module has had one review pass.
 
-The bias is **not** resolved, but two new controls localise it sharply. The shared
-Bernoulli age likelihood is calibrated when given the true population frequency
-at every candidate time, and the production diffusion frequency lookup is
-essentially unbiased when given the exact simulated mutation time. The remaining
-target is therefore the replacement of an exact mutation time by an ARG edge
-interval, including what information from that edge/tree is retained and how the
-unknown time is marginalised. The paired run confirms that this transition alone
-creates a +364-generation MAP bias at Ne=50K.
+**The point bias is resolved, by replacing the frequency conditional rather than
+repairing it.** The chain that got there: the terminal Bernoulli likelihood is
+calibrated given true frequencies; the diffusion lookup is unbiased given exact
+mutation times; substituting the true ARG edge for that exact time is what
+creates the offset (+364 at Ne=50K, and T9 reproduces it at +376 on one
+independent locus per tree, so it is not LD); mutation placement within the edge
+really is uniform (T9's audit, KS p=0.346), so the measure was never the problem;
+the failing step is using `P(g_T | d0,t)` after conditioning on a realized edge
+instead of `P(g_T | d0,t,E)`. **Direct ancient-lineage insertion targets that
+quantity directly and removes the bias:** across the 300-replicate benchmark
+spanning Ne 10K--100K, mutation rate 1e-9--1e-8, panels of 10--40 and true ages
+100--10,000, MAP bias is **+12.9 generations** with slope 1.001, against +538 and
+slope 1.062 for the diffusion on the same data.
+
+**What remains is interval calibration, not point bias.** Nominal 95% coverage is
+139/300 (46.3%) for insertion, 0.49 on the linked Ne=50K suite, and 0.68 even for
+exact-time diffusion — linked sites treated as independent. That is a composite
+likelihood overprecision problem and needs block calibration, which is a
+different problem from the one just closed.
+
+T10 adds the last piece of the diagnosis rather than the cure: the edge error
+tracks width **in generations**, not in diffusion time, so the mechanism is tied
+to the range of sample ages being estimated and not to drift. It also shows
+exact-time inference is unbiased at all three Ne, which localises the entire
+historical Ne dependence of the bias to the point-to-edge substitution.
 
 ### Known-frequency end-to-end control — PASSED
 
@@ -249,7 +266,7 @@ differs from that file's.
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | **TESTED. Leverage is real; rare-site miscalibration is not supported.** Removing all d0=1 sites left 10K essentially unchanged (+241 vs +248 bias) and worsened 50K (+649 vs +423). Carried-only removal moved estimates older and absent-only removal moved them younger, as expected from deleting opposite likelihood terms. T3 independently finds singleton carriage essentially calibrated at 50K--200K. |
 | 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
 | **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a. `phi_lookup` averages the conditional uniformly along the branch (an integral of ratios); the alternative weights candidate ages by P(d0 \| t_i), giving a ratio of integrals. | **TESTED AND REJECTED as the bias explanation (T1).** In matched 10 Mb infinite-sites simulations, denominator weighting moved estimates strongly younger and generally increased RMSE. Across the complete 10K/50K/100K sets its bias was -836/-563/-612 generations, versus +248/+423/+632 for uniform; RMSE was 889/653/705 versus 479/613/726. Eight completed 200K replicates agreed (weighted bias -1270, RMSE 1326; uniform +480, 742). The `betabinom` calibration result does not transfer because its weight conditions on k observed at T, whereas this one conditions on d0 observed at the present. Retain uniform as the default. |
-| **3** | **Insufficient conditioning on the observed mutation-bearing edge.** The conditional keeps `d0` and exact mutation age, but when age is unknown the observed child-parent edge is used only as integration bounds. The event that this lineage generated that edge is not included in the frequency conditional. | **SUPPORTED and sharply localised, mechanism still to derive.** T9 uses one independent SLiM locus per tree: exact mutation time gives +33 generations and all seven 95% intervals cover, whereas the true edge interval gives +376. Thus LD, repeated-edge weighting and the rest of the local topology are not required. All 1,243 mutations are assigned inside the correct edge and their discrete within-edge positions are uniform (KS p=0.346; p=0.277 after excluding ten recurrent-overwrite mismatches). The valid measure is uniform, but the integrand `P(g_T | d0,t)` is not calibrated after conditioning on the observed edge. T8 shows the resulting error grows with edge width. |
+| **3** | **Insufficient conditioning on the observed mutation-bearing edge.** The conditional keeps `d0` and exact mutation age, but when age is unknown the observed child-parent edge is used only as integration bounds. The event that this lineage generated that edge is not included in the frequency conditional. | **SUPPORTED and sharply localised, mechanism still to derive.** T9 uses one independent SLiM locus per tree: exact mutation time gives +33 generations and all seven 95% intervals cover, whereas the true edge interval gives +376. Thus LD, repeated-edge weighting and the rest of the local topology are not required. All 1,243 mutations are assigned inside the correct edge and their discrete within-edge positions are uniform (KS p=0.346; p=0.277 after excluding ten recurrent-overwrite mismatches). The valid measure is uniform, but the integrand `P(g_T | d0,t)` is not calibrated after conditioning on the observed edge. T8 shows the resulting error grows with edge width, and **T10 shows it grows with width in generations rather than in diffusion time** — at matched `tau` and matched `d0` the shift differs 47-fold (+58 at Ne=10K against +2740 at Ne=100K), while at matched generations it agrees within a factor of two. So the missing term is tied to the sample-age range, not to drift. T10 also shows exact-time inference is unbiased at all three Ne, so the historical Ne dependence of the bias lives entirely in this substitution. **Superseded in practice by direct ancient-lineage insertion**, which targets `P(g_T | d0,t,E)` and gives +12.9 generation bias on the 300-replicate benchmark. |
 | 4 | Wrong diffusion conditioning / boundary behaviour. | **TESTED AND REJECTED.** T3 found no predicted-probability error with the magnitude or Ne pattern needed to explain the bias. More decisively, 100 constant-Ne msprime simulations using exact mutation times gave +10 generation MAP bias, -6 generation posterior-mean bias and slope 0.992 across 7.35 million sites. The conditional is calibrated when `t_i` is known; any remaining failure is introduced by representing `t_i` as an edge interval or conditioning on that representation. |
 | 5 | Edge quadrature and interpolation. | **IMPLEMENTATION FIXED; contribution to the bias now measured and negligible (T4).** The former 16-node boundary case was 30x high in a constructed regression case, but on real simulated data the switch to knot-split analytic integration moves the estimate by only **-2.7 / -11.3 / -18.9 generations** at Ne = 10K / 50K / 100K. The pathological geometry is rare enough not to matter in aggregate. Worth keeping fixed; not a bias explanation. |
 | 6 | Ne scaling / haploid-diploid convention mismatch. | **RETIRED.** A factor-of-two convention error would produce a clean factor-of-two displacement in diffusion time and an error in generations proportional to Ne. The observed offset is roughly generation-scale across Ne and has neither signature. |
@@ -838,6 +855,71 @@ step is therefore the use of the marginal diffusion quantity
 `P(g_T | d0,t)` after conditioning on an observed edge. Uniformly averaging that
 quantity is algebraically implemented correctly but does not equal the required
 edge-conditioned probability `P(g_T | d0,t,E)`.
+
+### T10. Ne sweep: does the edge bias scale with width in generations or in tau? — COMPLETE
+
+**Question,** carried over from T8's step 3. The point-to-edge shift grows with
+edge width. Branch lengths scale with Ne, so the long-unexplained Ne dependence
+of the bias might be nothing but the Ne dependence of edge width. The
+discriminating question is what the shift is a function of: width in
+**generations** (an intrinsic generation scale) or width in **diffusion time**
+`tau = width / 2Ne` (pure drift).
+
+**Design.** 100 replicates each at Ne = 10K / 50K / 100K, identical to the Ne=50K
+control in every respect but Ne. Tables were rebuilt on a sample-age grid widened
+to 25,000 at 50-generation spacing, because the original 10,000 ceiling censored
+the answer: **22 of 100** replicates in the Ne=50K 30--100K stratum had `map_T_edge`
+pinned exactly at 10,000, against 2 in the exact arm, so T8's +1,922 was a lower
+bound. On the widened grid only 3 of 700 rows reach the ceiling, all in the
+one-site-per-replicate top stratum. All three Ne share one bin set
+(3K/10K/30K/100K/300K), since bins tuned to one Ne pile the others into a single
+stratum and destroy the overlap the comparison needs.
+
+| Ne | stratum | width (gen) | tau | mean d0 | paired shift |
+|---|---|---:|---:|---:|---:|
+| 10K | 0--3K | 1,538 | 0.077 | 2.60 | -22 +- 11 |
+| 10K | 3--10K | 5,962 | 0.298 | 4.74 | +58 +- 18 |
+| 10K | 10--30K | 18,240 | 0.912 | 8.15 | +556 +- 39 |
+| 10K | 30--100K | 43,570 | 2.179 | 10.17 | +1352 +- 110 |
+| 50K | 3--10K | 6,444 | 0.064 | 2.46 | -14 +- 19 |
+| 50K | 10--30K | 18,850 | 0.189 | 3.74 | +456 +- 38 |
+| 50K | 30--100K | 58,570 | 0.586 | 6.61 | +2284 +- 105 |
+| 50K | 100--300K | 183,100 | 1.831 | 10.03 | +1451 +- 112 |
+| 100K | 3--10K | 6,687 | 0.033 | 2.12 | -66 +- 25 |
+| 100K | 10--30K | 19,440 | 0.097 | 2.82 | +270 +- 39 |
+| 100K | 30--100K | 59,530 | 0.298 | 4.69 | +2740 +- 79 |
+| 100K | 100--300K | 182,500 | 0.913 | 8.18 | +2964 +- 154 |
+
+**It is generations, and the test is clean.** Ne=10K's 3--10K stratum and
+Ne=100K's 30--100K stratum sit at the *same* diffusion time, `tau = 0.298`, and
+the coalescent confirms they are the same genealogical situation: mean `d0` of
+**4.74 against 4.69**. Their paired shifts are **+58 and +2,740**, a factor of 47.
+The only thing that differs is width in generations, 5,962 against 59,530.
+Matched on generations instead, the shifts agree within about a factor of two:
++58/-14/-66 at ~6K wide, +556/+456/+270 at ~19K, +2284/+2740 at ~59K.
+
+So the mechanism has an **intrinsic generation scale, not a drift scale**, and the
+obvious candidate for that scale is the range of sample ages being estimated,
+fixed at 0--10,000 generations across all three Ne by construction. That
+corroborates T9's diagnosis: the gap between `P(g_T | d0,t)` and `P(g_T | d0,t,E)`
+should matter in proportion to how much of the sample-age range the edge spans,
+which is a generation-scale quantity and not a drift-scale one.
+
+**Also new: exact-time inference is unbiased at every Ne**, pooled bias +11.5 /
++9.3 / +11.7 at 10K / 50K / 100K. Previously this was known only at Ne=50K. So
+the entire Ne dependence of the old +250 / +434 / +651 baseline lives in the
+point-to-edge substitution and none of it in the diffusion conditional — the edge
+arm reproduces that scaling shape at +176 / +378 / +624. This strengthens H4's
+rejection from one Ne to three.
+
+**Caveats.** The residual factor-of-two spread at matched generation width is not
+noise: `d0` composition still differs across Ne within a generation-matched
+stratum (10.17 / 6.61 / 4.69 in the 30--100K bin), because a fixed number of
+generations is a different coalescent length at each Ne. And the top stratum is
+truncation-contaminated differently at each Ne, since the `tau = 3` cutoff lands
+at 60K / 300K / 600K generations — 300K+ edges are impossible at Ne=10K and
+routine at Ne=100K. The comparison is sound in the overlapping middle strata and
+should not be read at the top.
 
 ## Next steps, in order
 
