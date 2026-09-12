@@ -1,0 +1,64 @@
+// Independent one-base loci for validating production edge-time integration.
+// Each replicate retains seven historical haplotypes and a 26-haplotype
+// present-day panel in a tree sequence. No full frequency trajectory is written.
+
+initialize()
+{
+    initializeSLiMModelType("WF");
+    initializeTreeSeq();
+    initializeMutationRate(MUT_RATE);
+    initializeMutationType("m1", 0.5, "f", 0.0);
+    m1.convertToSubstitution = F;
+    m1.mutationStackPolicy = "l";
+    initializeGenomicElementType("g1", m1, 1.0);
+    initializeGenomicElement(g1, 0, 0);
+    initializeRecombinationRate(0.0);
+}
+
+1 early()
+{
+    sim.addSubpop("p1", NE);
+    writeFile(SAMPLE_FILE,
+        "role\tgeneration\tpedigree_id\thaplotype_index\thaploid_genotype\tmutation_id");
+}
+
+1:END_GEN late()
+{
+    generation = sim.cycle;
+    sampleGenerations = c(34000, 35000, 36000, 37000, 38000, 39000, 39500);
+    if (any(generation == sampleGenerations))
+    {
+        h = sample(p1.haplosomes, 1);
+        hIndex = which(h.individual.haplosomes == h);
+        carried = h.mutationsOfType(m1);
+        genotype = asInteger(size(carried) > 0);
+        mutationID = "NA";
+        if (genotype == 1)
+            mutationID = asString(carried.id);
+        sim.treeSeqRememberIndividuals(h.individual);
+        writeFile(SAMPLE_FILE,
+            paste(c("ancient", asString(generation),
+                asString(h.individual.pedigreeID), asString(hIndex),
+                asString(genotype), mutationID), sep="\t"), append=T);
+    }
+
+    if (generation == END_GEN)
+    {
+        panel = sample(p1.haplosomes, N_PANEL);
+        sim.treeSeqRememberIndividuals(panel.individual);
+        for (h in panel)
+        {
+            hIndex = which(h.individual.haplosomes == h);
+            carried = h.mutationsOfType(m1);
+            mutationID = "NA";
+            if (size(carried) > 0)
+                mutationID = asString(carried.id);
+            writeFile(SAMPLE_FILE,
+                paste(c("modern", asString(generation),
+                    asString(h.individual.pedigreeID), asString(hIndex),
+                    asString(size(carried) > 0), mutationID), sep="\t"), append=T);
+        }
+        sim.treeSeqOutput(TREE_FILE);
+        sim.simulationFinished();
+    }
+}

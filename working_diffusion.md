@@ -249,12 +249,12 @@ differs from that file's.
 | 1 | **Leverage from rare carried alleles.** log p moves fast when p is small, so a few carried rare sites can outweigh many singleton absences. | **TESTED. Leverage is real; rare-site miscalibration is not supported.** Removing all d0=1 sites left 10K essentially unchanged (+241 vs +248 bias) and worsened 50K (+649 vs +423). Carried-only removal moved estimates older and absent-only removal moved them younger, as expected from deleting opposite likelihood terms. T3 independently finds singleton carriage essentially calibrated at 50K--200K. |
 | 2a | **Double conditioning on d0.** Once the ARG edge is observed, d0 is determined, so reweighting candidate mutation ages by P(d0 \| t) may condition on the modern count twice. | **DEMOTED** from "leading structural hypothesis". The `betabinom` branch is essentially this fix carried to its limit, and it *loses* at matched precision (calibrated RMSE 1407 vs 974). The exact test in `bias_ideas.md` is cheap and still worth running; the reasoning is sound, but the empirical direction is against it. |
 | **2b** | **Marginalisation ORDER over the edge: integral of ratios vs ratio of integrals.** Distinct from 2a. `phi_lookup` averages the conditional uniformly along the branch (an integral of ratios); the alternative weights candidate ages by P(d0 \| t_i), giving a ratio of integrals. | **TESTED AND REJECTED as the bias explanation (T1).** In matched 10 Mb infinite-sites simulations, denominator weighting moved estimates strongly younger and generally increased RMSE. Across the complete 10K/50K/100K sets its bias was -836/-563/-612 generations, versus +248/+423/+632 for uniform; RMSE was 889/653/705 versus 479/613/726. Eight completed 200K replicates agreed (weighted bias -1270, RMSE 1326; uniform +480, 742). The `betabinom` calibration result does not transfer because its weight conditions on k observed at T, whereas this one conditions on d0 observed at the present. Retain uniform as the default. |
-| **3** | **Insufficient conditioning on the ARG beyond d0 and the age interval.** The conditional keeps only the *count* of descendants (eq. 4). Two edges with the same d0 can sit in quite different local genealogies, and under the structured coalescent the mutant class coalesces at rate proportional to 1/x, so branch lengths *within* the mutant clade also carry frequency information. That term is dropped. | **CONFIRMED at the level of localisation; the mechanism within edge treatment remains open.** Exact `Mutation.time` gives +10 generation bias, while replacing only that point with its true ARG edge interval gives +364 at Ne=50K. This removes ARG error, allele mapping, variable Ne and eps. T6 proves the marginalisation composition; T1 tested the alternative mutation-time measure. The surviving candidate is information in the tree beyond `(d0, interval)`. Specified as **T5**. **T8 constrains it further: the damage scales with edge width and is zero (-27 +- 14 generations) at edges averaging 5.5K generations, rising to +1,922 at 58.6K.** So the missing term is not a fixed per-site defect — its effect must grow with the width of the interval and vanish as the interval closes. |
+| **3** | **Insufficient conditioning on the observed mutation-bearing edge.** The conditional keeps `d0` and exact mutation age, but when age is unknown the observed child-parent edge is used only as integration bounds. The event that this lineage generated that edge is not included in the frequency conditional. | **SUPPORTED and sharply localised, mechanism still to derive.** T9 uses one independent SLiM locus per tree: exact mutation time gives +33 generations and all seven 95% intervals cover, whereas the true edge interval gives +376. Thus LD, repeated-edge weighting and the rest of the local topology are not required. All 1,243 mutations are assigned inside the correct edge and their discrete within-edge positions are uniform (KS p=0.346; p=0.277 after excluding ten recurrent-overwrite mismatches). The valid measure is uniform, but the integrand `P(g_T | d0,t)` is not calibrated after conditioning on the observed edge. T8 shows the resulting error grows with edge width. |
 | 4 | Wrong diffusion conditioning / boundary behaviour. | **TESTED AND REJECTED.** T3 found no predicted-probability error with the magnitude or Ne pattern needed to explain the bias. More decisively, 100 constant-Ne msprime simulations using exact mutation times gave +10 generation MAP bias, -6 generation posterior-mean bias and slope 0.992 across 7.35 million sites. The conditional is calibrated when `t_i` is known; any remaining failure is introduced by representing `t_i` as an edge interval or conditioning on that representation. |
 | 5 | Edge quadrature and interpolation. | **IMPLEMENTATION FIXED; contribution to the bias now measured and negligible (T4).** The former 16-node boundary case was 30x high in a constructed regression case, but on real simulated data the switch to knot-split analytic integration moves the estimate by only **-2.7 / -11.3 / -18.9 generations** at Ne = 10K / 50K / 100K. The pathological geometry is rare enough not to matter in aggregate. Worth keeping fixed; not a bias explanation. |
 | 6 | Ne scaling / haploid-diploid convention mismatch. | **RETIRED.** A factor-of-two convention error would produce a clean factor-of-two displacement in diffusion time and an error in generations proportional to Ne. The observed offset is roughly generation-scale across Ne and has neither signature. |
 | 7 | Modern-polymorphism ascertainment mismatch. | **RETIRED as an explanation for the simulation bias.** The simulated data are generated and analyzed under the same modern-polymorphism ascertainment, yet the bias remains. Ascertainment differences may still matter when transferring the method to real data, but they cannot cause the bias under diagnosis here. |
-| 8 | Composite-likelihood dependence. | OPEN, keep last. Dependence inflates precision without biasing calibrated marginals. My block-bootstrap SDs came out *conservative* (947 estimated vs 717 actual scatter), so on that evidence coverage failures here are bias, not underestimated variance. |
+| 8 | Composite-likelihood dependence. | **REJECTED as the point-bias explanation by T9.** The +376-generation edge bias occurs with one locus per independent SLiM replicate. Dependence still inflates precision in linked data: the msprime exact-time run had only 0.68 nominal 95% coverage despite +10 MAP bias. |
 
 Retired in `bias_ideas.md` already and not revisited: T-grid resolution, ARG
 inference error (true ARGs used), genotype error (none simulated).
@@ -787,21 +787,57 @@ than a quarter of the widest edges.
 the original +10.06 and `bias_edge` +362.6 against +363.6, so the 3.8% filter
 asymmetry was immaterial and the +364 is entirely the point-to-edge substitution.
 
-**What it constrains, stated as inference.** If uniform-on-edge were the correct
-conditional given everything else conditioned on, marginalising it would be
-unbiased at *any* width. That the error grows with width says the uniform
-placement is wrong, and wrong in a way that costs more the more room there is to
-be wrong in. That sharpens H3's surviving candidate: whatever information the
-interval discards must have an effect that scales with interval width and is
-negligible at ~5K generations. It also sits awkwardly with H2b — the obvious
-reweighting, by `P(d0 | t)`, was tested and made things worse — so the right
-measure is apparently neither uniform nor `P(d0 | t)`. That is a sharper statement
-of the open problem than "the edge discards information".
+**What it constrains, updated by T9.** The point-to-edge error grows with width,
+but T9 subsequently showed that mutation placement really is uniform within the
+true edge. The problem is therefore not the uniform measure. It is the quantity
+being averaged: production uses `P(g_T | d0,t)` even after selecting a realized
+edge, whereas the target is `P(g_T | d0,t,E)` for observed edge `E`. The two
+coincide as the edge closes, explaining why the T8 shift vanishes for narrow
+edges. H2b's `P(d0 | t)` reweighting changes the measure and therefore addresses
+the wrong factor.
 
 **Caveat on generality.** Narrow edges are overwhelmingly rare alleles (mean
 `d0` 2.35 in the 0--10K bin). The paired design cancels `d0` within a stratum, so
 the -27 is clean, but it is a statement about narrow edges *as they actually
 occur*, not about narrow edges of common alleles, which barely exist.
+
+### T9. Independent true-edge SLiM control and placement audit — COMPLETE
+
+**Design.** Ten thousand independent one-base, constant-Ne SLiM replicates were
+rerun with the original seeds (`Ne=10,000`, 40,000 generations, 26 modern
+haplotypes and seven historical haplotypes). Each usable replicate contributes
+at most one panel-polymorphic allele, selected reproducibly without favoring old
+SLiM mutation IDs. The historical haplotypes are excluded when simplifying the
+modern ARG, so they cannot split its edges. Epsilon is zero. This is the proposed
+one-site-per-tree test: no LD, no shared edges and no joint weighting across
+mutations.
+
+**Paired result on the same 1,243 loci.** Using exact SLiM mutation times gives
+mean MAP bias **+33 generations**, and all seven true ages lie in their nominal
+95% intervals. Replacing only the exact time with the true child-parent edge and
+production uniform marginalisation gives **+376 generations**. The edge MAPs for
+true ages 500/1000/2000/3000/4000/5000/6000 are
+470/1140/2850/3220/4140/5310/7000; the oldest hits the 7,000-generation grid
+ceiling, so the pooled edge bias is censored rather than exaggerated. Results are
+in `slim_single_site_edge_validation/results_exact_time/` and
+`results_random_focal/`.
+
+**Edge audit.** Every focal mutation lies inside its assigned edge under the
+lower-inclusive, upper-exclusive convention. A discrete-generation randomized
+PIT has mean 0.496 and is compatible with uniformity (KS D=0.0264, p=0.346).
+Only ten loci have `d0` different from the focal edge's modern descendant count
+because of recurrent replacement; after excluding them, n=1,233, mean PIT=0.495
+and KS p=0.277. Width and d0 strata show no consistent departure after accounting
+for the multiple strata inspected. Full results are in
+`slim_single_site_edge_validation/edge_uniformity/`.
+
+**Conclusion.** The independent test rules out LD and composite-likelihood
+dependence as causes of the MAP shift. The audit rules out wrong edges, coordinate
+conventions and nonuniform placement. Exact time remains calibrated. The failing
+step is therefore the use of the marginal diffusion quantity
+`P(g_T | d0,t)` after conditioning on an observed edge. Uniformly averaging that
+quantity is algebraically implemented correctly but does not equal the required
+edge-conditioned probability `P(g_T | d0,t,E)`.
 
 ## Next steps, in order
 
@@ -810,14 +846,13 @@ Perfect simulated data only. Real-data work is parked under "Deferred".
 The hypothesis list has collapsed. H0, H1, H2a, H2b, H4, H5, H5b, H6 and H7 are
 now all closed or retired, and none of them was the bias. What survives:
 
-1. **Decompose edge conditioning, stratified by edge width.** The paired run is
-   biased: exact `t_i` gives +10 generations and the true edge interval gives
-   +364. Compare uniform versus denominator-weighted mutation-time measures,
-   exact sharing residuals, and matched edges differing in within-clade topology.
-   Do this on these same 100 simulations before adding another simulation suite —
-   and do it **within the T8 width strata, not pooled**. Pooling averages a
-   +1,922-generation effect at 30--100K-wide edges against a null one at
-   <10K, and will return something in between that belongs to neither.
+1. **Derive and test the observed-edge conditional.** T9 shows that mutation
+   placement is uniform and that independent loci retain the full bias. The next
+   target is `P(g_T | d0,t,E)`, where `E` is the observed child-parent edge, not a
+   new mutation-time weight. First measure exact sharing residuals against
+   `P(g_T | d0,t)` within matched `(d0,t,edge-width)` strata; then derive the
+   lineage-survival/coalescence term contributed by `E`. Full-tree topology may
+   be tested later, but T9 shows it is not needed to produce the failure.
 2. **Extend the re-measured baseline only if needed.** The old uniform baseline is
    +250 / +434 / +651 at Ne = 10K / 50K / 100K. The new exact-time result provides
    a much cleaner zero-bias reference. Widen the candidate-age grid before any
@@ -844,10 +879,10 @@ now all closed or retired, and none of them was the bias. What survives:
    In the old baseline, bias/RMSE is 0.52 at Ne=10,000, so ten replicates no
    longer resolve the bias cleanly there. More replicates, or larger regions,
    before drawing fine conclusions at small Ne.
-5. **H8 (composite-likelihood dependence) last, as before.** Test designs, carried
-   over from `bias_ideas.md`: thin sites by genetic distance and compare point
-   estimates; use one mutation per tree or per recombination block; compare
-   ordinary posterior intervals against block-bootstrap uncertainty.
+5. **Treat dependence only as a precision problem.** T9's one-independent-locus-
+   per-tree experiment rejects dependence as the source of point bias. Continue
+   to use block/bootstrap calibration for linked-data intervals, but do not expect
+   thinning or one-mutation-per-tree analyses to repair the edge MAP shift.
 
 **Retired without further work** (carried over from `bias_ideas.md`, which is now
 removed): the 20-generation T grid is far too fine to explain errors of hundreds

@@ -1,0 +1,14 @@
+{
+  "model": "independent SLiM loci; exact SLiM mutation time",
+  "epsilon": 0.0,
+  "counts": {
+    "examined": 10000,
+    "no_panel_polymorphic_lineage": 8757,
+    "ambiguous_focal_lineage": 0,
+    "invalid_edge": 0,
+    "nonfinite_frequency": 0,
+    "retained": 1243
+  },
+  "map_bias_estimated_minus_true": 32.857142857142854,
+  "all_true_ages_in_ci95": true
+}
