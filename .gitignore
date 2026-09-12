@@ -250,6 +250,14 @@ slim_single_site_output/
 slim_single_site_direct_age/chunks/
 slim_single_site_direct_age/logs/
 slim_single_site_direct_age/results/*.svg
+msprime_exact_time_ne50k/
+
+# Ne-sweep edge-width stratification (T10). Simulations are 5.6 GB and
+# regenerable from the recorded seeds; tables are rebuildable from the sbatch
+# arguments. The compact per-stratum summaries are force-added.
+edge_width_ne_sweep/simulations_ne*/
+edge_width_ne_sweep/tables/
+edge_width_ne_sweep/inference_ne*/
 
 # Real-data exploratory arrays; keep the small analysis scripts themselves.
 logan_try/**/calls/

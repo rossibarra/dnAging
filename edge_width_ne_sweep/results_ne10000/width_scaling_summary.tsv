@@ -1,0 +1,6 @@
+stratum	replicates	mean_sites_per_replicate	mean_width	mean_d0	bias_exact	bias_edge	paired_shift_edge_minus_exact	paired_shift_se	rmse_exact	rmse_edge
+0k-3k	100	3328	1538	2.604	-5.017	-26.52	-21.5	11.11	477.5	473.7
+3k-10k	100	4119	5962	4.735	21.48	79.98	58.5	17.67	189.9	297.4
+10k-30k	100	4246	1.824e+04	8.149	47.48	603.5	556	39.08	305.4	842.3
+30k-100k	100	2941	4.357e+04	10.17	34.98	1387	1352	110.5	630	2038
+all	100	1.463e+04	1.608e+04	6.333	11.48	187.5	176	16.96	183	344.9

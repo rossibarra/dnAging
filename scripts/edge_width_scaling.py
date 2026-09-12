@@ -46,7 +46,22 @@ from posterior_sample_age_infer import load_table, phi_lookup, summarize
 # Edge width in generations.  Chosen from the observed distribution at Ne=50K
 # (5th percentile 4.1K, median 50.3K, 95th 258K) so that every stratum is
 # populated and the narrowest is comparable to the ancient ages being estimated.
-WIDTH_EDGES = (0.0, 10_000.0, 30_000.0, 100_000.0, float("inf"))
+WIDTH_EDGES = (0.0, 3_000.0, 10_000.0, 30_000.0, 100_000.0, 300_000.0,
+               float("inf"))
+
+
+def set_width_edges(values):
+    """Override the strata so runs at different Ne share one set of bins.
+
+    Branch lengths scale with Ne, so a bin set tuned to one Ne leaves the others
+    piled into a single stratum; comparing across Ne needs overlapping bins that
+    span all three.
+    """
+    global WIDTH_EDGES
+    edges = tuple(sorted(float(v) for v in values))
+    if edges[0] != 0.0:
+        edges = (0.0,) + edges
+    WIDTH_EDGES = edges + (float("inf"),)
 
 
 def stratum_labels():
@@ -240,14 +255,20 @@ def build_parser():
     i.add_argument("--n-modern", type=int, default=26)
     i.add_argument("--epsilon", type=float, default=0.0)
     i.add_argument("--mutation-age-max-tau", type=float, default=3.0)
+    i.add_argument("--width-edges", type=float, nargs="+", default=None,
+                   help="edge-width stratum boundaries in generations; 0 and "
+                        "infinity are supplied automatically")
     i.set_defaults(func=infer)
     m = sub.add_parser("merge")
     m.add_argument("--input-dir", type=Path, required=True)
     m.add_argument("--output-dir", type=Path, required=True)
+    m.add_argument("--width-edges", type=float, nargs="+", default=None)
     m.set_defaults(func=merge)
     return p
 
 
 if __name__ == "__main__":
     args = build_parser().parse_args()
+    if getattr(args, "width_edges", None):
+        set_width_edges(args.width_edges)
     args.func(args)
