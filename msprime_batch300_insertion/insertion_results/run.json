@@ -1,0 +1,13 @@
+{
+  "n_replicates": 300,
+  "model": "direct ancient-lineage insertion conditional on modern tree",
+  "map_bias_estimated_minus_true": 12.94967262954867,
+  "map_mae": 804.8828381681349,
+  "map_rmse": 1189.2934825740117,
+  "mean_bias_estimated_minus_true": 5.161531687041752,
+  "map_regression_slope": 1.000648996247075,
+  "map_regression_intercept": 9.526292929993428,
+  "ci95_coverage_count": 139,
+  "ci95_coverage_fraction": 0.4633333333333333,
+  "total_sites_used": 9619738
+}

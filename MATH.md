@@ -4,6 +4,24 @@ This note derives, from first principles, the model implemented in this folder.
 Every symbol is defined in the glossary at the end; display equations are numbered
 for reference.
 
+## Roadmap: the three inference approaches
+
+All three approaches use the same observation model in section 2: at each SNP,
+the ancient genotype is Bernoulli (or binomial for a genuinely diploid call) with
+a success probability obtained after integrating an unobserved population
+frequency. They differ in **what is conditioned upon and how that probability is
+computed**:
+
+| approach | conditions on | integrates over | status |
+|---|---|---|---|
+| **1. Present-count diffusion** (sections 3--5) | present panel count $d_0$ and mutation age, or its edge interval | neutral frequency trajectories, then mutation position on the edge | production approach on `main`; exact-time control is calibrated, but uniform edge marginalisation has positive age bias |
+| **2. Tree-at-$T$ beta-binomial** (section 7) | number $k$ of mutation-descendant lineages among the $n_T$ modern ancestors alive at candidate age $T$ | frequency at $T$ and mutation position on the edge | independent comparison branch; useful diagnostic, but biased and less accurate than high-precision diffusion |
+| **3. Ancient-lineage insertion** (section 8) | the fixed modern tree and mutation-bearing edge | first coalescence point of an added ancient lineage and mutation position on the edge | current preferred direction; essentially unbiased in the 300-simulation benchmark |
+
+The known-frequency SLiM experiment is a **validation control**, not a fourth
+inference approach: it bypasses all three frequency constructions and tests only
+the shared genotype likelihood, posterior normalization and time coordinates.
+
 ---
 
 ## 1. Setup and goal
@@ -11,7 +29,7 @@ for reference.
 We have one ancestral recombination graph (ARG) inferred by SINGER (Deng, Nielsen
 & Song 2025) on **a panel of $n_{\text{sam}}$ haplotypes** (`--n-sample`; $n_{\text{sam}}=26$ in this
 analysis, and at a site $n$ is however many of them are *called* —
-[section 5](#5-exact-computation-via-the-neutral-moment-recursion)), summarised per site per
+[section 5](#5-approach-1-continued--exact-neutral-moment-computation)), summarised per site per
 posterior draw as a **SNP age interval store** of mutation-age intervals, built by
 the normalizeTEs pipeline (github.com/rossibarra/normalizeTEs). We have a set of
 **ancient samples** (in one multi-sample VCF) genotyped at SNPs that were
@@ -41,7 +59,7 @@ marginalised as a *mixture over draws* rather than site by site ([section 6](#6-
 At site $i$ the ancient sample contributes $c_i$ **called alleles**, of which $a_i$
 are the derived allele. Each called allele is a lineage drawn from the population
 at time $T$, derived with probability $X_i(T)$ = the **derived-allele population
-frequency** at time $T$ ([section 3](#3-what-we-compute-the-age-conditioned-expected-frequency)). Crucially $X_i(T)$ is a *random variable*: the
+frequency** at time $T$ ([section 3](#3-approach-1--present-count-diffusion-frequency)). Crucially $X_i(T)$ is a *random variable*: the
 trajectory is unobserved, and we know only its conditional law given the site's
 present count and mutation age. Adding a symmetric **per-allele** genotype-error
 probability $\varepsilon$ (aDNA damage and sequencing/genotyping error in the
@@ -72,7 +90,7 @@ $$
 
 Because (2) is *affine* in $X_i(T)$, this expectation needs only the first two
 conditional moments of the frequency, $\bar p_i(T)=\mathbb{E}[X_i(T)]$ and
-$\bar p^{(2)}_i(T)=\mathbb{E}[X_i(T)^2]$ ([section 3](#3-what-we-compute-the-age-conditioned-expected-frequency)):
+$\bar p^{(2)}_i(T)=\mathbb{E}[X_i(T)^2]$ ([section 3](#3-approach-1--present-count-diffusion-frequency)):
 
 $$
 \mathbb{E}[r_i] = \varepsilon + (1-2\varepsilon)\bar p_i,
@@ -113,7 +131,7 @@ derived-allele frequency at time $T$ — and, by (3a), only on its first two mom
 
 ---
 
-## 3. What we compute: the age-conditioned expected frequency
+## 3. Approach 1 — present-count diffusion frequency
 
 We use the derived-allele frequency **conditioned on the two things known robustly
 per site**: its present count in the panel, $d_0$, and its mutation age, $t_i$
@@ -130,7 +148,7 @@ $$
 
 where $X(\cdot)$ is the neutral population-frequency trajectory. The second moment
 is tabulated alongside the first (it costs one extra moment order,
-[section 5](#5-exact-computation-via-the-neutral-moment-recursion)) and is what
+[section 5](#5-approach-1-continued--exact-neutral-moment-computation)) and is what
 makes the diploid likelihood (A1) correct.
 
 The conditional law in (4) is a classical object: Griffiths (2003, eq. 27) gives
@@ -139,11 +157,11 @@ its count in a sample of $n$ genes — exactly the conditioning we use, with tha
 count being $d_0$. What we need is one step further: the frequency at an
 intermediate time $T$ rather than at the present, which we obtain from the same
 diffusion via its moments
-([section 5](#5-exact-computation-via-the-neutral-moment-recursion)).
+([section 5](#5-approach-1-continued--exact-neutral-moment-computation)).
 
 ---
 
-## 4. Time-varying $N_e$: the diffusion-time change
+## 4. Approach 1 continued — time-varying $N_e$
 
 The neutral diffusion has **no drift**: population size sets only the *rate* of
 drift, through the infinitesimal variance $X(1-X)/(2N_e(t))$ per generation.
@@ -170,7 +188,7 @@ and draw needs just $\tau_T=\tau(T)$ and $\tau_i=\tau(t_i)$.
 
 ---
 
-## 5. Exact computation via the neutral moment recursion
+## 5. Approach 1 continued — exact neutral-moment computation
 
 What we need are the **moments** of the frequency,
 $M_k(\tau) = \mathbb{E}[X(\tau)^k]$: the likelihood uses the first two
@@ -180,7 +198,7 @@ below uses them up to order $n$.
 These are reachable because, for a diffusion, the expected value of a smooth
 function $h$ of the frequency changes at a rate fixed by the process's *backward
 generator*. For the standard neutral diffusion of
-[section 4](#4-time-varying-n_e-the-diffusion-time-change) — no drift,
+[section 4](#4-approach-1-continued--time-varying-n_e) — no drift,
 infinitesimal variance $X(1-X)$ — that rate is
 $\mathbb{E}\bigl[\tfrac{1}{2}X(1-X)h''(X)\bigr]$ (Griffiths 2003, eq. 1;
 Ewens 2009 lecture notes, eq. 218; Kimura 1955).
@@ -532,9 +550,65 @@ skipped.
 
 ---
 
-## 7. Direct ancient-lineage insertion likelihood
+## 7. Approach 2 — tree-at-$T$ beta-binomial likelihood
 
-The diffusion likelihood above conditions on the present count and mutation
+This approach conditions on the marginal tree **at each candidate sample age
+$T$**, rather than conditioning on a present-day allele count. Suppose a mutation
+that arose $a$ generations before $T$ subtends $k$ of the $n_T$ modern-tree
+lineages extant at $T$. Given population frequency $X(T)=x$, exchangeability gives
+
+$$
+P(k\mid n_T,x)={n_T\choose k}x^k(1-x)^{n_T-k}. \tag{12a}
+$$
+
+Let $M_j(\tau_a)=\mathbb E[X(T)^j]$ be the neutral mutation-age moments. After
+expanding $(1-x)^{n_T-k}$, define
+
+$$
+\begin{aligned}
+\operatorname{num}(k,n_T,a)
+ &=\sum_{j=0}^{n_T-k}{n_T-k\choose j}(-1)^jM_{k+1+j}(\tau_a),\\
+\operatorname{den}(k,n_T,a)
+ &=\sum_{j=0}^{n_T-k}{n_T-k\choose j}(-1)^jM_{k+j}(\tau_a).
+\end{aligned}\tag{12b}
+$$
+
+The expected frequency conditional on that tree count is
+
+$$
+\varphi(k,n_T,a)=\mathbb E[X(T)\mid k,n_T,a]
+=\frac{\operatorname{num}(k,n_T,a)}
+       {\operatorname{den}(k,n_T,a)}. \tag{12c}
+$$
+
+For an edge with child and parent times $t_c,t_p$, only mutation placements older
+than $T$ can be carried. With $L=\max(T,t_c)$ and
+$w=(t_p-L)/(t_p-t_c)$, the implemented edge marginal is
+
+$$
+p_i(T)=w\,
+\frac{\int_L^{t_p}\operatorname{num}(k,n_T,t-T)\,dt}
+     {\int_L^{t_p}\operatorname{den}(k,n_T,t-T)\,dt}. \tag{12d}
+$$
+
+Thus this is a ratio of age-integrated numerator and denominator terms. For an
+edge entirely younger than $T$, $p_i(T)=0$; on a straddling edge, $k=1$. At large
+mutation age, (12c) approaches the polarised beta-binomial posterior mean
+$k/(n_T+1)$, from $X\mid k\sim\operatorname{Beta}(k,n_T-k+1)$. The full
+age-dependent calculation uses the moments rather than that limiting formula.
+
+This branch shares the observation likelihood in equations (2)--(3), but not the
+present-count conditioning or two-time diffusion bridge of approach 1. On the
+300-simulation benchmark its uncalibrated MAP bias was +1,573 generations and
+RMSE 2,289; after leave-one-out calibration in diffusion time its bias was +114
+and RMSE 1,407. It remains useful as an independently conditioned diagnostic, but
+is not the recommended production estimator.
+
+---
+
+## 8. Approach 3 — direct ancient-lineage insertion likelihood
+
+The diffusion likelihood in approach 1 conditions on the present count and mutation
 time. T9 shows that it is calibrated when mutation time is exact but biased when
 that time is integrated over its true ARG edge, even with one independent locus
 per tree. Mutation placement itself is uniform on the correct edge. The
@@ -632,6 +706,18 @@ more informative. Nominal 95% coverage is only 0.49 for insertion (0.44 for edge
 diffusion and 0.68 even with exact times), confirming that conditioning the mean
 correctly does not fix composite-likelihood overprecision from linked sites.
 
+A broader 300-replicate benchmark varied constant $N_e$ from 10,000--100,000,
+mutation rate from $10^{-9}$--$10^{-8}$, recombination rate from $0.5\mu$--$2\mu$,
+the modern haploid panel from 10--40, and true sample age from 100--10,000
+generations. Insertion used neither the true sample age, true mutation age nor
+true historical allele frequency; it used the true modern ARG, true $N_e$, the
+mutation-bearing edge, ancient haploid genotypes and $\varepsilon=0$. Across
+9,619,738 sites it gave MAP bias **+12.9 generations**, posterior-mean bias +5.2,
+slope 1.001, intercept +9.5, MAE 805 and RMSE 1,189. This removes the systematic
+point bias across the benchmark's parameter range. However, only 139/300 true
+ages (46.3%) lay in nominal 95% credible intervals, again showing that the linked
+composite likelihood is substantially overconfident.
+
 The current implementation assumes a haploid ancient observation, a fixed true
 modern tree and constant diploid $N_e$. Piecewise $N_e(t)$, ARG-draw mixtures,
 diploid observations, production caching and block-calibrated uncertainty remain
@@ -639,7 +725,7 @@ future work.
 
 ---
 
-## 8. Assumptions and caveats
+## 9. Assumptions and caveats
 
 1. **Neutrality.** Eq. (4) is the *neutral* trajectory — right for the vast
    majority of sites; strongly selected sites are not neutral. Guard with an
@@ -661,7 +747,7 @@ future work.
    or more alleles drawn from the same latent frequency would need moments of $X$ up
    to that order; the table carries only the first two.
 7. **Panel missingness is allele-blind**, hence ignorable given the called count
-   ([section 5](#5-exact-computation-via-the-neutral-moment-recursion)). Eq. (7) treats the $n$ called panel haplotypes as a binomial sample of the
+   ([section 5](#5-approach-1-continued--exact-neutral-moment-computation)). Eq. (7) treats the $n$ called panel haplotypes as a binomial sample of the
    population, i.e. as an allele-blind subset of the $n_{\text{sam}}$: choosing the moment plane
    for the site's exact $n$ makes the sampling distribution right for that $n$, but
    it conditions on *how many* haplotypes were called, not on *which*.
@@ -755,7 +841,7 @@ since young, rare-in-discovery alleles are under-ascertained.
 | $T$ | age of the ancient sample, generations before present (inferred) |
 | $t_i$ | age of the mutation at site $i$ (interval $[\text{below},\text{above}]$ per draw, from the store) |
 | $n_{\text{sam}}$ | number of haplotypes in the ARG panel (`--n-sample`; $n_{\text{sam}}=26$ here) |
-| $n$ | number of ARG-panel haplotypes **called at the site** (`--min-n` $\le n\le n_{\text{sam}}$; equal to $n_{\text{sam}}$ only where the panel is fully called — [section 5](#5-exact-computation-via-the-neutral-moment-recursion)) |
+| $n$ | number of ARG-panel haplotypes **called at the site** (`--min-n` $\le n\le n_{\text{sam}}$; equal to $n_{\text{sam}}$ only where the panel is fully called — [section 5](#5-approach-1-continued--exact-neutral-moment-computation)) |
 | $C$ | number of chromosomes (independent given $T$) |
 | $d_0$ | present count of the derived allele among the $n$ *called* panel haplotypes |
 | $c_{\text{alt}}$ | present count of the ALT allele among the $n$ *called* panel haplotypes (from the panel VCF) |

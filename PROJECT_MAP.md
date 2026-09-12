@@ -111,8 +111,12 @@ T9 establishes the current development boundary: exact mutation-time diffusion
 is calibrated, mutation positions are uniform within correctly assigned edges,
 and true-edge marginalisation is biased even across independent loci. The
 preferred replacement is a direct ancient-lineage insertion likelihood
-conditioned on the modern tree. Develop it on branch `insertion`, using the T9
-independent SLiM trees as the first test and the linked msprime suite as the
-second. Alternatives, in order, are an analytic edge-conditioned diffusion,
+conditioned on the modern tree. This is now point-calibrated on both the
+100-replicate fixed-parameter suite and a 300-replicate benchmark varying Ne,
+mutation and recombination rates, panel size and sample age. The latter has MAP
+bias +12.9 generations and slope 1.001 without supplying true mutation ages or
+frequencies. Its nominal 95% coverage is only 46.3%, so linked
+composite-likelihood interval calibration remains open. Alternatives, in order,
+are an analytic edge-conditioned diffusion,
 simulation-calibrated edge tables, and a non-production empirical MAP
 correction. See `working_diffusion.md` for the modelling tradeoffs.

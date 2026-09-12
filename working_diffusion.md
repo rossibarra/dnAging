@@ -875,6 +875,18 @@ Ranked by scientific value rather than implementation convenience.
    it removes the sustained edge bias on 100 independent true ARGs. Nominal 95%
    coverage remains only 0.49 (edge 0.44; exact time 0.68), so linked-site
    composite-likelihood overprecision remains and still needs block calibration.
+
+   **The broader 300-replicate benchmark resolves the point-bias question.** It
+   varies constant Ne from 10K--100K, mutation rate from 1e-9--1e-8,
+   recombination from 0.5--2 times the mutation rate, the modern haploid panel
+   from 10--40, and true sample age from 100--10,000 generations. Insertion uses
+   the true modern ARG and true Ne, but does **not** use the true sample age,
+   mutation age, or historical allele frequency. Across 9,619,738 sites, MAP
+   bias is **+12.9 generations**, posterior-mean bias +5.2, slope 1.001,
+   intercept +9.5, MAE 805 and RMSE 1,189. Direct ancient-lineage insertion
+   therefore solves the systematic edge-marginalisation bias over this parameter
+   range. Nominal 95% coverage is still only 139/300 (46.3%): interval
+   calibration remains a separate linked composite-likelihood problem.
 2. **Edge-conditioned diffusion.** Replace `P(g_T | d0,t)` with
    `P(g_T | d0,t,E)`, incorporating the focal lineage's observed
    survival/coalescence event. A killed-diffusion or Feynman--Kac weighting is a
