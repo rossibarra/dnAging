@@ -127,8 +127,10 @@ As of 2026-09-12, `insertion` is the integration branch to fast-forward into
 `main`. The beta-binomial branch is an archived, tagged methodological reference;
 do not merge its exploratory directory wholesale. Preserve
 `posterior_sample_age_infer.py` as the production entry point and keep its current
-default unchanged until insertion supports variable `Ne(t)`, consumes the
-production SNP/ARG store or equivalent full trees, handles posterior ARG draws
+default unchanged until insertion consumes the production SNP/ARG store or
+equivalent full trees, handles posterior ARG draws
 and chromosomes, and passes an end-to-end real-data-shaped simulation. Point
 bias is resolved by insertion; linked composite-likelihood interval calibration
-is still an independent open requirement.
+is still an independent open requirement. Piecewise-variable `Ne(t)` and
+nonzero epsilon are now implemented and point-calibrated on 1,000 simulated
+ancient samples (bias +7.7 generations; MAE 484; 95% coverage 45.6%).

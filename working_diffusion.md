@@ -980,6 +980,32 @@ Ranked by scientific value rather than implementation convenience.
    therefore solves the systematic edge-marginalisation bias over this parameter
    range. Nominal 95% coverage is still only 139/300 (46.3%): interval
    calibration remains a separate linked composite-likelihood problem.
+
+   **Variable-Ne plus nonzero-error calibration is complete.** One hundred
+   independent 10 Mb ARGs each use a ten-epoch piecewise-constant history; each
+   ARG supplies ten ancient haploids, for 1,000 estimates. Ancient calls were
+   flipped at epsilon = 0.01 and inference used that same value. MAP bias is
+   **+7.7 generations**, MAE 484 and RMSE 699, so variable demography and error
+   do not restore systematic point bias. Nominal 95% coverage remains 45.6%.
+   Mean MAE across ascending minimum-Ne quartiles is 540/476/433/488 generations
+   (non-monotone); across ascending time-weighted SD(log Ne) quartiles it is
+   446/498/461/531. A joint standardized regression controlling for true age
+   assigns +33 generations of absolute error per SD of log-Ne variation and +18
+   per SD of log minimum Ne. These are descriptive: ten samples share each ARG,
+   so significance requires replicate-clustered uncertainty.
+
+   **Variable-Ne plus nonzero-error calibration is complete.** One hundred
+   independent 10 Mb ARGs each use a ten-epoch piecewise-constant history; each
+   ARG supplies ten ancient haploids, for 1,000 estimates. Ancient calls were
+   flipped at epsilon = 0.01 and inference used that same value. MAP bias is
+   **+7.7 generations**, MAE 484 and RMSE 699, so variable demography and error
+   do not restore systematic point bias. Nominal 95% coverage remains 45.6%.
+   Mean MAE across ascending minimum-Ne quartiles is 540/476/433/488 generations
+   (non-monotone); across ascending time-weighted SD(log Ne) quartiles it is
+   446/498/461/531. A joint standardized regression controlling for true age
+   assigns +33 generations of absolute error per SD of log-Ne variation and +18
+   per SD of log minimum Ne. These are descriptive: ten samples share each ARG,
+   so significance requires replicate-clustered uncertainty.
 2. **Edge-conditioned diffusion.** Replace `P(g_T | d0,t)` with
    `P(g_T | d0,t,E)`, incorporating the focal lineage's observed
    survival/coalescence event. A killed-diffusion or Feynman--Kac weighting is a

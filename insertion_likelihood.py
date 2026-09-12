@@ -10,8 +10,89 @@ coalescence before mutation time is into ancestry below the mutation edge.
 
 from __future__ import annotations
 
+import csv
+from dataclasses import dataclass
+from pathlib import Path
+
 import numpy as np
 import tskit
+
+
+@dataclass(frozen=True)
+class PiecewiseConstantNe:
+    """Diploid effective size on contiguous half-open generation intervals."""
+
+    left: np.ndarray
+    right: np.ndarray
+    size: np.ndarray
+
+    @classmethod
+    def from_tsv(cls, path, series=None, extend_last=False):
+        with Path(path).open() as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        if series is not None:
+            rows = [r for r in rows if r.get("series") == series]
+        if not rows:
+            raise ValueError(f"no demographic epochs in {path}")
+        right = np.asarray([float(r["time_right"]) for r in rows])
+        if extend_last:
+            right[-1] = np.inf
+        obj = cls(np.asarray([float(r["time_left"]) for r in rows]), right,
+                  np.asarray([float(r["effective_population_size"]) for r in rows]))
+        obj.validate()
+        return obj
+
+    def validate(self):
+        if not (len(self.left) == len(self.right) == len(self.size)):
+            raise ValueError("demographic epoch arrays differ in length")
+        if self.left[0] != 0 or np.any(self.right <= self.left):
+            raise ValueError("demographic epochs must start at zero and have positive width")
+        if np.any(~np.isfinite(self.left)) or np.any(~np.isfinite(self.right[:-1])):
+            raise ValueError("only the final demographic boundary may be infinite")
+        if np.any(~np.isfinite(self.size)) or np.any(self.size <= 0):
+            raise ValueError("effective population sizes must be finite and positive")
+        if len(self.left) > 1 and not np.allclose(self.left[1:], self.right[:-1]):
+            raise ValueError("demographic epochs must be contiguous")
+
+    def at(self, times):
+        times = np.asarray(times, dtype=float)
+        index = np.searchsorted(self.right, times, side="right")
+        if np.any(index >= len(self.size)):
+            raise ValueError("demography does not cover all requested times")
+        return self.size[index]
+
+    def internal_breaks(self, lower, upper):
+        return self.right[(self.right > lower) & (self.right < upper)]
+
+    def tau(self, time):
+        total = 0.0
+        for left, right, size in zip(self.left, self.right, self.size):
+            width = max(0.0, min(float(time), right) - left)
+            total += width / (2.0 * size)
+            if time <= right:
+                return total
+        raise ValueError("demography does not cover requested time")
+
+    def time_at_tau(self, target):
+        remaining = float(target)
+        for left, right, size in zip(self.left, self.right, self.size):
+            capacity = (right - left) / (2.0 * size)
+            if remaining <= capacity:
+                return float(left + remaining * 2.0 * size)
+            remaining -= capacity
+        raise ValueError("demography does not extend to requested diffusion time")
+
+
+def _as_demography(ne, maximum):
+    if isinstance(ne, PiecewiseConstantNe):
+        ne.validate()
+        ne.at([maximum])
+        return ne
+    value = float(ne)
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError("Ne must be finite and positive")
+    return PiecewiseConstantNe(np.array([0.0]), np.array([max(maximum, 1.0) + 1.0]),
+                               np.array([value]))
 
 
 def _lineage_intervals(tree: tskit.Tree, focal_node: int):
@@ -42,8 +123,7 @@ def derived_probability_exact_time(
     """
     T = float(sample_time)
     m = float(mutation_time)
-    ne = float(ne)
-    if not np.isfinite([T, m, ne]).all() or T < 0 or m < 0 or ne <= 0:
+    if not np.isfinite([T, m]).all() or T < 0 or m < 0:
         raise ValueError("sample time, mutation time and Ne must be finite and valid")
     if T >= m:
         return 0.0
@@ -51,7 +131,9 @@ def derived_probability_exact_time(
         raise ValueError("focal_node must identify a node in the tree")
 
     intervals = _lineage_intervals(tree, focal_node)
+    demography = _as_demography(ne, m)
     knots = {T, m}
+    knots.update(demography.internal_breaks(T, m))
     for lower, upper, _ in intervals:
         if T < lower < m:
             knots.add(lower)
@@ -71,7 +153,8 @@ def derived_probability_exact_time(
                 f"modern tree has no ancestral lineage at time {midpoint:g}"
             )
         d = sum(derived for _, _, derived in active)
-        interval_hazard = k * (upper - lower) / (2.0 * ne)
+        local_ne = float(demography.at([midpoint])[0])
+        interval_hazard = k * (upper - lower) / (2.0 * local_ne)
         coalescence_probability = -np.expm1(-interval_hazard)
         probability += survival * (d / k) * coalescence_probability
         survival *= np.exp(-interval_hazard)
@@ -117,10 +200,8 @@ def _cumulative_insertion_functions(
     times = np.asarray(times, dtype=float)
     if np.any(times < 0) or not np.all(np.isfinite(times)):
         raise ValueError("evaluation times must be finite and nonnegative")
-    ne = float(ne)
-    if not np.isfinite(ne) or ne <= 0:
-        raise ValueError("Ne must be finite and positive")
     maximum = float(np.max(times)) if times.size else 0.0
+    demography = _as_demography(ne, maximum)
     intervals = _lineage_intervals(tree, focal_node)
     knots = {0.0, maximum}
     for lower, upper, _ in intervals:
@@ -128,6 +209,7 @@ def _cumulative_insertion_functions(
             knots.add(lower)
         if 0 < upper < maximum:
             knots.add(upper)
+    knots.update(demography.internal_breaks(0, maximum))
     knots = np.asarray(sorted(knots), dtype=float)
     if len(knots) == 1:
         zeros = np.zeros_like(times)
@@ -146,7 +228,8 @@ def _cumulative_insertion_functions(
         d_values.append(sum(derived for _, _, derived in active))
     k_values = np.asarray(k_values, dtype=float)
     d_values = np.asarray(d_values, dtype=float)
-    rates = k_values / (2.0 * ne)
+    ne_values = demography.at(0.5 * (starts + stops))
+    rates = k_values / (2.0 * ne_values)
 
     K_start = np.zeros(len(starts))
     B_start = np.zeros(len(starts))

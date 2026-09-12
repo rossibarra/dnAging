@@ -687,6 +687,10 @@ $$
 
 `insertion_likelihood.py` evaluates $K,B,C$ analytically across the piecewise
 tree intervals. Analytic two-tip cases agree with high-order quadrature.
+For piecewise-constant $N_e(t)$ it also splits intervals at every demographic
+boundary and substitutes the local $N_e$ in the total and focal coalescence
+hazards. Equations (13)--(15) therefore cover variable demography directly;
+equations (16)--(17) remain analytic with piecewise-varying rates.
 
 **Current evidence and limitations.** On 1,233 independent T9 loci satisfying
 $d_0=$ focal-edge descendant count, insertion reduces mean MAP bias from +376 to
@@ -718,10 +722,19 @@ point bias across the benchmark's parameter range. However, only 139/300 true
 ages (46.3%) lay in nominal 95% credible intervals, again showing that the linked
 composite likelihood is substantially overconfident.
 
-The current implementation assumes a haploid ancient observation, a fixed true
-modern tree and constant diploid $N_e$. Piecewise $N_e(t)$, ARG-draw mixtures,
-diploid observations, production caching and block-calibrated uncertainty remain
-future work.
+The next test used 100 independent ARGs, ten ancient haploids per ARG, ten
+piecewise-constant $N_e$ epochs per replicate, and symmetric ancient-call error
+$\varepsilon=0.01$. Across 1,000 estimates, MAP bias was **+7.7 generations**,
+MAE 484 and RMSE 699; nominal 95% coverage was 45.6%. Thus variable demography
+and nonzero error preserve point calibration but not interval calibration. The
+most variable demographic quartile had MAE 531 versus 446 in the least variable
+quartile, while minimum-$N_e$ quartiles were non-monotone. Because ten ages share
+each ARG, these demographic associations need replicate-clustered uncertainty.
+
+The current implementation assumes a haploid ancient observation and a fixed
+true modern tree. Piecewise $N_e(t)$ and symmetric error are implemented;
+production-store reading, ARG-draw mixtures, diploid observations, production
+caching and block-calibrated uncertainty remain future work.
 
 ---
 
