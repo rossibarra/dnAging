@@ -856,6 +856,19 @@ Ranked by scientific value rather than implementation convenience.
    support piecewise `Ne(t)` through the time-dependent coalescence hazard. First
    validate at constant Ne on T9, then on the linked msprime suite; optimize and
    add variable Ne only after both calibrate.
+
+   **Initial `insertion` prototype.** The constant-Ne fixed-tree kernel now
+   integrates the inserted lineage's first-coalescence hazard analytically and
+   then averages mutation time uniformly over the true edge. Analytic toy-tree
+   tests agree with high-order quadrature. On the 1,233 T9 loci satisfying the
+   infinite-sites identity `d0 = edge descendant count`, MAP bias falls from
+   +376 to **+184 generations**, RMSE from 522 to **458**, and all seven true
+   ages enter their nominal 95% intervals. This is improvement, not validation:
+   exact mutation time remains much better (+33 bias, RMSE 128), the seven age
+   estimates share loci, and the 6,000-generation estimate remains close to the
+   7,000 grid ceiling. Next test the insertion likelihood across the 100 linked
+   msprime replicates, which provide a distribution of 100 point errors rather
+   than one seven-point calibration curve.
 2. **Edge-conditioned diffusion.** Replace `P(g_T | d0,t)` with
    `P(g_T | d0,t,E)`, incorporating the focal lineage's observed
    survival/coalescence event. A killed-diffusion or Feynman--Kac weighting is a

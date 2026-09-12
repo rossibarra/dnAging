@@ -4,6 +4,7 @@ import tskit
 from insertion_likelihood import (
     derived_probability_exact_time,
     derived_probability_uniform_edge,
+    derived_probability_uniform_edge_grid,
 )
 
 
@@ -52,3 +53,19 @@ def test_uniform_edge_respects_mutation_existence_boundary():
         tree, focal, sample_time=8, edge_lower=0, edge_upper=10, ne=100
     )
     assert 0 < probability < 0.01
+
+
+def test_vectorized_uniform_edge_matches_quadrature():
+    tree, focal = two_tip_tree()
+    sample_times = np.array([0.0, 1.5, 5.0, 8.0, 10.0, 12.0])
+    observed = derived_probability_uniform_edge_grid(
+        tree, focal, sample_times, edge_lower=0, edge_upper=10, ne=100
+    )
+    expected = np.array([
+        derived_probability_uniform_edge(
+            tree, focal, t, edge_lower=0, edge_upper=10, ne=100,
+            quadrature_order=128,
+        )
+        for t in sample_times
+    ])
+    assert np.allclose(observed, expected, atol=2e-6)

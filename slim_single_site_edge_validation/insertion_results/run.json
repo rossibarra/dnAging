@@ -1,0 +1,12 @@
+{
+  "model": "direct ancient-lineage insertion conditional on modern tree",
+  "ne": 10000,
+  "epsilon": 0.0,
+  "counts": {
+    "examined": 1243,
+    "edge_count_mismatch": 10,
+    "used": 1233
+  },
+  "map_bias_estimated_minus_true": 184.28571428571428,
+  "all_true_ages_in_ci95": true
+}
