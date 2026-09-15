@@ -419,7 +419,7 @@ ancestral base from the polarity table,
 $$
 \varphi_{\text{alt}}^{(g)}(T) =
 \begin{cases}
-\bar p(T \mid d_0=c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived in draw }g,\cr
+\bar p(T \mid d_0=c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived in draw }g,\\
 1 - \bar p(T \mid d_0=n-c_{\text{alt}}, t_i^{(g)}), & \text{ALT ancestral in draw }g,
 \end{cases}
 \tag{10}
@@ -583,10 +583,10 @@ $$
 
 For an edge with child and parent times $t_c,t_p$, only mutation placements older
 than $T$ can be carried. With $L=\max(T,t_c)$ and
-$w=(t_p-L)/(t_p-t_c)$, the implemented edge marginal is
+$\omega=(t_p-L)/(t_p-t_c)$, the implemented edge marginal is
 
 $$
-p_i(T)=w\,
+p_i(T)=\omega\,
 \frac{\int_L^{t_p}\operatorname{num}(k,n_T,t-T)\,dt}
      {\int_L^{t_p}\operatorname{den}(k,n_T,t-T)\,dt}. \tag{12d}
 $$
@@ -617,11 +617,11 @@ modern tree and integrate where an additional ancient lineage first coalesces
 into it.
 
 Let $E_i=(v_i,w_i)$ be the directed mutation-bearing edge, with child $v_i$ and
-parent $w_i$, and let its time interval be $[b_i,a_i)$, where
-$b_i=t(v_i)<a_i=t(w_i)$. For time $u$ backwards from the present, define
+parent $w_i$, and let its time interval be $[t_{c,i},t_{p,i})$, where
+$t_{c,i}=t(v_i)<t_{p,i}=t(w_i)$. For time $u$ backwards from the present, define
 
-- $k(u)$ as the total number of modern-tree ancestral lineages extant at $u$;
-- $d_i(u)$ as the number of those lineages descended from $v_i$.
+- $\kappa(u)$ as the total number of modern-tree ancestral lineages extant at $u$;
+- $\delta_i(u)$ as the number of those lineages descended from $v_i$.
 
 For diploid effective size $N_e(u)$, a newly inserted lineage coalesces with each
 extant lineage at rate $1/(2N_e(u))$. Conditional on surviving without a
@@ -629,34 +629,34 @@ coalescence from ancient sampling time $T$ to time $u$, its survival probability
 is
 
 $$
-S_T(u)=\exp\left\{-\int_T^u \frac{k(s)}{2N_e(s)}\,ds\right\}.
+S_T(u)=\exp\left\{-\int_T^u \frac{\kappa(s)}{2N_e(s)}\,ds\right\}.
 \tag{13}
 $$
 
-If the mutation occurred at exact time $m_i$, the ancient haplotype is derived
-only when $T<m_i$ and its first coalescence before $m_i$ is into one of the
-$d_i(u)$ focal-descendant lineages. Thus
+If the mutation occurred at exact time $z_i$, the ancient haplotype is derived
+only when $T<z_i$ and its first coalescence before $z_i$ is into one of the
+$\delta_i(u)$ focal-descendant lineages. Thus
 
 $$
-q_i(T\mid m_i,E_i,\mathcal T)=
-\mathbf 1\{T<m_i\}
-\int_T^{m_i} S_T(u)\frac{d_i(u)}{2N_e(u)}\,du,
+q_i(T\mid z_i,E_i,\mathcal T)=
+\mathbf 1\{T<z_i\}
+\int_T^{z_i} S_T(u)\frac{\delta_i(u)}{2N_e(u)}\,du,
 \tag{14}
 $$
 
 where $\mathcal T$ is the observed modern tree. A first coalescence into any of
-the other $k(u)-d_i(u)$ lineages makes the ancient allele ancestral; survival
-past $m_i$ also makes it ancestral because the ancient lineage then lies above
+the other $\kappa(u)-\delta_i(u)$ lineages makes the ancient allele ancestral; survival
+past $z_i$ also makes it ancestral because the ancient lineage then lies above
 the mutation event.
 
-Under the infinite-sites mutation model, T9 empirically confirms that $m_i$ is
+Under the infinite-sites mutation model, T9 empirically confirms that $z_i$ is
 uniform on its assigned edge. The edge-marginal insertion probability is
 therefore
 
 $$
 q_i(T\mid E_i,\mathcal T)=
-\frac{1}{a_i-b_i}\int_{b_i}^{a_i}
-q_i(T\mid m,E_i,\mathcal T)\,dm.
+\frac{1}{t_{p,i}-t_{c,i}}\int_{t_{c,i}}^{t_{p,i}}
+q_i(T\mid z,E_i,\mathcal T)\,dz.
 \tag{15}
 $$
 
@@ -665,27 +665,27 @@ $\bar p_i(T)$ by $q_i(T\mid E_i,\mathcal T)$ in eq. (2), and use the Bernoulli
 site likelihood in eq. (3a). The prototype currently uses $\varepsilon=0$.
 
 **Efficient constant-$N_e$ evaluation.** Between modern-tree node times, both
-$k(u)$ and $d_i(u)$ are constant. Define
+$\kappa(u)$ and $\delta_i(u)$ are constant. Define
 
 $$
-K(x)=\int_0^x\frac{k(u)}{2N_e}\,du,\qquad
-B(x)=\int_0^x e^{-K(u)}\frac{d_i(u)}{2N_e}\,du,\qquad
-C(x)=\int_0^x B(u)\,du.
+\Lambda(x)=\int_0^x\frac{\kappa(u)}{2N_e}\,du,\qquad
+\Psi(x)=\int_0^x e^{-\Lambda(u)}\frac{\delta_i(u)}{2N_e}\,du,\qquad
+\Theta(x)=\int_0^x\Psi(u)\,du.
 \tag{16}
 $$
 
-Then eq. (14) is $e^{K(T)}[B(m_i)-B(T)]$ for $T<m_i$, and with
-$L=\max(T,b_i)$, eq. (15) becomes
+Then eq. (14) is $e^{\Lambda(T)}[\Psi(z_i)-\Psi(T)]$ for $T<z_i$, and with
+$L=\max(T,t_{c,i})$, eq. (15) becomes
 
 $$
 q_i(T\mid E_i,\mathcal T)=
-\frac{e^{K(T)}}{a_i-b_i}
-\left[C(a_i)-C(L)-(a_i-L)B(T)\right]
-\mathbf 1\{L<a_i\}.
+\frac{e^{\Lambda(T)}}{t_{p,i}-t_{c,i}}
+\left[\Theta(t_{p,i})-\Theta(L)-(t_{p,i}-L)\Psi(T)\right]
+\mathbf 1\{L<t_{p,i}\}.
 \tag{17}
 $$
 
-`insertion_likelihood.py` evaluates $K,B,C$ analytically across the piecewise
+`insertion_likelihood.py` evaluates $\Lambda,\Psi,\Theta$ analytically across the piecewise
 tree intervals. Analytic two-tip cases agree with high-order quadrature.
 For piecewise-constant $N_e(t)$ it also splits intervals at every demographic
 boundary and substitutes the local $N_e$ in the total and focal coalescence
@@ -807,7 +807,7 @@ $\mathbb{E}[(1-X)^2] = 1-2\mathbb{E}[X]+\mathbb{E}[X^2]$:
 $$
 \varphi^{(2,g)}_{\text{alt}}(T) =
 \begin{cases}
-\bar p^{(2)}(T \mid c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived},\cr
+\bar p^{(2)}(T \mid c_{\text{alt}}, t_i^{(g)}), & \text{ALT derived},\\
 1 - 2\bar p(T \mid n-c_{\text{alt}}, t_i^{(g)}) +
   \bar p^{(2)}(T \mid n-c_{\text{alt}}, t_i^{(g)}), & \text{ALT ancestral}.
 \end{cases}
@@ -878,6 +878,15 @@ since young, rare-in-discovery alleles are under-ascertained.
 | $\ell^{(g)}_i(T)$ | per-site likelihood in draw $g$ — (3) with draw $g$'s moments (eq. 11) |
 | $\mathcal L_c(T)$ | within-chromosome likelihood: draw mixture of site products (eq. 11, 12) |
 | $g,G$ | ARG posterior draw index and number of draws |
+| $E_i=(v_i,w_i)$ | mutation-bearing edge at site $i$: child node $v_i$, parent node $w_i$ (section 8) |
+| $t_{c,i},t_{p,i}$ | times of that edge's child and parent, $t_{c,i}<t_{p,i}$ (section 8) |
+| $z_i$ | exact mutation time on the edge, uniform on $[t_{c,i},t_{p,i})$ (section 8) — distinct from the mutation *rate* $\mu$ |
+| $\kappa(u)$ | number of modern-tree ancestral lineages extant at time $u$ (section 8) |
+| $\delta_i(u)$ | how many of those descend from $v_i$ (section 8) |
+| $S_T(u)$ | survival of the inserted ancient lineage from $T$ to $u$ without coalescing (eq. 13) |
+| $\Lambda,\Psi,\Theta$ | cumulative coalescence hazard and its two running integrals (eq. 16) — not the moment map $K$, generator $B$ or chromosome count $C$ |
+| $q_i(T\mid E_i,\mathcal T)$ | insertion probability that the ancient lineage carries the derived allele (eq. 15) |
+| $\omega$ | straddling-edge weight in the beta-binomial approach (eq. 12d) |
 
 ---
 
