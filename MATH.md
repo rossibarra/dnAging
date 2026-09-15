@@ -738,27 +738,28 @@ chromosome draws into a single genome-wide posterior draw.
 gives a Bayesian posterior conditional on the observed linked sites and the ARG
 posterior. Its quantiles are reported as nominal posterior credible intervals, but
 they can be too narrow because the site product does not model LD. The implemented
-bootstrap therefore also partitions chromosome $c$ into $B_c$ non-overlapping
+bootstrap therefore also partitions chromosome $c$ into $N^{\mathrm{blk}}_c$ non-overlapping
 physical blocks and retains each block's per-draw log-likelihood,
 
 $$
-\lambda_{cb}^{(g)}(T)=
+L_{cb}^{(g)}(T)=
 \sum_{i\in\mathcal I_{cb}}\log\ell_{ic}^{(g)}(T),
-\qquad b=1,\ldots,B_c .
+\qquad b=1,\ldots,N^{\mathrm{blk}}_c .
 \tag{20}
 $$
 
-For bootstrap replicate $r$, the $B_c$ blocks are sampled with replacement
-*within chromosome*; $W_{cb}^{(r)}$ is the resulting multiplicity of block $b$.
+In each of $R$ bootstrap resamples, the $N^{\mathrm{blk}}_c$ blocks are sampled with replacement
+*within chromosome*; $\nu_{cb}^{\ast}$ is the resulting multiplicity of block $b$,
+a star marking any quantity recomputed on a resample.
 The complete ARG mixture is recomputed after resampling:
 
 $$
-\log\mathcal L^{(r)}(T)=
+\log\mathcal L^{\ast}(T)=
 \sum_{c=1}^{C}
 \left[
 \operatorname{logsumexp}_{g}
-\left\{\sum_{b=1}^{B_c}W_{cb}^{(r)}
-\lambda_{cb}^{(g)}(T)\right\}
+\left\{\sum_{b=1}^{N^{\mathrm{blk}}_c}\nu_{cb}^{\ast}
+L_{cb}^{(g)}(T)\right\}
 -\log G_c
 \right].
 \tag{21}
@@ -769,19 +770,27 @@ than bootstrapped. Resampling separately within each chromosome preserves every
 chromosome's contribution in every replicate. The bootstrap point estimate is
 
 $$
-\widehat T^{(r)}_{\mathrm{MAP}}=
-\underset{T}{\operatorname{argmax}}\ \log\mathcal L^{(r)}(T),
+\widehat T^{\ast}_{\mathrm{MAP}}=
+\underset{T}{\operatorname{argmax}}\ \log\mathcal L^{\ast}(T),
 \tag{22}
 $$
 
 and the 2.5th and 97.5th percentiles of
-$\{\widehat T^{(r)}_{\mathrm{MAP}}\}$ form the reported block-bootstrap interval.
+the $R$ values $\widehat T^{\ast}_{\mathrm{MAP}}$ form the reported
+block-bootstrap interval.
 This is a frequentist sampling interval for the MAP estimator, not a second
 posterior credible interval. The current three-chromosome validation uses 5 Mb
-blocks: ten blocks per 50 Mb chromosome, 30 blocks total, and 1,000 bootstrap
-replicates with a recorded random seed. Its validity relies on 5 Mb being long
-enough that residual dependence between blocks is small; changing block length is
-a sensitivity analysis, not a different insertion likelihood.
+blocks: ten blocks per 50 Mb chromosome, 30 blocks total, and $R=1{,}000$
+bootstrap resamples with a recorded random seed. Changing block length is a sensitivity
+analysis, not a different insertion likelihood — and the sensitivity has been
+measured. On the 300-replicate benchmark, coverage is **flat** across block
+lengths from 0.2 to 2 cM (0.77--0.79 by the Godambe route), so residual
+dependence between blocks is not the binding constraint. What does track
+coverage is the recombination rate — hence how many independent genealogies a
+genome contains — at 0.84 in the lowest-$r$ quartile against 0.91 in the
+highest. Overall the block bootstrap reaches 0.88, but 0.82--0.85 for samples
+older than 4,000 generations against 0.94--0.95 for younger ones, so the
+interval remains optimistic for old samples.
 
 **Current evidence and limitations.** On 1,233 independent T9 loci satisfying
 $d_0=$ focal-edge descendant count, insertion reduces mean MAP bias from +376 to
@@ -979,6 +988,12 @@ since young, rare-in-discovery alleles are under-ascertained.
 | $\Lambda,\Psi,\Theta$ | cumulative coalescence hazard and its two running integrals (eq. 16) — not the moment map $K$, generator $B$ or chromosome count $C$ |
 | $q_i(T\mid E_i,\mathcal T)$ | insertion probability that the ancient lineage carries the derived allele (eq. 15) |
 | $\omega$ | straddling-edge weight in the beta-binomial approach (eq. 12d) |
+| $\mathcal I_c,\mathcal I_{cb}$ | sites on chromosome $c$ passing every check in every retained draw, and those within block $b$ (eq. 18, 20) |
+| $G_c$ | number of posterior ARG draws for chromosome $c$ (eq. 18) |
+| $N^{\mathrm{blk}}_c$ | number of fixed-width bootstrap blocks on chromosome $c$ (eq. 20) — not the moment-recursion generator $B$ |
+| $L_{cb}^{(g)}$ | log-likelihood contributed by block $b$ of chromosome $c$ under draw $g$ (eq. 20) — not an eigenvalue $\lambda_k$ of $B$ |
+| $\nu_{cb}^{\ast}$ | multiplicity of block $b$ in a bootstrap resample (eq. 21) — a star marks any resampled quantity, avoiding a replicate index that would collide with $r_i(T)$ |
+| $\widehat T^{\ast}_{\mathrm{MAP}}$, $R$ | MAP age from one bootstrap resample, and the number of resamples (eq. 22) |
 
 ---
 
