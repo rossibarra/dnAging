@@ -692,6 +692,97 @@ boundary and substitutes the local $N_e$ in the total and focal coalescence
 hazards. Equations (13)--(15) therefore cover variable demography directly;
 equations (16)--(17) remain analytic with piecewise-varying rates.
 
+**Posterior ARG draws and multiple chromosomes.** For posterior ARG draw $g$ on
+chromosome $c$, let $q_{ic}^{(g)}(T)$ be eq. (15) evaluated using that draw's
+local tree and mutation-bearing edge. After applying the error transformation in
+eq. (2), denote the resulting pseudo-haploid site likelihood by
+$\ell_{ic}^{(g)}(T)$. A draw fixes the genealogies and mutation-bearing edges at
+all sites on its chromosome jointly. Consequently, the site likelihoods must be
+multiplied *within* a draw before the draws are averaged:
+
+$$
+\mathcal L_c(T)=\frac{1}{G_c}\sum_{g=1}^{G_c}
+    \prod_{i\in\mathcal I_c}\ell_{ic}^{(g)}(T),
+\qquad
+\log\mathcal L_c(T)=
+\operatorname{logsumexp}_{g}
+\left\{\sum_{i\in\mathcal I_c}\log\ell_{ic}^{(g)}(T)\right\}
+-\log G_c .
+\tag{18}
+$$
+
+Here $\mathcal I_c$ is restricted to sites that pass allele orientation, edge and
+numerical checks in every retained draw. This common-draw mask prevents the ARG
+mixture from changing its site composition with $g$. Averaging each site's
+probability over draws before taking the site product is not equivalent to
+eq. (18) and would destroy chromosome-wide posterior dependence.
+
+The posterior ARG is sampled independently for each chromosome. Unlinked
+chromosomes are conditionally independent given $T$, so their already-marginalised
+likelihoods multiply:
+
+$$
+\mathcal L(T)=\prod_{c=1}^{C}\mathcal L_c(T),
+\qquad
+\log\mathcal L(T)=\sum_{c=1}^{C}\log\mathcal L_c(T).
+\tag{19}
+$$
+
+ARGtest may store independently sampled chromosome ARGs concatenated in one tree
+sequence. The concatenation is only a storage layout: chromosome offsets recover
+the local coordinates, and eq. (18) is still evaluated separately for each
+chromosome. A shared file-level draw number does not turn independently sampled
+chromosome draws into a single genome-wide posterior draw.
+
+**Fixed-width block bootstrap.** Normalising the composite likelihood in eq. (19)
+gives a Bayesian posterior conditional on the observed linked sites and the ARG
+posterior. Its quantiles are reported as nominal posterior credible intervals, but
+they can be too narrow because the site product does not model LD. The implemented
+bootstrap therefore also partitions chromosome $c$ into $B_c$ non-overlapping
+physical blocks and retains each block's per-draw log-likelihood,
+
+$$
+\lambda_{cb}^{(g)}(T)=
+\sum_{i\in\mathcal I_{cb}}\log\ell_{ic}^{(g)}(T),
+\qquad b=1,\ldots,B_c .
+\tag{20}
+$$
+
+For bootstrap replicate $r$, the $B_c$ blocks are sampled with replacement
+*within chromosome*; $W_{cb}^{(r)}$ is the resulting multiplicity of block $b$.
+The complete ARG mixture is recomputed after resampling:
+
+$$
+\log\mathcal L^{(r)}(T)=
+\sum_{c=1}^{C}
+\left[
+\operatorname{logsumexp}_{g}
+\left\{\sum_{b=1}^{B_c}W_{cb}^{(r)}
+\lambda_{cb}^{(g)}(T)\right\}
+-\log G_c
+\right].
+\tag{21}
+$$
+
+Thus blocks, not individual SNPs, are resampled; ARG draws are marginalised rather
+than bootstrapped. Resampling separately within each chromosome preserves every
+chromosome's contribution in every replicate. The bootstrap point estimate is
+
+$$
+\widehat T^{(r)}_{\mathrm{MAP}}=
+\underset{T}{\operatorname{argmax}}\ \log\mathcal L^{(r)}(T),
+\tag{22}
+$$
+
+and the 2.5th and 97.5th percentiles of
+$\{\widehat T^{(r)}_{\mathrm{MAP}}\}$ form the reported block-bootstrap interval.
+This is a frequentist sampling interval for the MAP estimator, not a second
+posterior credible interval. The current three-chromosome validation uses 5 Mb
+blocks: ten blocks per 50 Mb chromosome, 30 blocks total, and 1,000 bootstrap
+replicates with a recorded random seed. Its validity relies on 5 Mb being long
+enough that residual dependence between blocks is small; changing block length is
+a sensitivity analysis, not a different insertion likelihood.
+
 **Current evidence and limitations.** On 1,233 independent T9 loci satisfying
 $d_0=$ focal-edge descendant count, insertion reduces mean MAP bias from +376 to
 +184 generations and restores coverage of all seven nominal 95% intervals, but
@@ -731,10 +822,11 @@ most variable demographic quartile had MAE 531 versus 446 in the least variable
 quartile, while minimum-$N_e$ quartiles were non-monotone. Because ten ages share
 each ARG, these demographic associations need replicate-clustered uncertainty.
 
-The current implementation assumes a haploid ancient observation and a fixed
-true modern tree. Piecewise $N_e(t)$ and symmetric error are implemented;
-production-store reading, ARG-draw mixtures, diploid observations, production
-caching and block-calibrated uncertainty remain future work.
+The current implementation assumes a haploid ancient observation. Piecewise
+$N_e(t)$, symmetric error, posterior-ARG mixtures, independent multichromosome
+factorisation and fixed-width block-bootstrap MAP intervals are implemented.
+Diploid insertion observations, production-store reading, production caching and
+formal data-driven selection of block length remain future work.
 
 ---
 
