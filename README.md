@@ -12,6 +12,20 @@ posterior](docs/graphical_abstract.svg)
 preferred direction on the `insertion` branch. The validation figures are from
 simulations; interval calibration under linkage is still open.*
 
+## Status: which approach this README runs
+
+| approach | MATH.md | status | where to look |
+|---|---|---|---|
+| 1. Present-count diffusion | §3–6 | **production** — the pipeline documented below | this file |
+| 2. Tree-at-$T$ beta-binomial | §7 | archived methodological reference | [working_betabinom.md](./working_betabinom.md) |
+| 3. Ancient-lineage insertion | §8 | preferred direction, in development; point-calibrated in simulation, intervals not yet calibrated under linkage | [working_insertion.md](./working_insertion.md) |
+
+`posterior_sample_age_infer.py` stays the production entry point until insertion
+consumes the production SNP/ARG store, handles posterior ARG draws and chromosomes,
+and passes an end-to-end real-data-shaped simulation (see
+[PROJECT_MAP.md](./PROJECT_MAP.md), "Branch and production policy"). Everything
+from "What it does" onward describes approach 1.
+
 The statistical and population-genetic derivation — the model and how we compute
 it, with numbered equations — is in **[MATH.md](./MATH.md)**. Read that for the
 model; this file is how to run it. Modelling judgement calls — approximations we
@@ -82,7 +96,7 @@ Notes:
 - The **panel VCF** and the **ancient VCF** are different files. The panel gives
   present allele counts in the panel; the ancient VCF gives each sample's genotype.
 - Chromosome labels must match across the store, both VCFs, and the ARG.
-- The model is **neutral** (see MATH.md §7); restrict to a neutral site set with
+- The model is **neutral** (see MATH.md §9); restrict to a neutral site set with
   `--include-positions` if selection is a worry.
 - The across-site product is a PRF-style **composite likelihood**: it retains all
   quality-controlled SNPs and does not pretend that local LD is absent. Point
@@ -218,69 +232,20 @@ Ages are in **ARG generations**; convert to years with your generation time.
 
 ## Key options
 
-- `--ploidy` — ploidy of the **ancient** genotypes: `1` = haploid / pseudo-haploid
-  (one allele per called site; homozygous calls collapsed — the right choice for
-  pseudo-haploid aDNA, and the default), `2` = true diploid genotypes (ALT dosage
-  0/1/2; keeps het-vs-homozygote information). Using `2` on pseudo-haploid data
-  written as homozygous diploid would double-count every site. **`1` assumes the
-  ancient calls contain no true heterozygotes** — see the sanity check below.
-  `2` builds the three genotype probabilities from the first **and second**
-  conditional moments — Hardy–Weinberg holds only *given* the latent frequency, and
-  $E[p_T^2]\neq E[p_T]^2$ — so it requires a table built by the current precompute
-  script (it carries the `table2` plane); an older table makes `--ploidy 2` exit
-  with a message rather than silently substituting the squared mean. `--ploidy 1`
-  needs only the first moment and works with either table.
-- `--epsilon` — symmetric **per-allele ancient-VCF genotype-error** probability,
-  default `0.01`. It must satisfy $0\le\varepsilon<0.5$ and models VCF call error,
-  not ARG uncertainty.
-- `--mutation-age-max` — hard cutoff on mutation age in diffusion units, defaulting
-  to $\tau=3$. Mutation-age intervals wholly above the corresponding generation-age
-  cutoff are discarded; intervals crossing it are truncated. The corresponding
-  generation age is interpolated from the table's demographic time axis. For
-  constant $N_e=10{,}000$, $\tau=3$ is about 60,000 generations; see MATH.md §5 for
-  numerical details. This is a
-  numerical-reliability cutoff, not a claim that every older mutation is biologically
-  uninformative.
-- `--include-positions` — restrict to a QC'd / approximately-neutral site set.
-- `--min-n` — minimum number of called ARG-panel haplotypes required at a site,
-  default `20`. Sites with **at least** that many calls are used, not only fully
-  called ones: precomputation builds a separate moment plane for every called-panel
-  size from `--min-n` to `--n-sample`, inference uses the plane matching the site's
-  exact called count, and sites below the threshold are skipped and reported as
-  `sites_panel_below_min_n`. At inference it must be **at least** the `--min-n` the
-  table was built with — a larger value simply leaves the lowest planes unused,
-  while a smaller one exits with the missing panel sizes listed.
-- `--prior-file` — `T density` prior with exactly two columns and at least two rows,
-  interpolated onto the grid; ages must be finite, unique, and strictly increasing,
-  while densities must be finite, non-negative, and not all zero. Default uniform.
-- `--samples-file` — run a subset of the ancient samples.
+| option | default | short version |
+|---|---|---|
+| `--ploidy` | `1` | `1` = pseudo-haploid ancient calls (assumes no true hets); `2` = true diploid, needs a table with the second-moment plane |
+| `--epsilon` | `0.01` | effective per-allele discordance, $0\le\varepsilon<0.5$; absorbs genotype error **and** residual ARG error, so it is not a genotyping-error rate |
+| `--mutation-age-max` | $\tau=3$ | numerical-reliability cutoff on mutation age (diffusion units) |
+| `--min-n` | `20` | minimum called panel haplotypes per site; must be ≥ the table's `--min-n` |
+| `--include-positions` | all sites | restrict to a QC'd / approximately-neutral site set |
+| `--prior-file` | uniform | two-column `T density` prior, interpolated onto the grid |
+| `--samples-file` | all samples | run a subset of the ancient samples |
 
----
-
-## Validation provenance
-
-Both moment planes of the table were checked against a forward Wright–Fisher Monte
-Carlo (agreement to MC noise, including rare present-counts —
-`validate_moments_vs_mc.py`), reproduce the $T \ge t_i \Rightarrow p_T=0$ boundary,
-and match Kimura's limit at constant $N_e$. See MATH.md §5.
-
-The alternating conditioning sums become numerically unstable at large diffusion
-times. Table construction measures cancellation for each moment and writes `NaN`
-when only roughly 1–2 significant digits remain. Inference propagates that failure
-and skips the affected draw (or site if no reliable draws remain), rather than
-silently clipping a corrupted moment into the valid probability range. Inspect
-`sites_numerical_failure` and `sites_age_filtered` in `run.json`. Newly built tables
-must extend beyond $\tau=3$; precomputation exits if `--age-max` is too small, and
-the inference step likewise rejects a table that does not cover its requested
-cutoff.
-
-Intervals reaching below `--age-min` are retained and counted in
-`sites_age_clipped_low`. This is valid for sample ages at or above `--age-min`; use a
-lower `--age-min` if younger samples matter. See [NOTES.md](./NOTES.md).
-
-If the interval store reports more than one branch interval for a mutation in any
-ARG draw, that multiply mapped mutation is excluded completely. The number excluded
-is reported as `sites_multiple_mapped` in `run.json`.
+Full semantics, and the validation provenance (Monte Carlo checks, numerical-failure
+handling, the `run.json` counters `sites_numerical_failure`, `sites_age_filtered`,
+`sites_age_clipped_low`, `sites_multiple_mapped`), are in
+[docs/diffusion_reference.md](./docs/diffusion_reference.md).
 
 ## Sanity checks before trusting results
 
@@ -311,4 +276,5 @@ is reported as `sites_multiple_mapped` in `run.json`.
   windows leave a gap or overlap, since the diffusion-time integral assumes
   contiguity.
 - Expect **broad** posteriors — array ascertainment limits the age information
-  (MATH.md §2, §7). A tight interval on a single sample deserves suspicion.
+  (MATH.md §2, §9 and the ascertainment appendix). A tight interval on a single
+  sample deserves suspicion.
