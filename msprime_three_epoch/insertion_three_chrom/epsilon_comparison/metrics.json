@@ -1,0 +1,51 @@
+[
+  {
+    "condition": "true_arg_true_ne",
+    "bias": 12.597941290562659,
+    "mae": 44.718991233467676,
+    "rmse": 57.06025834944626,
+    "bootstrap_coverage": 1.0
+  },
+  {
+    "condition": "estimated_arg_true_ne",
+    "bias": -2232.4020587094374,
+    "mae": 2232.4020587094374,
+    "rmse": 3109.03424940813,
+    "bootstrap_coverage": 0.0
+  },
+  {
+    "condition": "estimated_arg_true_ne_eps_0.001_4g",
+    "bias": -322.40205870943737,
+    "mae": 322.40205870943737,
+    "rmse": 362.1335314592178,
+    "bootstrap_coverage": 0.1
+  },
+  {
+    "condition": "estimated_arg_true_ne_eps_0.01_4g",
+    "bias": -237.40205870943737,
+    "mae": 237.40205870943737,
+    "rmse": 289.1403004196072,
+    "bootstrap_coverage": 0.3
+  },
+  {
+    "condition": "estimated_arg_estimated_ne",
+    "bias": -2217.4020587094374,
+    "mae": 2217.4020587094374,
+    "rmse": 3083.0730917968544,
+    "bootstrap_coverage": 0.0
+  },
+  {
+    "condition": "estimated_arg_estimated_ne_eps_0.001_4g",
+    "bias": -482.40205870943737,
+    "mae": 482.40205870943737,
+    "rmse": 631.922157653447,
+    "bootstrap_coverage": 0.3
+  },
+  {
+    "condition": "estimated_arg_estimated_ne_eps_0.01_4g",
+    "bias": -362.40205870943737,
+    "mae": 369.8882833756832,
+    "rmse": 476.4436035496678,
+    "bootstrap_coverage": 0.6
+  }
+]

@@ -1,0 +1,27 @@
+{
+  "true_ARG_true_Ne": {
+    "n": 100,
+    "bias": 90.0150839235319,
+    "mae": 417.33625324933695,
+    "rmse": 557.1388780026356,
+    "ci95_coverage": 0.46
+  },
+  "estimated_ARG_true_Ne": {
+    "n": 100,
+    "bias": -1463.584916076468,
+    "mae": 1512.2535746223266,
+    "rmse": 2056.167085512647,
+    "ci95_coverage": 0.11
+  },
+  "estimated_ARG_estimated_Ne": {
+    "n": 100,
+    "bias": -1088.0849160764683,
+    "mae": 1171.1179814111897,
+    "rmse": 1582.9129554359247,
+    "ci95_coverage": 0.17
+  },
+  "incremental_effects": {
+    "ARG_estimation_delta_MAE": 1094.9173213729896,
+    "Ne_estimation_delta_MAE": -341.1355932111369
+  }
+}

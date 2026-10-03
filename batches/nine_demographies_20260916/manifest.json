@@ -1,0 +1,219 @@
+{
+  "runs": [
+    {
+      "index": 0,
+      "name": "constant_r1",
+      "model": "constant",
+      "replicate": 1,
+      "root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/constant_r1",
+      "base_seed": 1800000000,
+      "singer_seed": 910001
+    },
+    {
+      "index": 1,
+      "name": "constant_r2",
+      "model": "constant",
+      "replicate": 2,
+      "root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/constant_r2",
+      "base_seed": 1800010000,
+      "singer_seed": 910002
+    },
+    {
+      "index": 2,
+      "name": "constant_r3",
+      "model": "constant",
+      "replicate": 3,
+      "root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/constant_r3",
+      "base_seed": 1800020000,
+      "singer_seed": 910003
+    },
+    {
+      "index": 3,
+      "name": "bottleneck_recovery_r1",
+      "model": "bottleneck_recovery",
+      "replicate": 1,
+      "root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/bottleneck_recovery_r1",
+      "base_seed": 1800030000,
+      "singer_seed": 910004
+    },
+    {
+      "index": 4,
+      "name": "bottleneck_recovery_r2",
+      "model": "bottleneck_recovery",
+      "replicate": 2,
+      "root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/bottleneck_recovery_r2",
+      "base_seed": 1800040000,
+      "singer_seed": 910005
+    },
+    {
+      "index": 5,
+      "name": "bottleneck_recovery_r3",
+      "model": "bottleneck_recovery",
+      "replicate": 3,
+      "root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/bottleneck_recovery_r3",
+      "base_seed": 1800050000,
+      "singer_seed": 910006
+    },
+    {
+      "index": 6,
+      "name": "recent_growth_r1",
+      "model": "recent_growth",
+      "replicate": 1,
+      "root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/recent_growth_r1",
+      "base_seed": 1800060000,
+      "singer_seed": 910007
+    },
+    {
+      "index": 7,
+      "name": "recent_growth_r2",
+      "model": "recent_growth",
+      "replicate": 2,
+      "root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/recent_growth_r2",
+      "base_seed": 1800070000,
+      "singer_seed": 910008
+    },
+    {
+      "index": 8,
+      "name": "recent_growth_r3",
+      "model": "recent_growth",
+      "replicate": 3,
+      "root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/recent_growth_r3",
+      "base_seed": 1800080000,
+      "singer_seed": 910009
+    }
+  ],
+  "demographies": {
+    "constant": [
+      [
+        0,
+        3000000,
+        20000
+      ]
+    ],
+    "bottleneck_recovery": [
+      [
+        0,
+        1000,
+        20000
+      ],
+      [
+        1000,
+        10000,
+        5000
+      ],
+      [
+        10000,
+        3000000,
+        50000
+      ]
+    ],
+    "recent_growth": [
+      [
+        0,
+        1000,
+        50000
+      ],
+      [
+        1000,
+        10000,
+        10000
+      ],
+      [
+        10000,
+        3000000,
+        5000
+      ]
+    ]
+  },
+  "demographic_time_units": "generations",
+  "ancient_age_grid": [
+    0,
+    500,
+    1000,
+    1500,
+    2000,
+    2500,
+    3000,
+    3500,
+    4000,
+    4500,
+    5000,
+    5500,
+    6000,
+    6500,
+    7000,
+    7500,
+    8000,
+    8500,
+    9000,
+    9500,
+    10000
+  ],
+  "requested_age_units": "years",
+  "years_per_generation": 1.0,
+  "n_modern_haploid": 100,
+  "n_ancient_haploid": 21,
+  "chromosomes": 3,
+  "chromosome_length": 50000000,
+  "mutation_rate": 1e-08,
+  "recombination_rate": 1e-08,
+  "simulation_epsilon": 0,
+  "inference_epsilon": 0,
+  "retained_draws": [
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99
+  ],
+  "partition": "low",
+  "qos": "jrigrp-low-qos",
+  "array_concurrency_limit": null,
+  "original_project": "/quobyte/jrigrp/beil/logan_collab/dnAging",
+  "remote_root": "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916"
+}

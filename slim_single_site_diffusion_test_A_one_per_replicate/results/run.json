@@ -1,0 +1,22 @@
+{
+  "model": "Test A: exact mutation age + observed modern count -> diffusion E[p_T]",
+  "n_input_replicates": 10000,
+  "n_retained_snps": 1236,
+  "n_panel": 26,
+  "end_generation": 40000,
+  "selection_counts": {
+    "examined": 10000,
+    "no_final_lineage": 6656,
+    "no_panel_polymorphic_lineage": 2108,
+    "mutation_age_outside_table": 0,
+    "nonfinite_estimate": 0,
+    "retained": 1236
+  },
+  "panel_count_rng": "numpy default_rng(seed XOR 99539566)",
+  "frequency_bias_estimated_minus_true": 0.0019693484095881647,
+  "frequency_mae": 0.057824296596683825,
+  "frequency_rmse": 0.09527762236915548,
+  "ci95_coverage_count": 7,
+  "ci95_coverage_total": 7,
+  "recurrent_mutation_handling": "The modern panel is sampled jointly from ancestral plus every extant mutation lineage. One panel-polymorphic mutation is chosen uniformly, and that focal lineage is contrasted against every other allelic state. Each replicate contributes at most one SNP."
+}

@@ -1,0 +1,10 @@
+index	name	model	replicate	root	base_seed	singer_seed
+0	constant_r1	constant	1	/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/constant_r1	1800000000	910001
+1	constant_r2	constant	2	/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/constant_r2	1800010000	910002
+2	constant_r3	constant	3	/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/constant_r3	1800020000	910003
+3	bottleneck_recovery_r1	bottleneck_recovery	1	/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/bottleneck_recovery_r1	1800030000	910004
+4	bottleneck_recovery_r2	bottleneck_recovery	2	/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/bottleneck_recovery_r2	1800040000	910005
+5	bottleneck_recovery_r3	bottleneck_recovery	3	/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/bottleneck_recovery_r3	1800050000	910006
+6	recent_growth_r1	recent_growth	1	/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/recent_growth_r1	1800060000	910007
+7	recent_growth_r2	recent_growth	2	/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/recent_growth_r2	1800070000	910008
+8	recent_growth_r3	recent_growth	3	/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nine_demographies_20260916/runs/recent_growth_r3	1800080000	910009

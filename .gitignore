@@ -236,6 +236,7 @@ slurm-*.out
 
 # macOS
 .DS_Store
+._*
 
 # AGENTS.md rule 6 backups (git HEAD is the real backup)
 *.bak
@@ -265,3 +266,25 @@ logan_try/**/moment_table/
 logan_try/**/results/
 logan_try/store_draw100/
 logan_try/polarity_draw100/
+
+# Local archive of superseded *.bak snapshots and large raw inputs (not for git)
+archive/
+
+# Per-replicate simulation, SINGER and ARGtest outputs. Regenerable from the
+# recorded seeds and sbatch arguments; compact summaries (figures, run.json,
+# metrics) are force-added.
+msprime_batch300_insertion/simulations/
+msprime_batch300_insertion/godambe/
+msprime_batch300_insertion/insertion_inference/
+msprime_lineage_variance/simulations_*/
+msprime_three_epoch/argtest/
+msprime_three_epoch/singer/
+msprime_three_epoch/simulations/
+msprime_three_epoch/insertion_three_chrom/
+msprime_variable_ne_error/argtest/
+msprime_variable_ne_error/singer/
+msprime_variable_ne_error/simulations/
+msprime_variable_ne_error/insertion_inference/
+msprime_variable_ne_error/insertion_posterior/
+msprime_variable_ne_error/insertion_frequency/
+batches/*/runs/

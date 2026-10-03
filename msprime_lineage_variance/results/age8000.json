@@ -1,0 +1,236 @@
+{
+  "replicate_dir": "/quobyte/jrigrp/beil/logan_collab/dnAging/msprime_lineage_variance/simulations_age8000/replicate_001",
+  "n_lineages": 20,
+  "sites_used": 80952,
+  "true_age": 8000.0,
+  "all_ages_equal": true,
+  "lineage_map_estimates": [
+    8300.0,
+    7400.0,
+    8450.0,
+    7850.0,
+    8600.0,
+    7500.0,
+    7950.0,
+    8600.0,
+    7850.0,
+    8500.0,
+    7500.0,
+    8300.0,
+    8600.0,
+    7400.0,
+    8650.0,
+    8050.0,
+    8150.0,
+    7800.0,
+    8450.0,
+    7500.0
+  ],
+  "lineage_spread_SD": 448.5062928620312,
+  "lineage_spread_IQR": 737.5,
+  "lineage_mean_error": 70.0,
+  "median_bootstrap_width": 1650.624999999999,
+  "bootstrap_coverage_within_tree": 0.95,
+  "per_lineage": [
+    {
+      "lineage": "ancient_01",
+      "true_T": 8000.0,
+      "map_T": 8300.0,
+      "mean_T": 8293.44614443919,
+      "boot_lo": 7398.75,
+      "boot_hi": 8950.0,
+      "boot_contains_true": 1,
+      "boot_width": 1551.25
+    },
+    {
+      "lineage": "ancient_02",
+      "true_T": 8000.0,
+      "map_T": 7400.0,
+      "mean_T": 7386.968485902343,
+      "boot_lo": 6400.0,
+      "boot_hi": 8500.0,
+      "boot_contains_true": 1,
+      "boot_width": 2100.0
+    },
+    {
+      "lineage": "ancient_03",
+      "true_T": 8000.0,
+      "map_T": 8450.0,
+      "mean_T": 8427.766914483711,
+      "boot_lo": 7500.0,
+      "boot_hi": 9100.0,
+      "boot_contains_true": 1,
+      "boot_width": 1600.0
+    },
+    {
+      "lineage": "ancient_04",
+      "true_T": 8000.0,
+      "map_T": 7850.0,
+      "mean_T": 7883.911034501757,
+      "boot_lo": 6800.0,
+      "boot_hi": 9000.0,
+      "boot_contains_true": 1,
+      "boot_width": 2200.0
+    },
+    {
+      "lineage": "ancient_05",
+      "true_T": 8000.0,
+      "map_T": 8600.0,
+      "mean_T": 8607.935274704781,
+      "boot_lo": 7550.0,
+      "boot_hi": 9350.0,
+      "boot_contains_true": 1,
+      "boot_width": 1800.0
+    },
+    {
+      "lineage": "ancient_06",
+      "true_T": 8000.0,
+      "map_T": 7500.0,
+      "mean_T": 7501.741977507925,
+      "boot_lo": 6800.0,
+      "boot_hi": 8250.0,
+      "boot_contains_true": 1,
+      "boot_width": 1450.0
+    },
+    {
+      "lineage": "ancient_07",
+      "true_T": 8000.0,
+      "map_T": 7950.0,
+      "mean_T": 7934.675746624547,
+      "boot_lo": 6650.0,
+      "boot_hi": 8550.0,
+      "boot_contains_true": 1,
+      "boot_width": 1900.0
+    },
+    {
+      "lineage": "ancient_08",
+      "true_T": 8000.0,
+      "map_T": 8600.0,
+      "mean_T": 8615.644960513724,
+      "boot_lo": 8100.0,
+      "boot_hi": 9451.249999999998,
+      "boot_contains_true": 0,
+      "boot_width": 1351.2499999999982
+    },
+    {
+      "lineage": "ancient_09",
+      "true_T": 8000.0,
+      "map_T": 7850.0,
+      "mean_T": 7822.4559095442155,
+      "boot_lo": 6650.0,
+      "boot_hi": 8600.0,
+      "boot_contains_true": 1,
+      "boot_width": 1950.0
+    },
+    {
+      "lineage": "ancient_10",
+      "true_T": 8000.0,
+      "map_T": 8500.0,
+      "mean_T": 8459.827237124193,
+      "boot_lo": 7500.0,
+      "boot_hi": 9350.0,
+      "boot_contains_true": 1,
+      "boot_width": 1850.0
+    },
+    {
+      "lineage": "ancient_11",
+      "true_T": 8000.0,
+      "map_T": 7500.0,
+      "mean_T": 7479.579277683668,
+      "boot_lo": 6650.0,
+      "boot_hi": 8351.249999999998,
+      "boot_contains_true": 1,
+      "boot_width": 1701.2499999999982
+    },
+    {
+      "lineage": "ancient_12",
+      "true_T": 8000.0,
+      "map_T": 8300.0,
+      "mean_T": 8264.905109861047,
+      "boot_lo": 7600.0,
+      "boot_hi": 8900.0,
+      "boot_contains_true": 1,
+      "boot_width": 1300.0
+    },
+    {
+      "lineage": "ancient_13",
+      "true_T": 8000.0,
+      "map_T": 8600.0,
+      "mean_T": 8610.392362344124,
+      "boot_lo": 7698.75,
+      "boot_hi": 9500.0,
+      "boot_contains_true": 1,
+      "boot_width": 1801.25
+    },
+    {
+      "lineage": "ancient_14",
+      "true_T": 8000.0,
+      "map_T": 7400.0,
+      "mean_T": 7444.9252906842885,
+      "boot_lo": 6798.75,
+      "boot_hi": 8350.0,
+      "boot_contains_true": 1,
+      "boot_width": 1551.25
+    },
+    {
+      "lineage": "ancient_15",
+      "true_T": 8000.0,
+      "map_T": 8650.0,
+      "mean_T": 8595.69745318018,
+      "boot_lo": 7550.0,
+      "boot_hi": 9700.0,
+      "boot_contains_true": 1,
+      "boot_width": 2150.0
+    },
+    {
+      "lineage": "ancient_16",
+      "true_T": 8000.0,
+      "map_T": 8050.0,
+      "mean_T": 8053.136694766601,
+      "boot_lo": 7250.0,
+      "boot_hi": 8850.0,
+      "boot_contains_true": 1,
+      "boot_width": 1600.0
+    },
+    {
+      "lineage": "ancient_17",
+      "true_T": 8000.0,
+      "map_T": 8150.0,
+      "mean_T": 8153.486135508332,
+      "boot_lo": 7500.0,
+      "boot_hi": 9050.0,
+      "boot_contains_true": 1,
+      "boot_width": 1550.0
+    },
+    {
+      "lineage": "ancient_18",
+      "true_T": 8000.0,
+      "map_T": 7800.0,
+      "mean_T": 7747.644145216651,
+      "boot_lo": 6700.0,
+      "boot_hi": 8450.0,
+      "boot_contains_true": 1,
+      "boot_width": 1750.0
+    },
+    {
+      "lineage": "ancient_19",
+      "true_T": 8000.0,
+      "map_T": 8450.0,
+      "mean_T": 8436.58821667095,
+      "boot_lo": 7800.0,
+      "boot_hi": 9250.0,
+      "boot_contains_true": 1,
+      "boot_width": 1450.0
+    },
+    {
+      "lineage": "ancient_20",
+      "true_T": 8000.0,
+      "map_T": 7500.0,
+      "mean_T": 7506.551609533846,
+      "boot_lo": 6800.0,
+      "boot_hi": 8200.0,
+      "boot_contains_true": 1,
+      "boot_width": 1400.0
+    }
+  ]
+}

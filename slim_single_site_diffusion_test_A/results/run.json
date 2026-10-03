@@ -1,0 +1,22 @@
+{
+  "model": "Test A: exact mutation age + observed modern count -> diffusion E[p_T]",
+  "n_input_replicates": 10000,
+  "n_retained_snps": 873,
+  "n_panel": 26,
+  "end_generation": 40000,
+  "selection_counts": {
+    "examined": 10000,
+    "not_single_final_lineage": 7287,
+    "panel_monomorphic": 1727,
+    "mutation_age_outside_table": 113,
+    "nonfinite_estimate": 0,
+    "retained": 873
+  },
+  "panel_count_rng": "numpy default_rng(seed XOR 99539566)",
+  "frequency_bias_estimated_minus_true": 0.0034900922626519768,
+  "frequency_mae": 0.057729818191105,
+  "frequency_rmse": 0.09533618626058604,
+  "ci95_coverage_count": 7,
+  "ci95_coverage_total": 7,
+  "recurrent_mutation_caveat": "The original one-base simulations allow recurrent mutations. Each retained replicate has one lineage extant at generation 40000; that focal lineage is contrasted against every other allelic state."
+}

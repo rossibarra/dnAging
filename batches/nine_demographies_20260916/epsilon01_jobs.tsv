@@ -1,0 +1,10 @@
+run	draw_job	merge_job	status_at_submission
+constant_r1			blocked_missing_prepared_inputs
+constant_r2	38402119	38402120	submitted
+constant_r3	38402121	38402122	submitted
+bottleneck_recovery_r1			blocked_missing_prepared_inputs
+bottleneck_recovery_r2			blocked_missing_prepared_inputs
+bottleneck_recovery_r3	38402123	38402124	submitted
+recent_growth_r1	38402126	38402127	submitted
+recent_growth_r2			blocked_missing_prepared_inputs
+recent_growth_r3	38402128	38402129	submitted

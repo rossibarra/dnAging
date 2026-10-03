@@ -1,0 +1,20 @@
+{
+  "estimates": "/quobyte/jrigrp/beil/logan_collab/dnAging/msprime_three_epoch/argtest/ne/coalescence-ne-estimates.tsv",
+  "output": "/quobyte/jrigrp/beil/logan_collab/dnAging/msprime_three_epoch/argtest/ne/estimated_ne.tsv",
+  "series_used": "posterior_mean",
+  "epochs": 50,
+  "bins_filled_from_neighbour": 0,
+  "time_range": [
+    0.0,
+    Infinity
+  ],
+  "ne_range": [
+    3991.155,
+    706104.548
+  ],
+  "loads_with_insertion_parser": true,
+  "harmonic_mean_ne_estimated_0_10k": 12137.455141857157,
+  "harmonic_mean_ne_true_0_10k": 11487.650775416425,
+  "median_log2_ratio_0_10k": 0.004075454417832738,
+  "max_abs_log2_ratio_0_10k": 5.141809904041527
+}

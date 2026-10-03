@@ -1,0 +1,31 @@
+{
+  "vcf": "/quobyte/jrigrp/beil/logan_collab/430goodMays_no_cov_bias_G2.mind95.v5.noscaf.vcf",
+  "sites": 6315152,
+  "within_chromosome_intervals": 6315142,
+  "duplicate_position_intervals": 0,
+  "chromosome_site_counts": {
+    "1": 1015080,
+    "6": 460716,
+    "2": 716543,
+    "7": 525342,
+    "4": 704230,
+    "5": 668816,
+    "8": 530199,
+    "9": 502559,
+    "3": 740427,
+    "10": 451240
+  },
+  "distance_bp": {
+    "mean": 335.6701934810017,
+    "median": 18.0,
+    "q01_q05_q25_q75_q95_q99": [
+      1.0,
+      1.0,
+      6.0,
+      63.0,
+      423.0,
+      7613.0
+    ],
+    "maximum": 4655894
+  }
+}
