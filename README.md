@@ -4,6 +4,14 @@ Estimate the age of ancient samples from the derived alleles they carry, using
 SINGER ARG mutation ages plus a demography-aware, age-conditioned allele-frequency
 model. Produces a per-sample posterior over age and a summary table.
 
+![Graphical abstract: modern panel and ARG plus ancient genotypes feed the
+ancient-lineage insertion likelihood, which yields a per-sample age
+posterior](docs/graphical_abstract.svg)
+
+*Graphical abstract of the ancient-lineage insertion approach (MATH.md §8), the
+preferred direction on the `insertion` branch. The validation figures are from
+simulations; interval calibration under linkage is still open.*
+
 The statistical and population-genetic derivation — the model and how we compute
 it, with numbered equations — is in **[MATH.md](./MATH.md)**. Read that for the
 model; this file is how to run it. Modelling judgement calls — approximations we

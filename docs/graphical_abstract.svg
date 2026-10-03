@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="920" viewBox="0 0 1600 920" font-family="'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+<title>dnAging graphical abstract</title>
+<defs>
+<marker id="head" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8C96A3"/></marker>
+</defs>
+<rect width="1600" height="920" fill="#FFFFFF"/>
+
+<!-- panels -->
+<rect x="64.5" y="192.5" width="399" height="559" rx="16" fill="#F4F6F8" stroke="#E1E5EA"/>
+<rect x="560.5" y="192.5" width="479" height="559" rx="16" fill="#F4F6F8" stroke="#E1E5EA"/>
+<rect x="1136.5" y="192.5" width="399" height="559" rx="16" fill="#F4F6F8" stroke="#E1E5EA"/>
+<path d="M 466 472 L 558 472" stroke="#8C96A3" stroke-width="2" stroke-linecap="round" marker-end="url(#head)"/>
+<path d="M 1042 472 L 1134 472" stroke="#8C96A3" stroke-width="2" stroke-linecap="round" marker-end="url(#head)"/>
+
+<!-- title -->
+<text x="64" y="88" font-family="'Source Serif 4', Georgia, 'Times New Roman', serif" font-weight="600" font-size="40" fill="#17202B">Dating ancient genomes by threading them into a modern genealogy</text>
+<text font-size="18" fill="#4E5866"><tspan x="64" y="133">The age of each ancient maize sample is inferred from which derived alleles it carries, given where its lineage would join</tspan><tspan x="64" y="161">an ancestral recombination graph (ARG) of 26 modern haplotypes.</tspan></text>
+
+<!-- panel 1 -->
+<text x="96" y="232" font-size="13" font-weight="600" letter-spacing="1.3" fill="#5A6472">01 · INPUTS</text>
+<text x="96" y="268" font-family="'Source Serif 4', Georgia, serif" font-weight="600" font-size="24" fill="#17202B">Modern panel → ARG</text>
+<g transform="translate(96,288)">
+<g stroke="#C3CAD3" stroke-width="2" stroke-linecap="round">
+<line x1="0" y1="12" x2="130" y2="12"/><line x1="0" y1="30" x2="130" y2="30"/><line x1="0" y1="48" x2="130" y2="48"/><line x1="0" y1="66" x2="130" y2="66"/><line x1="0" y1="84" x2="130" y2="84"/><line x1="0" y1="102" x2="130" y2="102"/><line x1="0" y1="120" x2="130" y2="120"/><line x1="0" y1="138" x2="130" y2="138"/>
+</g>
+<g fill="#D9731F">
+<circle cx="22" cy="12" r="4"/><circle cx="78" cy="12" r="4"/><circle cx="22" cy="30" r="4"/><circle cx="104" cy="48" r="4"/><circle cx="50" cy="66" r="4"/><circle cx="78" cy="66" r="4"/><circle cx="50" cy="84" r="4"/><circle cx="22" cy="102" r="4"/><circle cx="104" cy="102" r="4"/><circle cx="78" cy="120" r="4"/><circle cx="50" cy="138" r="4"/>
+</g>
+<path d="M 148 66 L 162 76 L 148 86" fill="none" stroke="#8C96A3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<g fill="none" stroke="#5A6472" stroke-width="2" stroke-linejoin="round">
+<path d="M 192 150 V 120 H 214 V 150"/><path d="M 238 150 V 128 H 260 V 150"/><path d="M 203 120 V 85 H 249 V 128"/><path d="M 284 150 V 110 H 306 V 150"/><path d="M 295 110 V 70 H 330 V 150"/><path d="M 226 85 V 30 H 312 V 70"/><path d="M 269 30 V 12"/>
+</g>
+</g>
+<text font-size="15" fill="#3B4552"><tspan x="96" y="480">SINGER samples posterior ARGs of the modern</tspan><tspan x="96" y="502">panel; POLEGON dates their nodes, and Ne(t)</tspan><tspan x="96" y="524">is estimated from the same genealogies.</tspan></text>
+<text x="96" y="592" font-family="'Source Serif 4', Georgia, serif" font-weight="600" font-size="20" fill="#17202B">Ancient genotypes</text>
+<g transform="translate(96,610)">
+<rect x="1" y="1" width="22" height="22" rx="4" fill="#D9731F"/>
+<rect x="29" y="1" width="22" height="22" rx="4" fill="#FFFFFF" stroke="#8C96A3" stroke-width="1.5"/>
+<rect x="57" y="1" width="22" height="22" rx="4" fill="#FFFFFF" stroke="#8C96A3" stroke-width="1.5"/>
+<rect x="85" y="1" width="22" height="22" rx="4" fill="none" stroke="#C3CAD3" stroke-width="1.5" stroke-dasharray="3 3"/>
+<rect x="113" y="1" width="22" height="22" rx="4" fill="#D9731F"/>
+<rect x="141" y="1" width="22" height="22" rx="4" fill="#FFFFFF" stroke="#8C96A3" stroke-width="1.5"/>
+<rect x="169" y="1" width="22" height="22" rx="4" fill="#D9731F"/>
+<rect x="197" y="1" width="22" height="22" rx="4" fill="#FFFFFF" stroke="#8C96A3" stroke-width="1.5"/>
+<rect x="225" y="1" width="22" height="22" rx="4" fill="none" stroke="#C3CAD3" stroke-width="1.5" stroke-dasharray="3 3"/>
+<rect x="253" y="1" width="22" height="22" rx="4" fill="#FFFFFF" stroke="#8C96A3" stroke-width="1.5"/>
+<rect x="281" y="1" width="22" height="22" rx="4" fill="#D9731F"/>
+<rect x="309" y="1" width="22" height="22" rx="4" fill="#FFFFFF" stroke="#8C96A3" stroke-width="1.5"/>
+</g>
+<text font-size="15" fill="#3B4552"><tspan x="96" y="666">Pseudo-haploid aDNA calls at panel-ascertained</tspan><tspan x="96" y="688">SNPs: derived, ancestral or missing. Ancient</tspan><tspan x="96" y="710">samples are kept out of the panel.</tspan></text>
+
+<!-- panel 2 -->
+<text x="592" y="232" font-size="13" font-weight="600" letter-spacing="1.3" fill="#5A6472">02 · INSERTION LIKELIHOOD</text>
+<text x="592" y="268" font-family="'Source Serif 4', Georgia, serif" font-weight="600" font-size="24" fill="#17202B">Insert the ancient lineage into the tree</text>
+<g transform="translate(592,288)">
+<path d="M 24 284 V 22" fill="none" stroke="#8C96A3" stroke-width="1.5"/>
+<path d="M 19 30 L 24 20 L 29 30" fill="none" stroke="#8C96A3" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="34" y="30" font-size="12" fill="#5A6472">past</text>
+<text x="34" y="296" font-size="12" fill="#5A6472">present</text>
+<line x1="24" y1="240" x2="410" y2="240" stroke="#2563A8" stroke-width="1" stroke-dasharray="2 4" opacity="0.6"/>
+<text x="8" y="244" font-size="14" font-style="italic" fill="#2563A8" font-family="'Source Serif 4', Georgia, serif">T</text>
+<g fill="none" stroke="#8C96A3" stroke-width="2.5" stroke-linejoin="round">
+<path d="M 120 280 V 220 H 170 V 280"/><path d="M 320 280 V 160 H 370 V 280"/><path d="M 145 220 V 130 H 245"/><path d="M 195 130 V 60 H 345 V 160"/><path d="M 270 60 V 30"/>
+</g>
+<g fill="none" stroke="#D9731F" stroke-linejoin="round">
+<path d="M 220 280 V 190 H 270 V 280" stroke-width="3"/><path d="M 245 190 V 130" stroke-width="4"/>
+</g>
+<g fill="#8C96A3"><circle cx="120" cy="280" r="3.5"/><circle cx="170" cy="280" r="3.5"/><circle cx="320" cy="280" r="3.5"/><circle cx="370" cy="280" r="3.5"/></g>
+<g fill="#D9731F"><circle cx="220" cy="280" r="3.5"/><circle cx="270" cy="280" r="3.5"/></g>
+<path d="M 300 240 V 175 H 245" fill="none" stroke="#2563A8" stroke-width="2.5" stroke-dasharray="6 4" stroke-linejoin="round"/>
+<circle cx="245" cy="175" r="5" fill="#2563A8" stroke="#FFFFFF" stroke-width="1.5"/>
+<circle cx="300" cy="240" r="6.5" fill="#2563A8" stroke="#FFFFFF" stroke-width="2"/>
+<path d="M 245 148 L 249 155 L 256 155 L 250.5 160 L 252.5 167 L 245 163 L 237.5 167 L 239.5 160 L 234 155 L 241 155 Z" fill="#D9731F" stroke="#FFFFFF" stroke-width="1.2"/>
+<text x="262" y="160" font-size="15" font-style="italic" fill="#B85E14" font-family="'Source Serif 4', Georgia, serif">z</text>
+<text x="234" y="180" font-size="15" font-style="italic" text-anchor="end" fill="#2563A8" font-family="'Source Serif 4', Georgia, serif">u</text>
+<text x="312" y="256" font-size="12" fill="#2563A8">ancient sample</text>
+<g font-size="12" fill="#3B4552">
+<line x1="44" y1="62" x2="72" y2="62" stroke="#D9731F" stroke-width="3"/><text x="80" y="66">carries the mutation</text>
+<line x1="44" y1="84" x2="72" y2="84" stroke="#8C96A3" stroke-width="2.5"/><text x="80" y="88">does not</text>
+<line x1="44" y1="106" x2="72" y2="106" stroke="#2563A8" stroke-width="2.5" stroke-dasharray="6 4"/><text x="80" y="110">ancient lineage</text>
+</g>
+</g>
+<text x="592" y="626" font-family="'Source Serif 4', Georgia, serif" font-style="italic" font-size="22" fill="#17202B">q<tspan font-size="15" dy="6">i</tspan><tspan dy="-6">(T) = ∫</tspan><tspan font-size="15" dy="6">T</tspan><tspan font-size="15" dy="-16">z</tspan><tspan font-size="11" dy="4">i</tspan><tspan dy="6"> S</tspan><tspan font-size="15" dy="6">T</tspan><tspan dy="-6">(u) · δ</tspan><tspan font-size="15" dy="6">i</tspan><tspan dy="-6">(u) / 2N</tspan><tspan font-size="15" dy="6">e</tspan><tspan dy="-6">(u) du</tspan></text>
+<text font-size="15" fill="#3B4552"><tspan x="592" y="666">The ancient allele is derived only if its lineage, rising</tspan><tspan x="592" y="688">from age T, first joins a branch that carries the</tspan><tspan x="592" y="710">mutation before the mutation’s age z. z is averaged</tspan><tspan x="592" y="732">uniformly over its ARG edge.</tspan></text>
+
+<!-- panel 3 -->
+<text x="1168" y="232" font-size="13" font-weight="600" letter-spacing="1.3" fill="#5A6472">03 · OUTPUT</text>
+<text x="1168" y="268" font-family="'Source Serif 4', Georgia, serif" font-weight="600" font-size="24" fill="#17202B">An age posterior per sample</text>
+<g transform="translate(1168,288)">
+<path d="M 30 180 C 110 180, 140 40, 180 40 C 220 40, 250 180, 326 180 Z" fill="#2563A8" opacity="0.12"/>
+<g fill="none" stroke="#B3BBC5" stroke-width="1.5">
+<path d="M 30 180 C 90 180, 120 70, 160 70 C 200 70, 230 180, 326 180"/>
+<path d="M 30 180 C 125 180, 155 62, 195 62 C 235 62, 265 180, 326 180"/>
+<path d="M 30 180 C 140 180, 170 84, 210 84 C 250 84, 280 180, 326 180"/>
+<path d="M 30 180 C 100 180, 130 76, 170 76 C 210 76, 240 180, 326 180"/>
+</g>
+<path d="M 30 180 C 110 180, 140 40, 180 40 C 220 40, 250 180, 326 180" fill="none" stroke="#2563A8" stroke-width="3"/>
+<line x1="180" y1="40" x2="180" y2="180" stroke="#2563A8" stroke-width="1.5" stroke-dasharray="4 4"/>
+<text x="186" y="34" font-size="12" font-weight="600" fill="#2563A8">MAP</text>
+<line x1="30" y1="180" x2="326" y2="180" stroke="#5A6472" stroke-width="1.5"/>
+<path d="M 130 192 V 198 H 230 V 192" fill="none" stroke="#5A6472" stroke-width="1.5"/>
+<text x="180" y="214" font-size="12" text-anchor="middle" fill="#3B4552">95% interval</text>
+<text x="326" y="214" font-size="12" text-anchor="end" fill="#5A6472">age T →</text>
+<g font-size="12" fill="#3B4552"><line x1="236" y1="70" x2="256" y2="70" stroke="#B3BBC5" stroke-width="1.5"/><text x="262" y="74">per ARG draw</text></g>
+</g>
+<text font-size="15" fill="#3B4552"><tspan x="1168" y="540">Site likelihoods multiply within each ARG draw,</tspan><tspan x="1168" y="562">draws are mixed and chromosomes add. A</tspan><tspan x="1168" y="584">symmetric discordance ε absorbs genotype and</tspan><tspan x="1168" y="606">residual ARG error.</tspan></text>
+<rect x="1168.5" y="636.5" width="335" height="83" rx="10" fill="#FFFFFF" stroke="#D5DAE1"/>
+<text x="1186" y="670" font-family="'IBM Plex Mono', Menlo, Consolas, monospace" font-size="14" font-weight="500" fill="#17202B">ages_table.tsv</text>
+<text font-size="14" fill="#3B4552"><tspan x="1186" y="692">MAP, mean, median and 95% interval per</tspan><tspan x="1186" y="710">sample, in generations</tspan></text>
+
+<!-- results strip -->
+<rect x="64.5" y="784.5" width="447" height="75" rx="12" fill="#FFFFFF" stroke="#D5DAE1"/>
+<text font-size="14" fill="#3B4552"><tspan x="84" y="816" font-weight="600" fill="#17202B">300 simulations, varied Ne, μ, r, panel and age</tspan><tspan x="84" y="838">MAP bias +12.9 generations, slope 1.001</tspan></text>
+<rect x="576.5" y="784.5" width="447" height="75" rx="12" fill="#FFFFFF" stroke="#D5DAE1"/>
+<text font-size="14" fill="#3B4552"><tspan x="596" y="816" font-weight="600" fill="#17202B">Variable Ne(t) and nonzero ε, 1,000 samples</tspan><tspan x="596" y="838">bias +7.7 generations, mean absolute error 484</tspan></text>
+<rect x="1088.5" y="784.5" width="447" height="75" rx="12" fill="#FFFFFF" stroke="#A9B2BE" stroke-dasharray="5 4"/>
+<text font-size="14" fill="#3B4552"><tspan x="1108" y="809" font-weight="600" fill="#17202B">Open: interval calibration</tspan><tspan x="1108" y="829">nominal 95% intervals cover ~46% under linkage;</tspan><tspan x="1108" y="848">radiocarbon cross-validation next</tspan></text>
+</svg>
