@@ -22,7 +22,7 @@ export MPLCONFIGDIR="$cache_root/matplotlib"
 export XDG_CACHE_HOME="$cache_root/xdg"
 mkdir -p "$MPLCONFIGDIR" "$XDG_CACHE_HOME"
 
-python "$PROJECT/direct_frequency_age_infer.py" merge \
+python "$PROJECT/validation/direct_frequency_age_infer.py" merge \
     --chunk-dir "$OUTPUT_ROOT/chunks" \
     --output-dir "$OUTPUT_ROOT/results" \
     --n-chunks "$N_CHUNKS"

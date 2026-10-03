@@ -18,7 +18,7 @@ entry="${DRAWS[${SLURM_ARRAY_TASK_ID:-0}]}"
 tree_id="$(awk '{print $1}' <<< "$entry")"
 tree="${TREE_ROOT}/run.combined.${tree_id}.tsz"
 
-python "$PROJECT/betabinom_real_data.py" \
+python "$PROJECT/pipeline/betabinom_real_data.py" \
     --tree "$tree" --draw-id "$tree_id" --calls "$CALLS" \
     --moment-table "$MOMENT_TABLE" --grid-table "$GRID_TABLE" \
     --epsilon "$EPSILON" --output "$OUTROOT/draw_${tree_id}"

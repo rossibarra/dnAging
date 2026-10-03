@@ -178,7 +178,7 @@ for this small pilot:
 ```bash
 CHROM=$(head -n 1 "$CHROMS_FILE")
 
-python "$PROJECT/posterior_sample_age_infer.py" \
+python "$PROJECT/pipeline/posterior_sample_age_infer.py" \
   --freq-table "$TABLE" \
   --store "$STORE" --draw-polarity "$POLARITY" \
   --panel-vcf "$PANEL_VCF" --vcf "$ANCIENT_VCF" \

@@ -12,7 +12,7 @@ agree to MC noise, including rare d0. The second moment is what makes the diploi
 genotype likelihood correct, and it comes from the same contraction shifted one
 index (E[X_T^2 X_pres^m] = sum_j C[m,j] M(u1)[j+2]).
 
-    python validate_moments_vs_mc.py            # prints a comparison table
+    python validation/validate_moments_vs_mc.py            # prints a comparison table
 
 This is a self-contained sanity check (numpy + scipy only); it does not touch the
 repo, the store, or any VCF.

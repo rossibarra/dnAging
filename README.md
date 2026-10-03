@@ -74,8 +74,8 @@ per sample.
 
 | file | role |
 |---|---|
-| `precompute_freq_trajectory_moments.py` | build the first- and second-moment planes in `freq_table.npz`, one per called-panel size $n$ |
-| `posterior_sample_age_infer.py` | per-chromosome inference for all samples; also does the merge |
+| `pipeline/precompute_freq_trajectory_moments.py` | build the first- and second-moment planes in `freq_table.npz`, one per called-panel size $n$ |
+| `pipeline/posterior_sample_age_infer.py` | per-chromosome inference for all samples; also does the merge |
 | `slurm/run_precompute.sbatch` | STEP 1 as a batch job |
 | `slurm/run_infer.sbatch` | STEP 2 (array over chromosomes) + STEP 3 (merge) |
 
@@ -154,7 +154,7 @@ if the environment is missing, rather than failing later inside Python.
 ### 1. Precompute the table (once)
 
 ```bash
-python precompute_freq_trajectory_moments.py \
+python pipeline/precompute_freq_trajectory_moments.py \
     --ne coalescence-ne-estimates.tsv \
     --n-sample 26 \
     --min-n 20 \
@@ -176,7 +176,7 @@ panel-size span increases that cost. See MATH.md §5 for the computational detai
 ### 2. Infer, per chromosome (all samples at once)
 
 ```bash
-python posterior_sample_age_infer.py \
+python pipeline/posterior_sample_age_infer.py \
     --freq-table freq_table.npz \
     --store STORE --draw-polarity POLARITY \
     --panel-vcf panel26.vcf.gz \
@@ -200,7 +200,7 @@ VCF=ancient.vcf.gz OUTROOT=results/Tage \
 ### 3. Merge chromosomes → genome-wide posteriors
 
 ```bash
-python posterior_sample_age_infer.py \
+python pipeline/posterior_sample_age_infer.py \
     --freq-table freq_table.npz \
     --merge results/Tage/chr* \
     --output results/Tage/genome

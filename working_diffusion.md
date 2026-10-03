@@ -3,8 +3,8 @@
 Status as of 2026-09-10. Live working document: **status lines are the point**, so
 update them rather than appending. Companion: [working_betabinom.md](working_betabinom.md)
 for the alternative likelihood. Spec is [MATH.md](MATH.md); code is
-[precompute_freq_trajectory_moments.py](precompute_freq_trajectory_moments.py)
-(table build) and [posterior_sample_age_infer.py](posterior_sample_age_infer.py)
+[precompute_freq_trajectory_moments.py](pipeline/precompute_freq_trajectory_moments.py)
+(table build) and [posterior_sample_age_infer.py](pipeline/posterior_sample_age_infer.py)
 (inference).
 
 ## Scope and priority

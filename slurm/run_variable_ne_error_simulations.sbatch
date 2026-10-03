@@ -16,7 +16,7 @@ module load conda
 conda activate dnaging
 # Replicate 1 was produced as the smoke test; the script refuses to overwrite an
 # existing replicate directory, so reruns are safe.
-python "$PROJECT/simulate_variable_ne_error.py" \
+python "$PROJECT/validation/simulate_variable_ne_error.py" \
     --output-root "$ROOT/simulations" \
     --replicate "$SLURM_ARRAY_TASK_ID" \
     --base-seed "${BASE_SEED:-1730000000}" \

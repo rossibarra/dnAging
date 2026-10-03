@@ -20,7 +20,7 @@ END_GENERATION="${END_GENERATION:-40000}"
 module load conda
 conda activate dnaging
 
-python "$PROJECT/direct_frequency_age_infer.py" chunk \
+python "$PROJECT/validation/direct_frequency_age_infer.py" chunk \
     --input-dir "$INPUT_DIR" \
     --output-dir "$OUTPUT_ROOT/chunks" \
     --chunk-id "${SLURM_ARRAY_TASK_ID:?This must be an array job}" \

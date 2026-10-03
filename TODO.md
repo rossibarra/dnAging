@@ -146,8 +146,8 @@ problem; a "can this be reproduced from the repository" problem.
 
 | Untracked | Cited as the code behind |
 |---|---|
-| `msprime_exact_time_validation.py`, `tests/test_msprime_exact_time_validation.py` | The exact-mutation-time control (+10.1 generation MAP bias over 7,354,754 sites) *and* the paired true-edge run (+363.6) |
-| `diffusion_frequency_validation.py`, `tests/test_diffusion_frequency_validation.py` | SLiM Test A, the corrected one-lineage diffusion check |
+| `validation/msprime_exact_time_validation.py`, `tests/test_msprime_exact_time_validation.py` | The exact-mutation-time control (+10.1 generation MAP bias over 7,354,754 sites) *and* the paired true-edge run (+363.6) |
+| `validation/diffusion_frequency_validation.py`, `tests/test_diffusion_frequency_validation.py` | SLiM Test A, the corrected one-lineage diffusion check |
 | `slurm/run_msprime_exact_time_simulations.sbatch`, `precompute_msprime_ne50k_exact_time.sbatch`, `run_msprime_exact_time_inference.sbatch`, `merge_msprime_exact_time_inference.sbatch`, `run_msprime_edge_interval_inference.sbatch`, `merge_msprime_edge_interval_inference.sbatch`, `run_diffusion_frequency_validation.sbatch`, `merge_diffusion_frequency_validation.sbatch`, `precompute_constant_ne_frequency_table.sbatch` | The SLURM stages for both |
 
 These are the load-bearing results for retiring H4 and localising H3, so the
@@ -158,7 +158,7 @@ by whoever noticed. Commit them, or record deliberately why not.
 **Also uncommitted:** the `.gitignore` entry adding `msprime_exact_time_ne50k/`,
 which pairs with those outputs.
 
-**In progress, deliberately left alone:** `slim_edge_interval_validation.py`,
+**In progress, deliberately left alone:** `validation/slim_edge_interval_validation.py`,
 `slim/single_site_edge_validation.slim`, `slim_single_site_edge_validation/` and
 the three `*slim_edge_validation*` wrappers. Job `slim-edge-sim` was running at
 2026-09-10 16:00; PROJECT_MAP.md records these as IN PROGRESS rather than as

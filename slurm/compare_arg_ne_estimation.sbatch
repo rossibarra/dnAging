@@ -12,4 +12,4 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 module load conda
 conda activate dnaging
 cd "$PROJECT"
-python compare_arg_ne_estimation_effects.py
+python scripts/compare_arg_ne_estimation_effects.py

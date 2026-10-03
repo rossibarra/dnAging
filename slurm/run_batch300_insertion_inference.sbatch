@@ -14,4 +14,4 @@ ROOT="${ROOT:-$PROJECT/msprime_batch300_insertion}"
 module load conda
 conda activate dnaging
 NMODERN=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["n_modern_haploid"])' "$ROOT/simulations/replicate_$(printf '%03d' "$((SLURM_ARRAY_TASK_ID + 1))")/metadata.json")
-python "$PROJECT/msprime_insertion_validation.py" infer --input-root "$ROOT/simulations" --output-dir "$ROOT/insertion_inference" --replicate "$((SLURM_ARRAY_TASK_ID + 1))" --n-modern "$NMODERN" --age-min 0 --age-max 15000 --age-step 50
+python "$PROJECT/validation/msprime_insertion_validation.py" infer --input-root "$ROOT/simulations" --output-dir "$ROOT/insertion_inference" --replicate "$((SLURM_ARRAY_TASK_ID + 1))" --n-modern "$NMODERN" --age-min 0 --age-max 15000 --age-step 50

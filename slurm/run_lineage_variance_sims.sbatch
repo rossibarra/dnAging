@@ -22,7 +22,7 @@ case "$SLURM_ARRAY_TASK_ID" in
 esac
 module load conda
 conda activate dnaging
-python "$PROJECT/simulate_variable_ne_error.py" \
+python "$PROJECT/validation/simulate_variable_ne_error.py" \
     --output-root "$ROOT/simulations_age${AGE}" \
     --replicate 1 --base-seed "$((1760000000 + SLURM_ARRAY_TASK_ID))" \
     --ne-file "$ROOT/demography/constant_ne_50000.tsv" \

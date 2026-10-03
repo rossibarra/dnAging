@@ -14,7 +14,7 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 ROOT="${ROOT:-$PROJECT/msprime_exact_time_ne50k}"
 module load conda
 conda activate dnaging
-python "$PROJECT/msprime_exact_time_validation.py" infer \
+python "$PROJECT/validation/msprime_exact_time_validation.py" infer \
     --input-root "$ROOT/simulations" \
     --frequency-table "$ROOT/constant_ne_50000.freq_table.npz" \
     --output-dir "$ROOT/exact_time_inference" \

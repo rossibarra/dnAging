@@ -14,6 +14,6 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 ROOT="$PROJECT/slim_single_site_edge_validation"
 module load conda
 conda activate dnaging
-python "$PROJECT/insertion_validation.py" run-chunk \
+python "$PROJECT/validation/insertion_validation.py" run-chunk \
   --input-dir "$ROOT" --diagnostic-dir "$ROOT/chunks_random_focal" \
   --output-dir "$ROOT/insertion_chunks" --chunk-id "$SLURM_ARRAY_TASK_ID"

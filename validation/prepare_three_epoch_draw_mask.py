@@ -4,6 +4,8 @@ import argparse
 from pathlib import Path
 import numpy as np
 import tszip
+import sys
+sys.path[:0] = [str(Path(__file__).resolve().parents[1] / d) for d in ("pipeline", "validation")]
 from betabinom_real_data import orientation
 from insertion_real_data import chromosome_layout
 from prepare_three_epoch_insertion import R, calls_for

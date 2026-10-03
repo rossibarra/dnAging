@@ -17,7 +17,7 @@ N_CHUNKS="${N_CHUNKS:-100}"
 module load conda
 conda activate dnaging
 
-python "$PROJECT/diffusion_frequency_validation.py" merge \
+python "$PROJECT/validation/diffusion_frequency_validation.py" merge \
     --chunk-dir "$OUTPUT_ROOT/chunks" \
     --output-dir "$OUTPUT_ROOT/results" \
     --n-chunks "$N_CHUNKS"

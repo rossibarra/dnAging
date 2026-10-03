@@ -22,7 +22,7 @@ printf 'series\ttime_left\ttime_right\teffective_population_size\nconstant\t0\t%
     "$AGE_MAX" "$NE" > "$NE_FILE"
 # T grid widened to 25,000: the Ne=50K run censored 22%% of the 30-100K stratum
 # at its 10,000 ceiling, so the measured shift there was a lower bound.
-python "$PROJECT/precompute_freq_trajectory_moments.py" \
+python "$PROJECT/pipeline/precompute_freq_trajectory_moments.py" \
     --ne "$NE_FILE" --ne-series constant \
     --n-sample 26 --min-n 26 \
     --t-min 0 --t-max 25000 --n-t 501 \

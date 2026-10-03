@@ -12,7 +12,7 @@ set -euo pipefail
 PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 module load conda
 conda activate dnaging
-python "$PROJECT/edge_uniformity_validation.py" \
+python "$PROJECT/validation/edge_uniformity_validation.py" \
   --input-dir "$PROJECT/slim_single_site_edge_validation" \
   --chunk-dir "$PROJECT/slim_single_site_edge_validation/chunks_random_focal" \
   --output-dir "$PROJECT/slim_single_site_edge_validation/edge_uniformity"

@@ -12,6 +12,6 @@ python -c 'import numpy, mpmath' 2>/dev/null || {
     echo "ERROR: activate the dnaging conda environment before submission" >&2
     exit 90
 }
-python "$PROJECT/precompute_betabinom_variable_ne.py" \
+python "$PROJECT/pipeline/precompute_betabinom_variable_ne.py" \
     --ne "$NE_FILE" --ne-series posterior_mean --n-panel 26 \
     --u-min 1e-9 --u-max 3 --n-u 80 --dps 360 --output "$OUTPUT"

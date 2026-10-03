@@ -18,8 +18,9 @@ import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+for _d in ("pipeline", "validation"):
+    if str(ROOT / _d) not in sys.path:
+        sys.path.insert(0, str(ROOT / _d))
 
 import posterior_sample_age_infer as inf   # noqa: E402
 

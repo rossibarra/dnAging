@@ -8,4 +8,4 @@
 #SBATCH --mem=8G
 #SBATCH --time=01:00:00
 set -euo pipefail
-PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"; module load conda; conda activate dnaging; cd "$PROJECT"; python summarize_insertion_frequency_bias.py
+PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"; module load conda; conda activate dnaging; cd "$PROJECT"; python scripts/summarize_insertion_frequency_bias.py

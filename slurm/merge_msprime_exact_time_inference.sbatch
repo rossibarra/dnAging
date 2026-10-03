@@ -13,6 +13,6 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 ROOT="${ROOT:-$PROJECT/msprime_exact_time_ne50k}"
 module load conda
 conda activate dnaging
-python "$PROJECT/msprime_exact_time_validation.py" merge \
+python "$PROJECT/validation/msprime_exact_time_validation.py" merge \
     --input-dir "$ROOT/exact_time_inference" \
     --output-dir "$ROOT/results" --n-replicates 100

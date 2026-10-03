@@ -19,7 +19,7 @@ START=$((CHUNK * 100 + 1))
 STOP=$((START + 100))
 module load conda
 conda activate dnaging
-python "$PROJECT/slim_edge_interval_validation.py" infer \
+python "$PROJECT/validation/slim_edge_interval_validation.py" infer \
   --input-dir "$ROOT" \
   --frequency-table "$PROJECT/slim_single_site_diffusion_test_A/constant_ne_10000.freq_table.npz" \
   --output-dir "$CHUNK_DIR" --chunk-id "$CHUNK" --start "$START" --stop "$STOP" \

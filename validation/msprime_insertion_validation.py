@@ -12,6 +12,8 @@ from pathlib import Path
 import numpy as np
 import tskit
 
+import sys
+sys.path[:0] = [str(Path(__file__).resolve().parents[1] / d) for d in ("pipeline", "validation")]
 from insertion_likelihood import PiecewiseConstantNe, derived_probability_uniform_edge_grid
 from posterior_sample_age_infer import summarize
 

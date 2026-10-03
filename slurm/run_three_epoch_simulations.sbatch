@@ -19,7 +19,7 @@ conda activate dnaging
 # mutation seeds stay replicate-specific so the genealogies are independent.
 # Without the shared age seed each chromosome would carry a different set of
 # ancient people, and concatenating their VCFs would be meaningless.
-python "$PROJECT/simulate_variable_ne_error.py" \
+python "$PROJECT/validation/simulate_variable_ne_error.py" \
     --output-root "$ROOT/simulations" \
     --replicate "$SLURM_ARRAY_TASK_ID" \
     --base-seed "${BASE_SEED:-1750000000}" \

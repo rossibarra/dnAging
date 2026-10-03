@@ -13,5 +13,5 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 OUTROOT="${OUTROOT:-$PROJECT/insertion_arg_draws}"
 module load conda
 conda activate dnaging
-python "$PROJECT/insertion_real_data.py" merge --manifest "$MANIFEST" \
+python "$PROJECT/pipeline/insertion_real_data.py" merge --manifest "$MANIFEST" \
   --draw-root "$OUTROOT" --output "$OUTROOT/merged"

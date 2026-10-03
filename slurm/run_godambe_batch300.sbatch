@@ -18,7 +18,7 @@ conda activate dnaging
 # n_modern varies across batch300 (panel 10-40 haploids), so read it per replicate.
 NMODERN=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["n_modern_haploid"])' \
     "$ROOT/simulations/replicate_$(printf '%03d' "$REP")/metadata.json")
-python "$PROJECT/godambe_block_insertion.py" \
+python "$PROJECT/validation/godambe_block_insertion.py" \
     --input-root "$ROOT/simulations" \
     --output-dir "$ROOT/godambe" \
     --replicate "$REP" --n-modern "$NMODERN" \

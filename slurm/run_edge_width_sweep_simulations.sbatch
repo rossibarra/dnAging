@@ -17,7 +17,7 @@ module load conda
 conda activate dnaging
 # Identical to the Ne=50K control in every respect but Ne, so the contrast
 # across Ne varies one thing.
-python "$PROJECT/msprime_exact_time_validation.py" simulate \
+python "$PROJECT/validation/msprime_exact_time_validation.py" simulate \
     --output-root "$ROOT/simulations_ne${NE}" \
     --replicate "$((SLURM_ARRAY_TASK_ID + 1))" \
     --base-seed "${BASE_SEED:?set BASE_SEED}" \

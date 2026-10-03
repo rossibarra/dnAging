@@ -16,6 +16,6 @@ RESULT_DIR="${RESULT_DIR:-$ROOT/results}"
 MUTATION_AGE_SOURCE="${MUTATION_AGE_SOURCE:-edge}"
 module load conda
 conda activate dnaging
-python "$PROJECT/slim_edge_interval_validation.py" merge \
+python "$PROJECT/validation/slim_edge_interval_validation.py" merge \
   --chunk-dir "$CHUNK_DIR" --output-dir "$RESULT_DIR" --n-chunks 100 \
   --mutation-age-source "$MUTATION_AGE_SOURCE"

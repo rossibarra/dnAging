@@ -26,6 +26,6 @@ conda activate dnaging
 slim -s "$SEED" -d NE=10000 -d MUT_RATE=1e-6 -d END_GEN=40000 \
   -d N_PANEL=26 -d "TREE_FILE=\"$raw\"" -d "SAMPLE_FILE=\"$sample\"" \
   "$PROJECT/slim/single_site_edge_validation.slim" >"$OUTDIR/logs/${stem}.log" 2>&1
-python "$PROJECT/slim_edge_interval_validation.py" compact \
+python "$PROJECT/validation/slim_edge_interval_validation.py" compact \
   --input-tree "$raw" --sample-file "$sample" --output-tree "$tree"
 rm -f "$raw"

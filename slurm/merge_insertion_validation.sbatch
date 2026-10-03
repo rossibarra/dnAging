@@ -13,5 +13,5 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 ROOT="$PROJECT/slim_single_site_edge_validation"
 module load conda
 conda activate dnaging
-python "$PROJECT/insertion_validation.py" merge \
+python "$PROJECT/validation/insertion_validation.py" merge \
   --chunk-dir "$ROOT/insertion_chunks" --output-dir "$ROOT/insertion_results"

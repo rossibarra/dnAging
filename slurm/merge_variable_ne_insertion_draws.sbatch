@@ -20,6 +20,6 @@ module load conda
 conda activate dnaging
 EXTRA=()
 if [[ "${SKIP_D0:-0}" == 1 ]]; then EXTRA+=(--skip-d0); fi
-python "$PROJECT/insertion_real_data.py" merge --manifest "$PREP/draw_manifest.tsv" \
+python "$PROJECT/pipeline/insertion_real_data.py" merge --manifest "$PREP/draw_manifest.tsv" \
   --draw-root "$BASE/$OUTPUT_TAG/draws/replicate_$R" "${EXTRA[@]}" \
   --output "$BASE/$MERGED_TAG/merged/replicate_$R"

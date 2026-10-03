@@ -12,6 +12,6 @@ set -euo pipefail
 PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 module load conda
 conda activate dnaging
-python "$PROJECT/prepare_variable_ne_insertion.py" --root "$PROJECT/msprime_variable_ne_error" \
+python "$PROJECT/validation/prepare_variable_ne_insertion.py" --root "$PROJECT/msprime_variable_ne_error" \
   --replicate "$SLURM_ARRAY_TASK_ID" --keep-last "${KEEP_LAST:-50}" \
   --output-root "$PROJECT/msprime_variable_ne_error/insertion_posterior"

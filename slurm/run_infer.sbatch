@@ -89,7 +89,7 @@ if [[ "${MERGE:-0}" == "1" ]]; then
         exit 93
     fi
     echo "merging ${#PARTS[@]} chromosome parts"
-    python "$PROJECT/posterior_sample_age_infer.py" \
+    python "$PROJECT/pipeline/posterior_sample_age_infer.py" \
         --freq-table "$TABLE" --merge ${PARTS[@]+"${PARTS[@]}"} \
         --output "$OUTROOT/genome"
     exit 0
@@ -98,7 +98,7 @@ fi
 CHROM="${CHROMS[${SLURM_ARRAY_TASK_ID:-0}]}"
 [[ -n "$CHROM" ]] || { echo "ERROR: no chromosome at array index ${SLURM_ARRAY_TASK_ID:-0}" >&2; exit 94; }
 
-python "$PROJECT/posterior_sample_age_infer.py" \
+python "$PROJECT/pipeline/posterior_sample_age_infer.py" \
     --freq-table "$TABLE" \
     --store "$STORE" --draw-polarity "$POLARITY" \
     --panel-vcf "$PANELVCF" --vcf "$VCF" --chrom "$CHROM" \

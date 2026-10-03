@@ -19,4 +19,4 @@ while IFS=$'\t' read -r tree_id _rest; do
     parts+=("$DRAW_ROOT/draw_$tree_id")
 done < "$DRAW_SELECTION"
 
-python "$PROJECT/betabinom_real_data.py" --merge "${parts[@]}" --output "$OUTPUT"
+python "$PROJECT/pipeline/betabinom_real_data.py" --merge "${parts[@]}" --output "$OUTPUT"

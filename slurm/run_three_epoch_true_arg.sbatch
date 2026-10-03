@@ -9,4 +9,4 @@ set -euo pipefail
 cd "${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 module load conda
 conda activate dnaging
-python three_epoch_true_arg_insertion.py
+python validation/three_epoch_true_arg_insertion.py

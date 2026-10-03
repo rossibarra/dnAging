@@ -40,7 +40,7 @@ from pathlib import Path
 import numpy as np
 import tskit
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path[:0] = [str(Path(__file__).resolve().parents[1] / d) for d in ("pipeline", "validation")]
 from posterior_sample_age_infer import load_table, phi_lookup, summarize
 
 # Edge width in generations.  Chosen from the observed distribution at Ne=50K
@@ -73,7 +73,6 @@ def stratum_labels():
 
 def vcf_calls(path: Path, n_modern: int):
     """Reuse the validation script's reader so the call parsing is identical."""
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from msprime_exact_time_validation import vcf_calls as reader
     return reader(path, n_modern)
 

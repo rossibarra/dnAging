@@ -10,4 +10,4 @@
 #SBATCH --array=1-10%10
 set -euo pipefail
 PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"; module load conda; conda activate dnaging
-python "$PROJECT/prepare_frequency_stratified_calls.py" --root "$PROJECT/msprime_variable_ne_error" --replicate "$SLURM_ARRAY_TASK_ID"
+python "$PROJECT/validation/prepare_frequency_stratified_calls.py" --root "$PROJECT/msprime_variable_ne_error" --replicate "$SLURM_ARRAY_TASK_ID"

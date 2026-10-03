@@ -41,7 +41,7 @@ from pathlib import Path
 import numpy as np
 import tskit
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path[:0] = [str(Path(__file__).resolve().parents[1] / d) for d in ("pipeline", "validation")]
 from insertion_likelihood import (PiecewiseConstantNe,
                                   derived_probability_uniform_edge_grid)
 from msprime_insertion_validation import vcf_call_matrix

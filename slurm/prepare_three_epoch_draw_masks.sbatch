@@ -10,4 +10,4 @@ set -euo pipefail
 cd "${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 module load conda
 conda activate dnaging
-python prepare_three_epoch_draw_mask.py --draw "$((SLURM_ARRAY_TASK_ID+50))"
+python validation/prepare_three_epoch_draw_mask.py --draw "$((SLURM_ARRAY_TASK_ID+50))"

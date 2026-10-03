@@ -11,4 +11,4 @@
 set -euo pipefail
 PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"; R=$(printf '%03d' "$SLURM_ARRAY_TASK_ID")
 module load conda; conda activate dnaging
-python "$PROJECT/insertion_frequency_stratified_true_arg.py" --root "$PROJECT/msprime_variable_ne_error" --replicate "$SLURM_ARRAY_TASK_ID" --epsilon "${EPSILON:-0.01}" --output "$PROJECT/msprime_variable_ne_error/insertion_frequency/true_arg/replicate_$R"
+python "$PROJECT/validation/insertion_frequency_stratified_true_arg.py" --root "$PROJECT/msprime_variable_ne_error" --replicate "$SLURM_ARRAY_TASK_ID" --epsilon "${EPSILON:-0.01}" --output "$PROJECT/msprime_variable_ne_error/insertion_frequency/true_arg/replicate_$R"

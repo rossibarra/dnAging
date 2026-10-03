@@ -12,6 +12,8 @@ import numpy as np
 import tskit
 
 from direct_frequency_age_infer import discrete_quantile, normalize_log_likelihood
+import sys
+sys.path[:0] = [str(Path(__file__).resolve().parents[1] / d) for d in ("pipeline", "validation")]
 from posterior_sample_age_infer import load_table, phi_lookup
 
 

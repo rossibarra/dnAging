@@ -36,7 +36,7 @@ test -n "$DRAW_ID" && test -s "$TREE" && test -s "$NE"
 OUT="$PROJECT/msprime_variable_ne_error/insertion_posterior/$OUTPUT_TAG/draws/replicate_$R/draw_$DRAW_ID"
 module load conda
 conda activate dnaging
-python "$PROJECT/insertion_real_data.py" run-draw --tree "$TREE" --draw-id "$DRAW_ID" \
+python "$PROJECT/pipeline/insertion_real_data.py" run-draw --tree "$TREE" --draw-id "$DRAW_ID" \
   --calls "$PREP/calls" --ne "$NE" --ne-series "$NE_SERIES" \
   --epsilon "${EPSILON:-0.01}" --age-min "${AGE_MIN:-0}" \
   --age-max "${AGE_MAX:-15000}" --age-step "${AGE_STEP:-50}" --output "$OUT"

@@ -9,4 +9,4 @@ set -euo pipefail
 cd "${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 module load conda
 conda activate dnaging
-python merge_three_epoch_draw_masks.py
+python validation/merge_three_epoch_draw_masks.py

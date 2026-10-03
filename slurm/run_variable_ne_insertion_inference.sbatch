@@ -17,7 +17,7 @@ ANCIENT_INDEX="$((SLURM_ARRAY_TASK_ID % 10 + 1))"
 ANCIENT_SAMPLE="$(printf 'ancient_%02d' "$ANCIENT_INDEX")"
 module load conda
 conda activate dnaging
-python "$PROJECT/msprime_insertion_validation.py" infer \
+python "$PROJECT/validation/msprime_insertion_validation.py" infer \
   --input-root "$ROOT/simulations" \
   --output-dir "$ROOT/insertion_inference/$ANCIENT_SAMPLE" \
   --replicate "$REPLICATE" --n-modern 26 \

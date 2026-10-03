@@ -14,6 +14,6 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 ROOT="${ROOT:-$PROJECT/msprime_exact_time_ne50k}"
 module load conda
 conda activate dnaging
-python "$PROJECT/msprime_insertion_validation.py" infer \
+python "$PROJECT/validation/msprime_insertion_validation.py" infer \
   --input-root "$ROOT/simulations" --output-dir "$ROOT/insertion_inference" \
   --replicate "$((SLURM_ARRAY_TASK_ID + 1))"

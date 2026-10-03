@@ -17,7 +17,7 @@ case "$SLURM_ARRAY_TASK_ID" in
 esac
 module load conda
 conda activate dnaging
-python "$PROJECT/lineage_variance_infer.py" \
+python "$PROJECT/validation/lineage_variance_infer.py" \
     --replicate-dir "$ROOT/simulations_age${AGE}/replicate_001" \
     --output "$ROOT/results/age${AGE}.json" \
     --n-blocks 50 --n-boot 1000 --age-min 0 --age-max 15000 --age-step 50

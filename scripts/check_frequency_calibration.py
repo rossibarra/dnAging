@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import tskit
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path[:0] = [str(Path(__file__).resolve().parents[1] / d) for d in ("pipeline", "validation")]
 from posterior_sample_age_infer import load_table, phi_lookup
 
 

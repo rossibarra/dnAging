@@ -22,7 +22,7 @@ if [[ ! -f "$NE_FILE" ]]; then
     printf 'series\ttime_left\ttime_right\teffective_population_size\nconstant\t0\t61000\t10000\n' > "$NE_FILE"
 fi
 
-python "$PROJECT/precompute_freq_trajectory_moments.py" \
+python "$PROJECT/pipeline/precompute_freq_trajectory_moments.py" \
     --ne "$NE_FILE" --ne-series constant \
     --n-sample 26 --min-n 26 \
     --t-min 0 --t-max 7000 --n-t 701 \

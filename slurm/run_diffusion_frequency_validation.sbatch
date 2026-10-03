@@ -20,7 +20,7 @@ N_CHUNKS="${N_CHUNKS:-100}"
 module load conda
 conda activate dnaging
 
-python "$PROJECT/diffusion_frequency_validation.py" chunk \
+python "$PROJECT/validation/diffusion_frequency_validation.py" chunk \
     --input-dir "$INPUT_DIR" \
     --frequency-table "$FREQ_TABLE" \
     --output-dir "$OUTPUT_ROOT/chunks" \

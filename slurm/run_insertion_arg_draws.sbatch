@@ -20,6 +20,6 @@ TREE="$(awk -F '\t' -v row="$ROW" 'NR==1{for(i=1;i<=NF;i++)h[$i]=i} NR==row{prin
 test -n "$DRAW_ID" && test -n "$TREE"
 module load conda
 conda activate dnaging
-python "$PROJECT/insertion_real_data.py" run-draw --tree "$TREE" --draw-id "$DRAW_ID" \
+python "$PROJECT/pipeline/insertion_real_data.py" run-draw --tree "$TREE" --draw-id "$DRAW_ID" \
   --calls "$CALLS" --ne "$NE_TABLE" --ne-series "${NE_SERIES:-combined}" \
   --epsilon "${EPSILON:-0.01}" --output "$OUTROOT/draw_$DRAW_ID"

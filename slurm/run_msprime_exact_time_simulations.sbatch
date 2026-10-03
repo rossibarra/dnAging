@@ -14,7 +14,7 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT/msprime_exact_time_ne50k/simulations}"
 module load conda
 conda activate dnaging
-python "$PROJECT/msprime_exact_time_validation.py" simulate \
+python "$PROJECT/validation/msprime_exact_time_validation.py" simulate \
     --output-root "$OUTPUT_ROOT" \
     --replicate "$((SLURM_ARRAY_TASK_ID + 1))" \
     --base-seed "${BASE_SEED:-1700000000}" \

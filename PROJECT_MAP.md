@@ -6,43 +6,47 @@ This document describes the repository as it exists now. Paths containing large 
 
 | Path | Classification | Purpose and retention |
 |---|---|---|
-| `precompute_freq_trajectory_moments.py` | production | Exact neutral Wright–Fisher moment-table generator (`freq_table.npz`); rerunnable from its demography/grid arguments. |
-| `posterior_sample_age_infer.py` | production | Main per-chromosome and genome merge inference; consumes table, interval store, polarity, panel VCF and ancient VCF. |
-| `precompute_betabinom_variable_ne.py`, `betabinom_real_data.py`, `prepare_betabinom_calls.py` | production/active | Variable-Ne beta-binomial table, real-data inference, and call/site preparation. Preserve scripts and final summaries; intermediate arrays can be regenerated. |
-| `direct_frequency_age_infer.py`, `diffusion_frequency_validation.py`, `msprime_exact_time_validation.py`, `validate_moments_vs_mc.py` | validation | Maintained simulation-calibration harnesses; see the code map below. Keep code and compact summaries; bulk replicate data are reproducible from recorded seeds. |
+| `pipeline/` | production and method code | Method implementations and real-data drivers for all three approaches: diffusion (`precompute_freq_trajectory_moments.py`, `posterior_sample_age_infer.py`), insertion (`insertion_likelihood.py`, `insertion_real_data.py`) and beta-binomial (`precompute_betabinom_variable_ne.py`, `betabinom_real_data.py`, `prepare_betabinom_calls.py`). See the code map below. |
+| `validation/` | validation code | Simulation-calibration harnesses: SLiM and msprime diffusion controls, insertion validation, variable-Ne and three-epoch suites, SINGER/ARGtest input conversion, Godambe and lineage-variance checks. Scripts that import across folders prepend `pipeline/` and `validation/` to `sys.path`; run them from the repo root because their default output paths are relative. |
 | `slim/` | validation simulation input | `single_site_neutral.slim`, the forward Wright–Fisher model used by the single-site tests. |
 | `slim_single_site_direct_age/` | generated, compact validation result | Known-frequency likelihood control. Raw simulations/chunks were intentionally removed after documentation; keep the tracked summary, PNGs and `run.json`. |
 | `slim_single_site_diffusion_test_A/` | generated validation result | First, over-conservative unique-lineage diffusion check. Raw chunks were removed; compact results and its constant-Ne table remain. |
 | `slim_single_site_diffusion_test_A_one_per_replicate/` | generated validation result | Corrected SLiM diffusion check with at most one panel-polymorphic lineage per replicate. Raw chunks were removed; keep compact results. |
-| `slim_edge_interval_validation.py`, `edge_uniformity_validation.py`, `slim_single_site_edge_validation/` | validation, completed | T9 independent-locus control. On the same 1,243 loci, exact mutation time gives +33-generation MAP bias with all seven 95% intervals covering; the true edge plus uniform marginalisation gives +376. All mutation times lie inside their edges and the discrete within-edge placement is uniform (KS p=0.346). Preserve compact results, seeds and scripts. |
+| `validation/slim_edge_interval_validation.py`, `validation/edge_uniformity_validation.py`, `slim_single_site_edge_validation/` | validation, completed | T9 independent-locus control. On the same 1,243 loci, exact mutation time gives +33-generation MAP bias with all seven 95% intervals covering; the true edge plus uniform marginalisation gives +376. All mutation times lie inside their edges and the discrete within-edge placement is uniform (KS p=0.346). Preserve compact results, seeds and scripts. |
 | `msprime_exact_time_ne50k/` | generated completed experiment | Simulations, exact-time and edge-interval inference, tables and results for Ne=50,000. Retain final results and `run.json`; raw replicates are reproducible. |
+| `msprime_batch300_insertion/`, `msprime_variable_ne_error/`, `msprime_three_epoch/`, `msprime_lineage_variance/` | generated insertion experiments | 300-replicate insertion benchmark; variable-Ne replicates with ancient genotype error (SINGER/ARGtest ARGs, insertion posteriors, frequency-stratified bias); three-epoch, three-chromosome suite; lineage-draw variance runs. Per-replicate outputs are gitignored and regenerable from seeds; compact summaries (figures, `run.json`, metrics) are tracked. |
+| `edge_width_ne_sweep/` | generated validation result | T10 Ne-sweep edge-width stratification; only the per-stratum summaries are tracked. |
+| `batches/` | self-contained batch runs | `nine_demographies_20260916/` keeps its own sbatch files, manifest, job tables and a frozen `code/` snapshot; its `runs/` output (about 320 GB) is gitignored. Do not edit the snapshot to match current code. |
 | `logan_try/` | active real-data experiment | Cohort selection, VCF audits, epsilon calibration, and chromosome/cohort results. Treat VCF/TSV/NPZ inputs and completed results as valuable provenance; do not delete without an external copy. |
 | `results/` | generated output | Main posterior/ESS figures and run JSONs. Safe to regenerate only when inputs and settings are retained. |
-| `scripts/` | analysis and provenance code | Calibration checks, draw-mixture ESS, edge-width scaling, T1/T4 attribution analyses, and `scripts/provenance/` historical big-simulation recipes (some contain machine-specific absolute paths). |
+| `scripts/` | analysis and provenance code | Calibration checks, draw-mixture ESS, edge-width scaling, T1/T4 attribution analyses; summaries, comparisons, diagnostics and plots for the insertion, variable-Ne and three-epoch experiments; LD-decay and SNP-spacing analyses of the ancient VCF; and `scripts/provenance/` historical big-simulation recipes (some contain machine-specific absolute paths and predate the `pipeline/` layout). |
 | `slurm/` | execution wrappers | sbatch wrappers for every precompute, simulation, inference, merge, and preparation stage. |
 | `tests/` | test suite | Unit/regression tests for moment engines, likelihood marginalisation, orientation/chunking, numerical guards, adapters, and pipeline integration. |
 | `normalizeTEs/` | pinned git submodule dependency | Supplies the `normalize_tes` interval-store, polarity and VCF adapters; inference imports it via `PYTHONPATH`. Initialize with `git submodule update --init`; **currently uninitialised (the directory is empty)**, which is why `tests/conftest.py` stubs the adapter boundary. Do not treat it as generated output. |
-| `working_diffusion.md`, `working_betabinom.md`, `MATH.md`, `NOTES.md` | design/provenance docs | Derivation, modelling decisions and current investigations. Read alongside [README.md](README.md). |
-| `README.md`, `HPC_REAL_DATA_CODEX.md`, `ANCIENT_TEST.md`, `TODO.md` | user/run documentation | Pipeline usage, cluster notes, ancient-data checks and open work. |
+| `working_diffusion.md`, `working_betabinom.md`, `working_insertion.md`, `MATH.md`, `NOTES.md` | design/provenance docs | Method-specific derivation, modelling decisions and current investigations. Read alongside [README.md](README.md). |
+| `README.md`, `HPC_REAL_DATA_CODEX.md`, `ANCIENT_TEST.md`, `TODO.md`, `real_data_plan.md`, `docs/` | user/run documentation | Pipeline usage, cluster notes, ancient-data checks, open work, the real-data plan, the graphical abstract and the diffusion option reference. |
 | `logs/`, `slurm-*.out`, `__pycache__/`, `.pytest_cache/` | generated transient output | Job logs/caches; safe to delete after diagnosing runs (retain failed logs when provenance matters). |
+| `archive/` | local, gitignored | Superseded `*.bak` snapshots (`archive/bak/`, mirroring their original paths) and the raw `Maize_ancient_calls_for_ARG.zip`. Not in git; back it up separately if it matters. |
 
 ## Code map
 
 | File | Role |
 |---|---|
-| `precompute_freq_trajectory_moments.py` | Builds exact-arithmetic first- and second-moment diffusion tables under piecewise-constant Ne. |
-| `posterior_sample_age_infer.py` | Production diffusion inference, including VCF/store adapters, edge-age lookup, ARG-draw marginalisation, epsilon handling and chromosome merging. |
-| `prepare_betabinom_calls.py` | Converts the panel/ancient calls and ARG information into the site archive consumed by the beta-binomial branch. |
-| `precompute_betabinom_variable_ne.py` | Builds variable-Ne beta-binomial probability tables. |
-| `betabinom_real_data.py` | Runs beta-binomial inference from prepared calls and tree sequences. |
-| `direct_frequency_age_infer.py` | Validates the terminal Bernoulli likelihood using exact SLiM frequency trajectories—no frequency approximation. |
-| `diffusion_frequency_validation.py` | SLiM Test A: exact focal-mutation origin plus sampled modern count passed through the diffusion lookup. |
-| `msprime_exact_time_validation.py` | Generates the 100 Ne=50K msprime replicates and runs the paired exact-mutation-time and true-edge-interval inference tests. |
-| `slim_edge_interval_validation.py` | T9 inference/merge harness for 10,000 independent one-base SLiM replicates, supporting paired exact-time and true-edge analyses. |
-| `edge_uniformity_validation.py` | T9 audit of mutation containment, discrete uniform placement within the true edge, and recurrent-replacement count mismatches. |
+| `pipeline/precompute_freq_trajectory_moments.py` | Builds exact-arithmetic first- and second-moment diffusion tables under piecewise-constant Ne. |
+| `pipeline/posterior_sample_age_infer.py` | Production diffusion inference, including VCF/store adapters, edge-age lookup, ARG-draw marginalisation, epsilon handling and chromosome merging. |
+| `pipeline/prepare_betabinom_calls.py` | Converts the panel/ancient calls and ARG information into the site archive consumed by the beta-binomial branch. |
+| `pipeline/precompute_betabinom_variable_ne.py` | Builds variable-Ne beta-binomial probability tables. |
+| `pipeline/betabinom_real_data.py` | Runs beta-binomial inference from prepared calls and tree sequences. |
+| `pipeline/insertion_likelihood.py` | Direct ancient-lineage insertion probabilities on a fixed modern tree (MATH.md §8). |
+| `pipeline/insertion_real_data.py` | Insertion inference on concatenated, chromosome-independent ARG draws: `run-draw` per tree, then `merge` (draw marginalisation per chromosome, block-bootstrap MAPs). |
+| `validation/direct_frequency_age_infer.py` | Validates the terminal Bernoulli likelihood using exact SLiM frequency trajectories—no frequency approximation. |
+| `validation/diffusion_frequency_validation.py` | SLiM Test A: exact focal-mutation origin plus sampled modern count passed through the diffusion lookup. |
+| `validation/msprime_exact_time_validation.py` | Generates the 100 Ne=50K msprime replicates and runs the paired exact-mutation-time and true-edge-interval inference tests. |
+| `validation/slim_edge_interval_validation.py` | T9 inference/merge harness for 10,000 independent one-base SLiM replicates, supporting paired exact-time and true-edge analyses. |
+| `validation/edge_uniformity_validation.py` | T9 audit of mutation containment, discrete uniform placement within the true edge, and recurrent-replacement count mismatches. |
 | `scripts/edge_width_scaling.py` | T8: paired exact-time vs true-edge inference on identical sites within edge-width strata, which separates interval *width* from interval *representation*. |
 | `scripts/draw_mixture_ess.py` | T7: reconstructs per-draw log-likelihoods from saved epsilon data to measure draw-mixture ESS and the cost of per-site draw averaging. |
-| `validate_moments_vs_mc.py` | Compares moment recursion against a Monte Carlo simulation of the diffusion itself; numerical validation, not a discrete-population test. |
+| `validation/validate_moments_vs_mc.py` | Compares moment recursion against a Monte Carlo simulation of the diffusion itself; numerical validation, not a discrete-population test. |
 
 ## Test map
 
@@ -89,12 +93,12 @@ Run the default suite through SLURM rather than on the head node, e.g.
 
 ## Generator → output relationships
 
-* `precompute_freq_trajectory_moments.py` (or `slurm/run_precompute.sbatch`) → frequency table (`.npz` plus grid/metadata), consumed by `posterior_sample_age_infer.py` and validation scripts.
-* `posterior_sample_age_infer.py` via `slurm/run_infer.sbatch` → one output per chromosome (`ages_table.tsv`, likelihood/grid/sample arrays, `run.json`), then a genome-wide merge directory.
+* `pipeline/precompute_freq_trajectory_moments.py` (or `slurm/run_precompute.sbatch`) → frequency table (`.npz` plus grid/metadata), consumed by `pipeline/posterior_sample_age_infer.py` and validation scripts.
+* `pipeline/posterior_sample_age_infer.py` via `slurm/run_infer.sbatch` → one output per chromosome (`ages_table.tsv`, likelihood/grid/sample arrays, `run.json`), then a genome-wide merge directory.
 * `slim/single_site_neutral.slim` via `slurm/run_single_site_slim.sbatch` → replicate `frequencies/` and `samples/`; `merge_single_site_slim.sbatch` combines them. Direct/diffusion harnesses analyse those files; their merge wrappers produce calibration plots and JSON summaries. These raw files were deleted after the documented controls passed and must be regenerated before rerunning the SLiM analyses.
-* `slim/single_site_edge_validation.slim` via `run_slim_edge_validation_simulations.sbatch` → 10,000 compact modern-only tree sequences plus historical genotype manifests. `slim_edge_interval_validation.py` produces `results_exact_time/` (+33-generation MAP bias) and `results_random_focal/` (+376); `edge_uniformity_validation.py` produces `edge_uniformity/` (all 1,243 mutations contained, uniform-placement KS p=0.346). The independent-locus result rules out LD as the edge-bias explanation.
-* `msprime_exact_time_validation.py`: simulation → inference → merge, using `msprime_exact_time_ne50k/{simulations,exact_time_inference,edge_interval_uniform_inference}`. Exact-time and edge-interval branches are completed; edge result is `edge_interval_uniform_results/run.json` (MAP bias +363.56, coverage 0.44), while exact-time results are under `msprime_exact_time_ne50k/results/` — not the top-level `results/`, which is a different directory. Edge-width strata are in `edge_width_scaling_results/` (T8).
-* `prepare_betabinom_calls.py` → prepared cohort/site archive; variable-Ne precompute → beta-binomial table; `betabinom_real_data.py` jobs → merged real-data posterior. Wrappers are the corresponding files in `slurm/`.
+* `slim/single_site_edge_validation.slim` via `run_slim_edge_validation_simulations.sbatch` → 10,000 compact modern-only tree sequences plus historical genotype manifests. `validation/slim_edge_interval_validation.py` produces `results_exact_time/` (+33-generation MAP bias) and `results_random_focal/` (+376); `validation/edge_uniformity_validation.py` produces `edge_uniformity/` (all 1,243 mutations contained, uniform-placement KS p=0.346). The independent-locus result rules out LD as the edge-bias explanation.
+* `validation/msprime_exact_time_validation.py`: simulation → inference → merge, using `msprime_exact_time_ne50k/{simulations,exact_time_inference,edge_interval_uniform_inference}`. Exact-time and edge-interval branches are completed; edge result is `edge_interval_uniform_results/run.json` (MAP bias +363.56, coverage 0.44), while exact-time results are under `msprime_exact_time_ne50k/results/` — not the top-level `results/`, which is a different directory. Edge-width strata are in `edge_width_scaling_results/` (T8).
+* `pipeline/prepare_betabinom_calls.py` → prepared cohort/site archive; variable-Ne precompute → beta-binomial table; `pipeline/betabinom_real_data.py` jobs → merged real-data posterior. Wrappers are the corresponding files in `slurm/`.
 * `scripts/check_frequency_calibration.py`, `draw_mixture_ess.py`, `compare_t1_marginalisation.py`, and `t4_attribution_sweep.py` read existing outputs and write diagnostics; they do not define production inference.
 
 ## SLURM ordering
@@ -103,7 +107,7 @@ Main pipeline: **precompute → infer array (one chromosome per task) → merge*
 
 ## Retention and reproducibility
 
-Retain source, tests, documentation, seeds, `run.json`, final tables and figures, and real-data inputs. Raw simulation chunks and job logs are removable only after confirming seeds, parameters, and compact summaries remain. Generated directories are not source. In particular, preserve `logan_try/` unless its real-data inputs and outputs have an external archive. Retain `slim_single_site_edge_validation/results_exact_time/`, `results_random_focal/`, and `edge_uniformity/`; the 10,000 compact trees are reproducible from the fixed seeds and may be removed only after the completed T9 result is committed and archived. The 2.6 GB `msprime_exact_time_ne50k/simulations/` directory can eventually be regenerated from its per-replicate metadata, but retain it until all paired edge analyses are documented. Reproduction requires [environment.yml](environment.yml), the pinned `normalizeTEs` submodule, and external VCF/ARG/demography files listed in [README.md](README.md). Mathematical definitions are in [MATH.md](MATH.md), with implementation notes in [working_diffusion.md](working_diffusion.md) and [working_betabinom.md](working_betabinom.md).
+Retain source, tests, documentation, seeds, `run.json`, final tables and figures, and real-data inputs. Raw simulation chunks and job logs are removable only after confirming seeds, parameters, and compact summaries remain. Generated directories are not source. In particular, preserve `logan_try/` unless its real-data inputs and outputs have an external archive. Retain `slim_single_site_edge_validation/results_exact_time/`, `results_random_focal/`, and `edge_uniformity/`; the 10,000 compact trees are reproducible from the fixed seeds and may be removed only after the completed T9 result is committed and archived. The 2.6 GB `msprime_exact_time_ne50k/simulations/` directory can eventually be regenerated from its per-replicate metadata, but retain it until all paired edge analyses are documented. Reproduction requires [environment.yml](environment.yml), the pinned `normalizeTEs` submodule, and external VCF/ARG/demography files listed in [README.md](README.md). Mathematical definitions are in [MATH.md](MATH.md), with method-specific experimental records in [working_diffusion.md](working_diffusion.md), [working_betabinom.md](working_betabinom.md), and [working_insertion.md](working_insertion.md).
 
 ## Edge-conditioning solution roadmap
 

@@ -13,4 +13,4 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 ROOT="${ROOT:-$PROJECT/msprime_batch300_insertion}"
 module load conda
 conda activate dnaging
-python "$PROJECT/simulate_batch300_insertion.py" --output-root "$ROOT/simulations" --replicate "$((SLURM_ARRAY_TASK_ID + 1))"
+python "$PROJECT/validation/simulate_batch300_insertion.py" --output-root "$ROOT/simulations" --replicate "$((SLURM_ARRAY_TASK_ID + 1))"

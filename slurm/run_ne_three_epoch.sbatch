@@ -29,7 +29,7 @@ python /home/jri/src/argtest/scripts/coalescence_ne_plots_from_ts.py \
     --out-dir "$W/ne"
 
 conda activate dnaging
-python "$PROJECT/argtest_ne_to_insertion.py" \
+python "$PROJECT/validation/argtest_ne_to_insertion.py" \
     --estimates "$W/ne/coalescence-ne-estimates.tsv" \
     --output "$W/ne/estimated_ne.tsv" \
     --truth "$PROJECT/msprime_three_epoch/simulations/replicate_001/constant_ne_epochs.tsv"

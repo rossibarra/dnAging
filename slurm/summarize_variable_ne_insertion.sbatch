@@ -12,6 +12,6 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 SCENARIO="${SCENARIO:?set SCENARIO to true_ne or estimated_ne}"
 module load conda
 conda activate dnaging
-python "$PROJECT/summarize_variable_ne_posterior_insertion.py" --root "$PROJECT/msprime_variable_ne_error" \
+python "$PROJECT/scripts/summarize_variable_ne_posterior_insertion.py" --root "$PROJECT/msprime_variable_ne_error" \
   --scenario "$SCENARIO" --n-replicates "${N_REPLICATES:-10}" \
   --output "$PROJECT/msprime_variable_ne_error/insertion_posterior/$SCENARIO/summary"

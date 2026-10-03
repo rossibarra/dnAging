@@ -12,6 +12,6 @@ PREP="$PROJECT/msprime_three_epoch/insertion_three_chrom/prepared"; ROW="$((SLUR
 DRAW_ID="$(awk -F '\t' -v n="$ROW" 'NR==n{print $1}' "$PREP/draw_manifest.tsv")"
 TREE="$(awk -F '\t' -v n="$ROW" 'NR==n{print $2}' "$PREP/draw_manifest.tsv")"
 module load conda; conda activate dnaging
-python "$PROJECT/insertion_real_data.py" run-draw --tree "$TREE" --draw-id "$DRAW_ID" --calls "$PREP/calls" \
+python "$PROJECT/pipeline/insertion_real_data.py" run-draw --tree "$TREE" --draw-id "$DRAW_ID" --calls "$PREP/calls" \
  --ne "$NE_TABLE" --ne-series "$NE_SERIES" --epsilon "${EPSILON:-0}" --age-min 0 --age-max 10000 --age-step 50 \
  --output "$PROJECT/msprime_three_epoch/insertion_three_chrom/$CONDITION/draw_$DRAW_ID"

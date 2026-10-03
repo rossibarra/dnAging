@@ -12,4 +12,4 @@ PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 ROOT="${ROOT:-$PROJECT/msprime_batch300_insertion}"
 module load conda
 conda activate dnaging
-python "$PROJECT/msprime_insertion_validation.py" merge --input-dir "$ROOT/insertion_inference" --output-dir "$ROOT/insertion_results" --n-replicates 300
+python "$PROJECT/validation/msprime_insertion_validation.py" merge --input-dir "$ROOT/insertion_inference" --output-dir "$ROOT/insertion_results" --n-replicates 300

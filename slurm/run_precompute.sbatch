@@ -54,7 +54,7 @@ EXTRA=()
 [[ -n "${MIN_N:-}" ]]     && EXTRA+=(--min-n "$MIN_N")
 [[ -n "${PRECISION:-}" ]] && EXTRA+=(--precision "$PRECISION")
 
-python "$PROJECT/precompute_freq_trajectory_moments.py" \
+python "$PROJECT/pipeline/precompute_freq_trajectory_moments.py" \
     --ne "$NE" \
     --n-sample "${NSAMPLE:-26}" \
     --t-min 0 --t-max "${TMAX:-30000}" --n-t "${NT:-300}" \

@@ -4,6 +4,8 @@ import csv,json
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
+sys.path[:0] = [str(Path(__file__).resolve().parents[1] / d) for d in ("pipeline", "validation")]
 from betabinom_real_data import summarize
 
 R=Path("msprime_variable_ne_error")

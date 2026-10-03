@@ -46,7 +46,7 @@ python "$ARGTEST_REPO/scripts/coalescence_ne_plots_from_ts.py" \
 # Convert to the schema insertion's PiecewiseConstantNe.from_tsv accepts. Uses
 # the project env because it imports insertion_likelihood to validate the result.
 conda activate dnaging
-python "$PROJECT/argtest_ne_to_insertion.py" \
+python "$PROJECT/validation/argtest_ne_to_insertion.py" \
     --estimates "$WORK/ne/coalescence-ne-estimates.tsv" \
     --output "$WORK/ne/estimated_ne.tsv" \
     --truth "$SIM/constant_ne_epochs.tsv"
