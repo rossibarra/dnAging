@@ -1,8 +1,9 @@
 # TODO
 
 Deferred work, with enough context to pick up cold. Items graduate here from
-the working documents — [working_diffusion.md](working_diffusion.md) and
-[working_betabinom.md](working_betabinom.md) — once a decision has been made
+the working documents — [working_diffusion.md](working_diffusion.md),
+[working_betabinom.md](working_betabinom.md), and
+[working_insertion.md](working_insertion.md) — once a decision has been made
 about *what* to do but the work itself is out of scope for the current pass.
 
 ---
@@ -163,3 +164,33 @@ which pairs with those outputs.
 the three `*slim_edge_validation*` wrappers. Job `slim-edge-sim` was running at
 2026-09-10 16:00; PROJECT_MAP.md records these as IN PROGRESS rather than as
 artifacts. Revisit once that run lands.
+
+## Insertion: inferred ARG and inferred Ne
+
+The original T11 implementation work is complete. The current experimental
+record and full results are in [working_insertion.md](working_insertion.md).
+
+The nine-demography benchmark now has complete estimated-ARG/estimated-Ne runs
+at epsilon 0.01 and 0.05. At 0.01, mean bias was -592.9 generations and 5 Mb
+block-bootstrap coverage was 29.1%. At 0.05, pooled mean bias improved to +111.9,
+MAE to 363.2 and RMSE to 452.8, but coverage remained 43.4%. More importantly,
+the 0.05 pooled result cancels nearly unbiased constant-size estimates, young
+bias of -245 to -338 after bottleneck/recovery, and old bias of +541 to +633
+under recent growth. The simulated ancient calls have zero error, so 0.05 is an
+effective robustness parameter, not recovery of the generating error rate.
+
+**Priority work**
+
+1. Separate SINGER topology error from POLEGON dating error. Verify the units and
+   interpretation of SINGER branch lengths before treating `use-polegon: false`
+   as a control.
+2. Attribute the true-age-to-MAP likelihood shift by chromosome, posterior draw,
+   carrier state, incompatibility at true age, and inferred edge-time error.
+3. Profile effective epsilon by demography, replicate, age and chromosome. Do
+   not select one epsilon by pooled RMSE: the current pooled bias is cancellation.
+4. If needed, extend the already-completed three-epoch factorial across the nine
+   demographies by adding true ARG + true Ne and estimated ARG + true Ne. This is
+   a test of demographic interaction, not a missing foundational control.
+5. Reassess interval calibration only after point bias is localised; retain the
+   5 Mb bootstrap as a diagnostic rather than treating its present intervals as
+   nominal 95% coverage.

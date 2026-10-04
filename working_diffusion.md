@@ -921,6 +921,121 @@ at 60K / 300K / 600K generations — 300K+ edges are impossible at Ne=10K and
 routine at Ne=100K. The comparison is sound in the overlapping middle strata and
 should not be read at the top.
 
+### T11. Inferred-ARG, inferred-Ne end-to-end suite — SIMULATIONS AND ARGs READY
+
+**What this is for.** Every control so far has used a *true* ARG and, where
+demography varied, the *true* Ne. T11 removes both crutches at once: the ARG is
+inferred by SINGER from modern data only, and the demography is inferred by
+ARGtest from those inferred ARGs. It is the first suite where the age estimator
+sees nothing it was given for free except the modern panel itself.
+
+**Design.** Three independent 50 Mb chromosomes of ONE dataset, mu = r = 1e-8,
+100 modern haploids and 10 ancient haploids, eps = 0 (no genotyping error; this
+suite isolates ARG and demographic inference, not aDNA error).
+
+Demography, fixed and shared by all three chromosomes
+(`msprime_three_epoch/demography/three_epoch.tsv`):
+
+| epoch | generations | Ne |
+|---|---:|---:|
+| recent | 0--1,000 | 20,000 |
+| bottleneck | 1,000--10,000 | 5,000 |
+| ancestral | 10,000--inf | 50,000 |
+
+A 10x bottleneck with BOTH breakpoints inside the 0--10,000 sampling window, so
+the demography bites on the ages being estimated rather than being a deep-time
+detail a constant-Ne approximation would absorb.
+
+**The ancient samples are one cohort observed on all three chromosomes.** This
+had to be fixed the hard way: the first attempt drew a separate age seed per
+replicate, so `ancient_01` was age 911 on chr1, 1292 on chr2 and 1460 on chr3 --
+three unrelated people sharing a column name. Concatenating those VCFs would have
+fabricated individuals with three contradictory true ages and the age posterior
+would have landed between them, measuring nothing. `simulate_variable_ne_error.py`
+gained `--age-seed`, which pins *only* the age stream; ancestry and mutation seeds
+stay replicate-specific so the chromosomes remain independent genealogies.
+Verified after the fact rather than assumed: the three age vectors are identical,
+`ancient_ages_shared_across_replicates: true` is recorded per replicate, and the
+three ancestry seeds are distinct.
+
+True ancient ages (identical on chr1--chr3): 312.6, 337.2, 524.2, 645.6, 1627.1,
+2139.0, 4331.0, 7052.9, 8370.9, 8733.5. Four fall in the recent epoch and six in
+the bottleneck; none in the ancestral epoch, and none near the 1,000-generation
+breakpoint where the demographic change is sharpest.
+
+| chrom | sites | trees | ancestry seed |
+|---|---:|---:|---:|
+| chr1 | 186,093 | 145,153 | 1750300001 |
+| chr2 | 177,830 | 139,718 | 1750300002 |
+| chr3 | 178,857 | 140,114 | 1750300003 |
+
+**SINGER (8h15m, 64 cores).** Modern panel only -- the ancient columns are
+stripped, so the ARG is estimated from data the ancient samples never touch.
+Constant recombination rate 1e-8 with *no* hapmap supplied (a hapmap would
+silently override the scalar), `polarised: true`, 100 MCMC samples at thin 100,
+50 one-Mb chunks per chromosome. 100/100 posterior draws per chromosome.
+
+Two input details that would otherwise have corrupted the run. Continuous-genome
+positions truncate to integers and collide at n^2/2L, measured at 420--537 sites
+per chromosome; each duplicate is nudged to the next free integer rather than
+dropped, with `chrN.position_map.tsv` retaining both coordinates. And SINGER
+estimates a single constant `-Ne 22922` against a truth of 20,000/5,000/50,000 --
+a harmonic-ish compromise near the recent epoch, and the standing caveat for
+everything downstream.
+
+**ARGtest (1h14m).** Shipped defaults except `rec_fraction: 0` and
+`validation_first_chrom_only: false`; both verified in the output rather than
+only in the config (step-1 mask dirs empty; step 6 ran chr1/chr2/chr3 plus
+genomewide). 100 concatenated ARGs, each 150 Mb with all three chromosomes
+correctly offset and readable by `insertion_real_data.chromosome_layout`.
+
+**The 3e-8 scalar was NOT used.** ARGtest's shipped `mutation_rate` default is 3x
+the simulated rate, and it is the silent fallback when the SINGER rate map is not
+found. The input uses a flat per-chromosome layout -- trees and
+`chrN.mut_rate.p` in the same directory -- because `infer_mu_path` looks for
+`<parent_dir_name>.mut_rate.p`; a `tree_subdir` layout would have searched for
+`trees.mut_rate.p` and missed. Confirmed three ways: `infer_mu_path` resolves for
+all three chromosomes; precedence is metadata > sibling > scalar; and the map's
+values are median/max exactly 1.000e-08 (mean 9.615e-09, the shortfall being
+zero-rate masked intervals). No step-3 or step-6 log mentions 3e-08.
+
+**Estimated Ne (6m33s), from the last 50 of 100 draws.** `burnin-frac` is derived
+from the actual file count rather than assumed, with a hard failure below 50;
+`--num-bins 50` because that argument has no default and the script raises
+without it. 50 epochs, **0 bins filled from a neighbour**, loads through
+insertion's own parser.
+
+Harmonic-mean Ne over 0--10,000 generations: **12,137 estimated against 11,487
+true**, median log2 ratio **+0.004**. At the ten sample ages, eight of ten land
+within 20% of truth and the bottleneck is clearly recovered (~4,000--4,500 through
+the Ne=5,000 epoch, ~21,800 in the recent Ne=20,000 epoch). The two oldest samples
+sit at ratio 2.0, where the estimate climbs toward the ancestral epoch ahead of
+the true 10,000-generation breakpoint -- coalescent-rate smoothing across a sharp
+10x transition, expected rather than faulty, but it means ancient_09 and
+ancient_10 will be dated under an Ne about twice the truth.
+
+The max log2 deviation of 5.14 sits at t=1 generation, below ARGtest's youngest
+estimated edge of 7.3 generations, where `argtest_ne_to_insertion.py` extends the
+first bin down to zero to satisfy insertion's `left[0] == 0` requirement. That is
+extrapolation, not estimation, and no sample is near it -- but it is the same
+artifact that was briefly mistaken for a real Ne bias in the variable-Ne suite,
+so it is called out rather than left to be rediscovered.
+
+**Status and what remains.** Simulations, ARGs and estimated Ne are complete and
+checked. Outstanding: concatenate the ancient VCFs across the three chromosomes
+(now meaningful -- each sample genuinely appears on all three, so evidence goes
+from ~180k to ~543k sites), run insertion with the estimated ARG and estimated Ne,
+and plot true against estimated age. Codex holds that piece. Note that
+`prepare_variable_ne_insertion.py` currently *rejects* multi-chromosome tree
+sequences (`expected one chromosome ...; found [...]`), so it needs generalising
+to the concatenated case; `chromosome_layout` already handles them.
+
+**What a result here will and will not show.** It confounds three error sources
+by construction -- SINGER's topology/dating error, its constant-Ne assumption
+against a three-epoch truth, and ARGtest's Ne estimate. A bias here cannot be
+attributed to any one of them without the matching true-ARG/true-Ne control on
+the same simulations, which is cheap to run and should accompany it.
+
 ## Next steps, in order
 
 Perfect simulated data only. Real-data work is parked under "Deferred".

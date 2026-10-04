@@ -61,9 +61,8 @@ are the derived allele. Each called allele is a lineage drawn from the populatio
 at time $T$, derived with probability $X_i(T)$ = the **derived-allele population
 frequency** at time $T$ ([section 3](#3-approach-1--present-count-diffusion-frequency)). Crucially $X_i(T)$ is a *random variable*: the
 trajectory is unobserved, and we know only its conditional law given the site's
-present count and mutation age. Adding a symmetric **per-allele** genotype-error
-probability $\varepsilon$ (aDNA damage and sequencing/genotyping error in the
-ancient allele calls), the per-allele probability of *observing* the derived
+present count and mutation age. Adding a symmetric **per-allele effective
+discordance** probability $\varepsilon$, the per-allele probability of *observing* the derived
 state, **given** the frequency, is
 
 $$
@@ -72,11 +71,23 @@ r_i(T) = (1-\varepsilon)X_i(T) + \varepsilon\bigl(1-X_i(T)\bigr)
 $$
 
 Here $\varepsilon$ is fixed rather than estimated, defaults to $0.01$, and must
-satisfy $0\le\varepsilon<0.5$. It describes error in each ancient-VCF allele call
-and nothing else. In particular it does **not** stand in for polarity uncertainty —
-which allele is derived is resolved per draw from the polarity table ([section 6](#6-draws-polarity-chromosomes)) — nor for
-recurrent mutation, which alters the evolutionary process rather than the
-observation of it and is outside this model.
+satisfy $0\le\varepsilon<0.5$. With a correct genealogy and evolutionary model,
+it has the interpretation of symmetric ancient-allele genotyping error. With
+estimated ARGs, it is an effective parameter absorbing both call error and
+residual ARG-induced allele discordance (including incorrectly inferred mutation
+edges, ages or polarity). These sources cannot be separated by fitting this
+single parameter, so a fitted value must not be reported as a measured
+genotyping-error rate.
+
+This is a robustness approximation, not an explicit model of topology or
+mutation-age error: those errors can be directional and correlated across sites.
+Posterior ARG draws represent genealogy uncertainty; $\varepsilon$ can absorb
+residual incompatibility not captured by those draws. Polarity is still resolved
+per draw ([section 6](#6-draws-polarity-chromosomes)); recurrent mutation is not
+explicitly modeled. Two independent symmetric flip rates, call error $e$ and
+ARG discordance $\eta$, would enter only through
+$\varepsilon=e+\eta-2e\eta$ and remain confounded. Separating them requires
+external calibration or a structurally different ARG-error model.
 
 *Given* $X_i(T)$, the sample's called alleles at a site are independent draws
 (Hardy–Weinberg — i.e. no recent inbreeding within the individual), so the observed
@@ -662,7 +673,11 @@ $$
 
 For a pseudo-haploid observation with symmetric error $\varepsilon$, replace
 $\bar p_i(T)$ by $q_i(T\mid E_i,\mathcal T)$ in eq. (2), and use the Bernoulli
-site likelihood in eq. (3a). The prototype currently uses $\varepsilon=0$.
+site likelihood in eq. (3a). The original true-ARG prototype used
+$\varepsilon=0$; the production driver accepts configurable error. On estimated
+ARGs, interpret it as effective discordance as described above, not solely call
+error. At zero error, incompatible observations have genuinely zero model
+likelihood; a numerical probability clip is not a modeled error rate.
 
 **Efficient constant-$N_e$ evaluation.** Between modern-tree node times, both
 $\kappa(u)$ and $\delta_i(u)$ are constant. Define
@@ -974,7 +989,7 @@ since young, rare-in-discovery alleles are under-ascertained.
 | $M_k(\tau)$ | $k$-th moment $\mathbb{E}[X(\tau)^k]$ of the neutral diffusion |
 | $B$ | generator of the closed moment recursion (eq. 6) |
 | $K(\Delta)=e^{B\Delta}$ | conditional-moment map over diffusion-time $\Delta$ |
-| $\varepsilon$ | symmetric per-allele genotype-error probability |
+| $\varepsilon$ | symmetric effective per-allele discordance probability; call error and residual ARG incompatibility are not separately identifiable |
 | $\ell_i(T),\mathcal L(T)$ | per-site and total likelihood |
 | $\ell^{(g)}_i(T)$ | per-site likelihood in draw $g$ — (3) with draw $g$'s moments (eq. 11) |
 | $\mathcal L_c(T)$ | within-chromosome likelihood: draw mixture of site products (eq. 11, 12) |

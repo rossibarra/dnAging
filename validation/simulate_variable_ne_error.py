@@ -31,8 +31,9 @@ random ages costs essentially nothing beyond one ancient haploid, and mirrors
 the real cohort where many samples share one panel.
 
 Writes `constant_ne_epochs.tsv` per replicate in the series/time_left/time_right
-format `precompute_freq_trajectory_moments.py` consumes, because each replicate
-has its own demography and therefore needs its own frequency table.
+format `precompute_freq_trajectory_moments.py` consumes.  Without --ne-file each
+replicate draws its own demography and therefore needs its own frequency table;
+with --ne-file every replicate shares one, and so can share a single table.
 """
 from __future__ import annotations
 
@@ -58,6 +59,29 @@ def seeds_for_replicate(replicate: int, base_seed: int) -> dict:
     """
     return {name: base_seed + (i + 1) * 100_000 + replicate
             for i, name in enumerate(SEED_STREAMS)}
+
+
+def read_demography(path: Path):
+    """A fixed piecewise-constant demography shared across replicates.
+
+    Returns the same (boundaries, sizes) pair as draw_demography, so a fixed
+    demography and a drawn one flow through identical code below. Boundaries are
+    the internal breakpoints; the final epoch is ancestral.
+    """
+    with Path(path).open() as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+    if not rows:
+        raise SystemExit(f"no epochs in {path}")
+    rows.sort(key=lambda r: float(r["time_left"]))
+    left = [float(r["time_left"]) for r in rows]
+    sizes = np.array([float(r["effective_population_size"]) for r in rows])
+    if left[0] != 0.0:
+        raise SystemExit("the first epoch must start at generation 0")
+    if np.any(sizes <= 0) or not np.all(np.isfinite(sizes)):
+        raise SystemExit("effective population sizes must be finite and positive")
+    names = {r.get("series") for r in rows if r.get("series")}
+    series = names.pop() if len(names) == 1 else "fixed"
+    return np.array(left[1:]), sizes, series
 
 
 def draw_demography(rng, args):
@@ -88,25 +112,41 @@ def build_demography(boundaries, sizes):
     return demography
 
 
-def write_ne_table(path: Path, boundaries, sizes, horizon):
-    """The step function in the form precompute_freq_trajectory_moments reads."""
+def write_ne_table(path: Path, boundaries, sizes, horizon, series="variable"):
+    """The step function in the form precompute_freq_trajectory_moments reads.
+
+    `series` names the demography rather than always claiming "variable": a run
+    driven by --ne-file carries that file's own series name, so a fixed and a
+    drawn demography stay distinguishable in the written table.
+    """
     edges = [0.0, *[float(b) for b in boundaries], float(horizon)]
     with path.open("w", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
         writer.writerow(["series", "time_left", "time_right",
                          "effective_population_size"])
         for left, right, size in zip(edges[:-1], edges[1:], sizes):
-            writer.writerow(["variable", f"{left:.6f}", f"{right:.6f}",
+            writer.writerow([series, f"{left:.6f}", f"{right:.6f}",
                              f"{float(size):.6f}"])
 
 
 def simulate(args):
     seeds = seeds_for_replicate(args.replicate, args.base_seed)
+    if args.age_seed is not None:
+        # Pin the age stream so every replicate draws the SAME ancient
+        # individuals. Ancestry and mutation stay replicate-specific, so the
+        # chromosomes remain independent realisations of one population while
+        # carrying one coherent set of ancient samples across all of them.
+        seeds["age"] = int(args.age_seed)
     demography_rng = np.random.default_rng(seeds["demography"])
     age_rng = np.random.default_rng(seeds["age"])
     error_rng = np.random.default_rng(seeds["error"])
 
-    boundaries, sizes = draw_demography(demography_rng, args)
+    if args.ne_file is not None:
+        boundaries, sizes, ne_series = read_demography(args.ne_file)
+    else:
+        boundaries, sizes = draw_demography(demography_rng, args)
+        ne_series = "variable"
+    args.n_epochs = len(sizes)
     ancient_ages = np.sort(age_rng.uniform(args.age_min, args.age_max,
                                            args.n_ancient))
 
@@ -144,12 +184,19 @@ def simulate(args):
         raise ValueError("unexpected modern sample-node count")
     # Match each ancient age to its node by time; ages are distinct with
     # probability one under a continuous draw, and duplicates are rejected.
+    # Ages may TIE: putting several lineages at one age is how the lineage-draw
+    # variance is isolated (same tree, same panel, same age). So consume nodes in
+    # request order rather than demanding a unique time match, which would reject
+    # every tied design.
     ancient_nodes = []
+    taken = set()
     for age in ancient_ages:
-        hits = np.asarray(full.samples())[np.isclose(times, age)]
-        if len(hits) != 1:
-            raise ValueError(f"expected exactly one ancient node at time {age}")
-        ancient_nodes.append(int(hits[0]))
+        hits = [int(u) for u in np.asarray(full.samples())[np.isclose(times, age)]
+                if int(u) not in taken]
+        if not hits:
+            raise ValueError(f"no unused ancient node at time {age}")
+        ancient_nodes.append(hits[0])
+        taken.add(hits[0])
     ancient_nodes = np.asarray(ancient_nodes, dtype=np.int32)
 
     # Ascertain on modern polymorphism, as the real pipeline does.
@@ -213,7 +260,7 @@ def simulate(args):
     truth.dump(tmp / "truth_with_ancient.trees")
     modern_arg.dump(tmp / "known_modern_arg.trees")
     write_ne_table(tmp / "constant_ne_epochs.tsv", boundaries, sizes,
-                   args.ne_table_horizon)
+                   args.ne_table_horizon, series=ne_series)
 
     edges = [0.0, *[float(b) for b in boundaries], float("inf")]
     metadata = {
@@ -222,9 +269,12 @@ def simulate(args):
         "epochs": [{"index": i, "time_left": edges[i], "time_right": edges[i + 1],
                     "effective_population_size": float(sizes[i])}
                    for i in range(args.n_epochs)],
+        "demography_source": (str(args.ne_file) if args.ne_file is not None
+                              else "drawn"),
         "ne_prior": args.ne_prior, "ne_min": args.ne_min, "ne_max": args.ne_max,
         "smooth_ne": bool(args.smooth),
         "true_ancient_ages": [float(t) for t in ancient_ages],
+        "ancient_ages_shared_across_replicates": args.age_seed is not None,
         "n_modern_haploid": args.n_modern,
         "n_ancient_haploid": args.n_ancient,
         "epsilon_applied": args.epsilon,
@@ -244,8 +294,11 @@ def simulate(args):
         "tskit_version": tskit.__version__,
         "analysis_arg": "known_modern_arg.trees (ancient haplotypes removed)",
         "truth_tree_sequence": "truth_with_ancient.trees",
-        "combined_vcf": "all_samples.vcf.gz (ancient columns carry ERROR)",
+        "combined_vcf": ("all_samples.vcf.gz (ancient columns carry "
+                         + (f"{args.epsilon:g} per-allele error)" if args.epsilon > 0
+                            else "no error; epsilon=0)")),
         "ne_table": "constant_ne_epochs.tsv",
+        "ne_table_series": ne_series,
     }
     (tmp / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     tmp.replace(out)
@@ -259,7 +312,14 @@ def build_parser():
     p.add_argument("--output-root", type=Path, required=True)
     p.add_argument("--replicate", type=int, required=True)
     p.add_argument("--base-seed", type=int, default=1730000000)
+    p.add_argument("--age-seed", type=int, default=None,
+                   help="fix the ancient-age stream so replicates share one set "
+                        "of ancient individuals; ancestry/mutation stay distinct")
     p.add_argument("--n-epochs", type=int, default=10)
+    p.add_argument("--ne-file", type=Path, default=None,
+                   help="fixed demography TSV (time_left/time_right/"
+                        "effective_population_size); overrides the random draw "
+                        "so every replicate shares one demography")
     p.add_argument("--ne-min", type=float, default=5_000.0)
     p.add_argument("--ne-max", type=float, default=150_000.0)
     p.add_argument("--ne-prior", choices=("loguniform", "uniform"),
