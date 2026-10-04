@@ -635,8 +635,8 @@ $t_{c,i}=t(v_i)<t_{p,i}=t(w_i)$. For time $u$ backwards from the present, define
 - $\delta_i(u)$ as the number of those lineages descended from $v_i$.
 
 For diploid effective size $N_e(u)$, a newly inserted lineage coalesces with each
-extant lineage at rate $1/(2N_e(u))$. Conditional on surviving without a
-coalescence from ancient sampling time $T$ to time $u$, its survival probability
+extant lineage at rate $1/(2N_e(u))$. Started at the ancient sampling time $T$,
+the probability that it has not yet coalesced into the modern tree by time $u$
 is
 
 $$
@@ -655,7 +655,11 @@ q_i(T\mid z_i,E_i,\mathcal T)=
 \tag{14}
 $$
 
-where $\mathcal T$ is the observed modern tree. A first coalescence into any of
+where $\mathcal T$ is the observed modern tree. Here $u$ is the time at which the
+ancient lineage first joins (is inserted into) the modern tree. It is a latent
+variable integrated out by eq. (14), not a quantity we estimate: the parameter
+is the sample age $T$, which sets both the lower limit of the integral and the
+start of the survival function. A first coalescence into any of
 the other $\kappa(u)-\delta_i(u)$ lineages makes the ancient allele ancestral; survival
 past $z_i$ also makes it ancestral because the ancient lineage then lies above
 the mutation event.
@@ -997,6 +1001,7 @@ since young, rare-in-discovery alleles are under-ascertained.
 | $E_i=(v_i,w_i)$ | mutation-bearing edge at site $i$: child node $v_i$, parent node $w_i$ (section 8) |
 | $t_{c,i},t_{p,i}$ | times of that edge's child and parent, $t_{c,i}<t_{p,i}$ (section 8) |
 | $z_i$ | exact mutation time on the edge, uniform on $[t_{c,i},t_{p,i})$ (section 8) — distinct from the mutation *rate* $\mu$ |
+| $u$ | time (generations before present) at which the inserted ancient lineage first joins the modern tree; latent, integrated out in eq. (14), not estimated (section 8). In section 5, $u$ is instead a generic diffusion-time argument |
 | $\kappa(u)$ | number of modern-tree ancestral lineages extant at time $u$ (section 8) |
 | $\delta_i(u)$ | how many of those descend from $v_i$ (section 8) |
 | $S_T(u)$ | survival of the inserted ancient lineage from $T$ to $u$ without coalescing (eq. 13) |
