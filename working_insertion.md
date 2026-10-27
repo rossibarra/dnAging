@@ -136,3 +136,70 @@ ARGtest's Ne trajectory is used in the same run.
 The immediate priority is steps 1 and 2. Additional epsilon values alone cannot
 identify the cause; they only trace the response to increasingly downweighted
 ARG/genotype incompatibilities.
+
+## Candidate redating controls
+
+### Monotone time recalibration
+
+A global monotone map from inferred to calibrated node time is a useful
+diagnostic because it changes branch lengths without changing node order or
+topology. On simulations, match inferred and true nodes by their descendant sets,
+then fit either a scalar rescaling or a held-out isotonic/monotone-spline map
+`t_calibrated = f(t_inferred)`. Fit the map on training replicates and assess age
+bias on separate replicates; fitting and evaluating it on the same simulations
+would only demonstrate an oracle correction.
+
+This cannot repair incorrect mutation-bearing clades or other genotype/ARG
+incompatibilities, so it is unlikely to fix the catastrophic epsilon-zero result
+by itself. It may address the residual bias after positive epsilon has made the
+analysis robust to the small fraction of incompatible sites. Compare a scalar
+map with the nonlinear map to establish whether the problem is only a global
+clock error or a time-dependent distortion.
+
+The Ne trajectory must remain on the same time scale as the redated ARG. If
+`t' = f(t)`, either transform the trajectory consistently (locally,
+`Ne'(t') = f'(t) Ne(t)`, preserving coalescent-time increments) or re-estimate Ne
+from the redated trees. Do not warp node times while leaving the existing ARGtest
+trajectory untouched. For real data, any learned map would need independent
+dated calibration samples; simulation truth cannot provide a deployable map.
+
+### Relate joint Ne/branch-length iteration
+
+Relate's official `EstimatePopulationSize.sh` is a stronger, internally coherent
+redating option. Its documented loop estimates population sizes/coalescence
+rates, re-estimates branch lengths under those rates, and estimates an average
+mutation rate until convergence (`--num_iter`, default 5). It outputs updated
+`.anc/.mut` genealogies and a `.coal` trajectory. This directly tests whether
+jointly iterating demography and branch lengths removes the demographic pattern
+seen with POLEGON dating followed by ARGtest Ne estimation.
+
+There are two scientifically distinct pilots:
+
+1. **Full Relate control:** infer the genealogy from the same modern phased data,
+   run `EstimatePopulationSize.sh`, convert the updated Relate genealogy for the
+   insertion likelihood, and compare ages with the current POLEGON-dated SINGER
+   plus ARGtest pipeline. This is the easiest valid end-to-end comparison, but it
+   changes both topology inference and dating.
+2. **Fixed-SINGER-topology redating:** convert each SINGER tree sequence and its
+   mutation mappings to valid Relate `.anc/.mut`, then run Relate's population-size
+   and branch-length iteration while holding topology fixed. This more directly
+   isolates dating, but the adapter is nontrivial and must be validated against
+   descendant sets, genomic intervals, mutation mappings, sample order and time
+   units before its result is trusted. Relate's documented scripts take `.anc/.mut`
+   rather than tskit/`.tsz` input, so this handoff is not currently available.
+
+For either pilot, retain separate epsilon-zero and robust-epsilon analyses: joint
+redating cannot correct topology incompatibilities. Compare inferred node times,
+edge widths, Ne trajectories and sample-age bias, not only the final pooled RMSE.
+Run first on the three-epoch data and one representative run from each of the
+nine demographic classes before scaling up.
+
+Farm currently has no HPCCF Relate module (`module avail/search relate` finds only
+the unrelated `ngsrelate/2.0`), but a source build is now present at
+`/home/jri/src/relate` (source revision `b54ede2`; CMake build directory
+`/home/jri/src/relate/build`; executables in `/home/jri/src/relate/bin`). The
+executables require `module load gcc/13.2.0` at runtime; without it they fail on
+the missing `GLIBCXX_3.4.32` symbol. The joint workflow entry point is
+`/home/jri/src/relate/scripts/EstimatePopulationSize/EstimatePopulationSize.sh`.
+Run conversion and inference on Slurm. Official workflow documentation:
+https://myersgroup.github.io/relate/modules.html#CoalescenceRate.

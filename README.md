@@ -247,6 +247,53 @@ handling, the `run.json` counters `sites_numerical_failure`, `sites_age_filtered
 `sites_age_clipped_low`, `sites_multiple_mapped`), are in
 [docs/diffusion_reference.md](./docs/diffusion_reference.md).
 
+## Radiocarbon calibration for the insertion model
+
+The insertion driver can evaluate a two-dimensional age/discordance likelihood
+while it walks each ARG. Use the same grid for every retained draw:
+
+```bash
+EPSILON_GRID=0:0.15:0.001 \
+  sbatch --array=0-49%10 slurm/run_insertion_arg_draws.sbatch
+sbatch slurm/merge_insertion_arg_draws.sbatch
+```
+
+The merge writes `epsilon_grid.npy` and `ll_marginal_epsilon.npy`, with dimensions
+epsilon × sample × age. Prepare a protected, external long-form TSV containing the
+full calibrated radiocarbon densities in ARG generations:
+
+```text
+sample  age_generations  density
+dated1  4200             0.0012
+dated1  4210             0.0015
+...
+```
+
+Then cross-validate epsilon and date samples absent from that TSV:
+
+```bash
+LIKELIHOOD_DIR=/path/to/insertion_arg_draws/merged \
+RADIOCARBON=/protected/path/radiocarbon_density.tsv \
+OUTPUT=/protected/path/radiocarbon_calibration \
+  sbatch slurm/calibrate_radiocarbon.sbatch
+```
+
+The default is leave-one-out cross-validation. Set `N_FOLDS=5` for deterministic
+age-stratified five-fold validation, or provide `FOLDS=/path/to/folds.tsv` with
+`sample` and `fold` columns to keep replicate libraries or batches together.
+`UNKNOWN_SAMPLES` may name a one-sample-per-line subset; otherwise every sample
+without a radiocarbon density is treated as undated.
+
+The calibration command integrates each training sample over its complete
+radiocarbon density, excludes held-out radiocarbon information from its genetic
+age posterior, propagates the training epsilon profile into held-out and unknown
+age estimates, and reports fixed-epsilon 0.01/0.05 comparisons. Its fitted epsilon
+is an effective ARG/genotype/model-discordance parameter, not a sequencing-error
+rate. Epsilon uncertainty is propagated with a dated-individual bootstrap rather
+than composite-likelihood curvature, which is overconfident under linkage. Sample
+identifiers and radiocarbon inputs are sensitive and must remain
+outside this repository; see [real_data_plan.md](./real_data_plan.md).
+
 ## Sanity checks before trusting results
 
 - Confirm the ancient samples are **not** in the ARG/ascertainment panels.

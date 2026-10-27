@@ -8,6 +8,8 @@
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
 #SBATCH --array=0-9%10
+#SBATCH --output=insertDraw-%A_%a.out
+#SBATCH --error=insertDraw-%A_%a.err
 set -euo pipefail
 : "${MANIFEST:?set MANIFEST to a TSV with draw_id and tsz_path columns}"
 : "${CALLS:?set CALLS to the prepared-call directory}"
@@ -20,6 +22,8 @@ TREE="$(awk -F '\t' -v row="$ROW" 'NR==1{for(i=1;i<=NF;i++)h[$i]=i} NR==row{prin
 test -n "$DRAW_ID" && test -n "$TREE"
 module load conda
 conda activate dnaging
+EXTRA=()
+[[ -n "${EPSILON_GRID:-}" ]] && EXTRA+=(--epsilon-grid "$EPSILON_GRID")
 python "$PROJECT/pipeline/insertion_real_data.py" run-draw --tree "$TREE" --draw-id "$DRAW_ID" \
   --calls "$CALLS" --ne "$NE_TABLE" --ne-series "${NE_SERIES:-combined}" \
-  --epsilon "${EPSILON:-0.01}" --output "$OUTROOT/draw_$DRAW_ID"
+  --epsilon "${EPSILON:-0.01}" ${EXTRA[@]+"${EXTRA[@]}"} --output "$OUTROOT/draw_$DRAW_ID"

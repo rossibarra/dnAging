@@ -7,6 +7,8 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=32G
 #SBATCH --time=01:00:00
+#SBATCH --output=insertMerge-%j.out
+#SBATCH --error=insertMerge-%j.err
 set -euo pipefail
 : "${MANIFEST:?set MANIFEST to the draw manifest}"
 PROJECT="${PROJECT:-${SLURM_SUBMIT_DIR:-$PWD}}"

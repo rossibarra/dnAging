@@ -39,6 +39,7 @@ This document describes the repository as it exists now. Paths containing large 
 | `pipeline/betabinom_real_data.py` | Runs beta-binomial inference from prepared calls and tree sequences. |
 | `pipeline/insertion_likelihood.py` | Direct ancient-lineage insertion probabilities on a fixed modern tree (MATH.md §8). |
 | `pipeline/insertion_real_data.py` | Insertion inference on concatenated, chromosome-independent ARG draws: `run-draw` per tree, then `merge` (draw marginalisation per chromosome, block-bootstrap MAPs). |
+| `pipeline/radiocarbon_calibration.py` | Cross-validated insertion-epsilon calibration from full radiocarbon densities, dated-individual bootstrap uncertainty, held-out validation, and operational dating of undated samples. |
 | `validation/direct_frequency_age_infer.py` | Validates the terminal Bernoulli likelihood using exact SLiM frequency trajectories—no frequency approximation. |
 | `validation/diffusion_frequency_validation.py` | SLiM Test A: exact focal-mutation origin plus sampled modern count passed through the diffusion lookup. |
 | `validation/msprime_exact_time_validation.py` | Generates the 100 Ne=50K msprime replicates and runs the paired exact-mutation-time and true-edge-interval inference tests. |
