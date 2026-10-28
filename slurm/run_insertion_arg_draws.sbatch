@@ -24,6 +24,8 @@ module load conda
 conda activate dnaging
 EXTRA=()
 [[ -n "${EPSILON_GRID:-}" ]] && EXTRA+=(--epsilon-grid "$EPSILON_GRID")
+[[ -n "${TIME_SCALE_GRID:-}" ]] && EXTRA+=(--time-scale-grid "$TIME_SCALE_GRID")
+[[ -n "${TIME_SCALE_CHUNK_SIZE:-}" ]] && EXTRA+=(--time-scale-chunk-size "$TIME_SCALE_CHUNK_SIZE")
 python "$PROJECT/pipeline/insertion_real_data.py" run-draw --tree "$TREE" --draw-id "$DRAW_ID" \
   --calls "$CALLS" --ne "$NE_TABLE" --ne-series "${NE_SERIES:-combined}" \
   --epsilon "${EPSILON:-0.01}" ${EXTRA[@]+"${EXTRA[@]}"} --output "$OUTROOT/draw_$DRAW_ID"

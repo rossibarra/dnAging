@@ -40,6 +40,7 @@ This document describes the repository as it exists now. Paths containing large 
 | `pipeline/insertion_likelihood.py` | Direct ancient-lineage insertion probabilities on a fixed modern tree (MATH.md §8). |
 | `pipeline/insertion_real_data.py` | Insertion inference on concatenated, chromosome-independent ARG draws: `run-draw` per tree, then `merge` (draw marginalisation per chromosome, block-bootstrap MAPs). |
 | `pipeline/radiocarbon_calibration.py` | Cross-validated insertion-epsilon calibration from full radiocarbon densities, dated-individual bootstrap uncertainty, held-out validation, and operational dating of undated samples. |
+| `pipeline/joint_scale_epsilon_calibration.py` | Leakage-safe joint ARG-time-scale/epsilon calibration from full radiocarbon densities, including joint/marginal diagnostics, dated-individual bootstrap, held-out validation, and dating of undated samples. |
 | `validation/direct_frequency_age_infer.py` | Validates the terminal Bernoulli likelihood using exact SLiM frequency trajectories—no frequency approximation. |
 | `validation/diffusion_frequency_validation.py` | SLiM Test A: exact focal-mutation origin plus sampled modern count passed through the diffusion lookup. |
 | `validation/msprime_exact_time_validation.py` | Generates the 100 Ne=50K msprime replicates and runs the paired exact-mutation-time and true-edge-interval inference tests. |
@@ -72,6 +73,8 @@ high-precision mathematical reference.
 | `test_direct_frequency_age_infer.py` | Known-frequency parsing, Bernoulli accumulation and posterior normalization. |
 | `test_diffusion_frequency_validation.py` | Recurrent-lineage parsing and reproducible one-lineage modern-panel selection for SLiM Test A. |
 | `test_msprime_exact_time_validation.py` | Reproducible seed streams and 26-modern-plus-one-ancient VCF parsing for the paired msprime test. |
+| `test_insertion_likelihood.py`, `test_insertion_draw_mixture.py` | Scale-aware insertion equivalence, joint-grid checkpointing, and draw/chromosome merge order. |
+| `test_joint_scale_epsilon_calibration.py` | One-scale compatibility, leakage-safe joint cross-validation, output contracts, and deterministic calibration-panel bootstrap. |
 
 Run the default suite through SLURM rather than on the head node, e.g.
 `HPC_MEM=16G ~/.claude/bin/hpc_run 'python -m pytest tests/ -q'`; the wrapper activates
@@ -84,6 +87,7 @@ Run the default suite through SLURM rather than on the head node, e.g.
 |---|---|
 | Production diffusion | `run_precompute.sbatch` → `run_infer.sbatch` (submit per chromosome) → merge mode through `run_infer.sbatch`. |
 | Real-data beta-binomial | `prepare_betabinom_calls.sbatch` plus `precompute_betabinom_variable_ne.sbatch` → `run_betabinom_real.sbatch` → `merge_betabinom_real.sbatch`. |
+| Joint insertion calibration | `run_insertion_arg_draws.sbatch` → `merge_insertion_arg_draws.sbatch` → `calibrate_joint_scale_epsilon.sbatch`. |
 | Original SLiM simulation | `run_single_site_slim.sbatch` → `merge_single_site_slim.sbatch`. The 48 GB raw output has been removed. |
 | Known-frequency SLiM control | `run_direct_frequency_age_chunks.sbatch` → `merge_direct_frequency_age.sbatch`. |
 | Diffusion SLiM Test A | `precompute_constant_ne_frequency_table.sbatch` → `run_diffusion_frequency_validation.sbatch` → `merge_diffusion_frequency_validation.sbatch`. |

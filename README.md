@@ -261,13 +261,19 @@ while it walks each ARG. Use the same grid for every retained draw:
 
 ```bash
 EPSILON_GRID=0:0.15:0.001 \
+TIME_SCALE_GRID=0.8:1.6:0.05 \
   sbatch --array=0-49%10 slurm/run_insertion_arg_draws.sbatch
 sbatch slurm/merge_insertion_arg_draws.sbatch
 ```
 
-The merge writes `epsilon_grid.npy` and `ll_marginal_epsilon.npy`, with dimensions
-epsilon × sample × age. Prepare a protected, external long-form TSV containing the
-full calibrated radiocarbon densities in ARG generations:
+Without `TIME_SCALE_GRID`, the merge retains the existing epsilon-only outputs.
+With it, each draw also writes `ll_by_chrom_scale_epsilon.npy`, and the merge
+writes `time_scale_grid.npy` and `ll_marginal_scale_epsilon.npy`, with dimensions
+time scale × epsilon × sample × age. The scale multiplies inferred ARG node and
+mutation-edge times inside the insertion likelihood; candidate ancient ages and
+the Ne history remain in real generations. Prepare a protected, external
+long-form TSV containing the full calibrated radiocarbon densities in ARG
+generations:
 
 ```text
 sample  age_generations  density
@@ -276,14 +282,18 @@ dated1  4210             0.0015
 ...
 ```
 
-Then cross-validate epsilon and date samples absent from that TSV:
+Then jointly cross-validate the time scale and epsilon, and date samples absent
+from that TSV:
 
 ```bash
 LIKELIHOOD_DIR=/path/to/insertion_arg_draws/merged \
 RADIOCARBON=/protected/path/radiocarbon_density.tsv \
-OUTPUT=/protected/path/radiocarbon_calibration \
-  sbatch slurm/calibrate_radiocarbon.sbatch
+OUTPUT=/protected/path/joint_radiocarbon_calibration \
+  sbatch slurm/calibrate_joint_scale_epsilon.sbatch
 ```
+
+For a legacy merged result without a time-scale axis, use
+`slurm/calibrate_radiocarbon.sbatch` to retain the epsilon-only workflow.
 
 The default is leave-one-out cross-validation. Set `N_FOLDS=5` for deterministic
 age-stratified five-fold validation, or provide `FOLDS=/path/to/folds.tsv` with
@@ -291,15 +301,17 @@ age-stratified five-fold validation, or provide `FOLDS=/path/to/folds.tsv` with
 `UNKNOWN_SAMPLES` may name a one-sample-per-line subset; otherwise every sample
 without a radiocarbon density is treated as undated.
 
-The calibration command integrates each training sample over its complete
+The joint calibration command integrates each training sample over its complete
 radiocarbon density, excludes held-out radiocarbon information from its genetic
-age posterior, propagates the training epsilon profile into held-out and unknown
-age estimates, and reports fixed-epsilon 0.01/0.05 comparisons. Its fitted epsilon
-is an effective ARG/genotype/model-discordance parameter, not a sequencing-error
-rate. Epsilon uncertainty is propagated with a dated-individual bootstrap rather
-than composite-likelihood curvature, which is overconfident under linkage. Sample
-identifiers and radiocarbon inputs are sensitive and must remain
-outside this repository; see [real_data_plan.md](./real_data_plan.md).
+age posterior, and propagates the complete training scale/epsilon surface into
+held-out and unknown age estimates. It writes the joint surface, both marginals,
+fold-specific parameter estimates, boundary mass and parameter-correlation
+diagnostics, cross-validated ages, and a dated-individual bootstrap. Its fitted
+epsilon is an effective ARG/genotype/model-discordance parameter, not a
+sequencing-error rate. The current intervals do not yet include genomic
+block-bootstrap uncertainty. Sample identifiers and radiocarbon inputs are
+sensitive and must remain outside this repository; see
+[real_data_plan.md](./real_data_plan.md).
 
 ## Sanity checks before trusting results
 

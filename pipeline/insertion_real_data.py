@@ -42,6 +42,28 @@ def parse_epsilon_grid(spec):
         raise ValueError("epsilon grid must be strictly increasing")
     return values
 
+def parse_time_scale_grid(spec):
+    """Parse an inclusive positive ARG time-scale grid."""
+    if spec is None:
+        return None
+    if ":" in spec:
+        fields=spec.split(":")
+        if len(fields)!=3:
+            raise ValueError("time-scale grid must be START:STOP:STEP or comma-separated")
+        start,stop,step=map(float,fields)
+        if step<=0 or stop<start:
+            raise ValueError("time-scale grid requires STEP > 0 and STOP >= START")
+        values=np.arange(start,stop+step/2,step,dtype=float)
+    else:
+        values=np.asarray([float(x) for x in spec.split(",") if x.strip()],dtype=float)
+    if len(values)==0 or np.any(~np.isfinite(values)):
+        raise ValueError("time-scale grid is empty or non-finite")
+    if np.any(values<=0):
+        raise ValueError("time-scale values must be positive")
+    if len(values)>1 and np.any(np.diff(values)<=0):
+        raise ValueError("time-scale grid must be strictly increasing")
+    return values
+
 def call_loglik_grid(p, observed_alt, called, is_alt, epsilon_grid):
     """Per-epsilon call log likelihood, shaped (epsilon, sample, age)."""
     eps=np.asarray(epsilon_grid,dtype=float)[:,None]
@@ -50,6 +72,18 @@ def call_loglik_grid(p, observed_alt, called, is_alt, epsilon_grid):
     derived=observed_alt if is_alt else called-observed_alt
     return (derived[None,:,None]*np.log(q)[:,None,:] +
             (called-derived)[None,:,None]*np.log1p(-q)[:,None,:])
+
+def call_loglik_scale_epsilon_grid(p, observed_alt, called, is_alt, epsilon_grid):
+    """Joint call likelihood, shaped (scale, epsilon, sample, age)."""
+    p=np.asarray(p,dtype=float)
+    if p.ndim!=2:
+        raise ValueError("scale-chunk probabilities must have scale and age axes")
+    eps=np.asarray(epsilon_grid,dtype=float)[None,:,None]
+    q=np.clip(eps+(1-2*eps)*p[:,None,:],1e-300,1-1e-15)
+    observed_alt=np.asarray(observed_alt); called=np.asarray(called)
+    derived=observed_alt if is_alt else called-observed_alt
+    return (derived[None,None,:,None]*np.log(q)[:,:,None,:] +
+            (called-derived)[None,None,:,None]*np.log1p(-q)[:,:,None,:])
 
 def marginalize_independent_chromosomes(draw_ll):
     """draw_ll has shape (draw, chromosome, sample, age)."""
@@ -62,6 +96,12 @@ def marginalize_epsilon_independent_chromosomes(draw_ll):
     if draw_ll.ndim!=5 or not np.all(np.isfinite(draw_ll)):
         raise ValueError("epsilon-grid draw likelihoods must be finite with five dimensions")
     return np.sum(logmeanexp(draw_ll,axis=0),axis=1)
+
+def marginalize_scale_epsilon_independent_chromosomes(draw_ll):
+    """draw_ll has shape (draw, scale, epsilon, chromosome, sample, age)."""
+    if draw_ll.ndim!=6 or not np.all(np.isfinite(draw_ll)):
+        raise ValueError("joint-grid draw likelihoods must be finite with six dimensions")
+    return np.sum(logmeanexp(draw_ll,axis=0),axis=2)
 
 def block_bootstrap_maps(draw_block_ll, grid, n_bootstrap=1000, seed=20260914):
     """Bootstrap blocks within chromosomes and return MAPs (bootstrap, sample)."""
@@ -146,16 +186,53 @@ def load_draw_checkpoint(path, expected_config, chromosomes):
         if observed!=expected_config:
             raise ValueError(f"checkpoint configuration differs from this run: {path}")
         arrays={name:np.asarray(saved[name]) for name in
-                ("ll","ll_epsilon","ll_by_block","sites_by_block",
+                ("ll","ll_epsilon","ll_scale_epsilon","ll_by_block","sites_by_block",
                  "ll_by_d0","sites_by_d0") if name in saved}
         used={chrom:np.asarray(saved[f"used_{index}"],dtype=np.int64)
               for index,chrom in enumerate(chromosomes)}
         return (int(saved["next_chrom_index"]),int(saved["next_row"]),arrays,
                 json.loads(str(saved["counts_json"].item())),used)
 
+def joint_accumulator_path(checkpoint_path):
+    """Sidecar holding the disk-backed scale x epsilon likelihood tensor."""
+    path=Path(checkpoint_path)
+    return path.with_name(path.name+".scale_epsilon.npy")
+
+def open_joint_accumulator(path, shape, resume=False, legacy_array=None):
+    """Create or reopen one draw's disk-backed joint likelihood accumulator."""
+    path=Path(path); path.parent.mkdir(parents=True,exist_ok=True); expected=tuple(shape)
+    if resume and path.exists():
+        accumulator=np.load(path,mmap_mode="r+")
+        if accumulator.shape!=expected or accumulator.dtype!=np.float64:
+            raise ValueError(f"joint checkpoint sidecar {path} has shape/dtype "
+                             f"{accumulator.shape}/{accumulator.dtype}; expected "
+                             f"{expected}/float64")
+        return accumulator
+    if resume and legacy_array is not None:
+        legacy=np.asarray(legacy_array,dtype=np.float64)
+        if legacy.shape!=expected:
+            raise ValueError("legacy joint checkpoint tensor has incompatible shape")
+        accumulator=np.lib.format.open_memmap(
+            path,mode="w+",dtype=np.float64,shape=expected)
+        accumulator[:]=legacy; accumulator.flush()
+        return accumulator
+    if resume:
+        raise ValueError(f"checkpoint exists but joint sidecar is missing: {path}")
+    if path.exists():
+        raise ValueError(f"orphaned joint checkpoint sidecar exists without state: {path}")
+    accumulator=np.lib.format.open_memmap(
+        path,mode="w+",dtype=np.float64,shape=expected)
+    accumulator.fill(0); accumulator.flush()
+    return accumulator
+
 def run_draw(args):
+    if args.output.exists():
+        raise FileExistsError(f"output already exists: {args.output}")
     grid = np.arange(args.age_min, args.age_max + args.age_step/2, args.age_step)
     epsilon_grid = parse_epsilon_grid(args.epsilon_grid)
+    time_scale_grid = parse_time_scale_grid(args.time_scale_grid)
+    joint_epsilon_grid=(epsilon_grid if epsilon_grid is not None else
+                        np.asarray([args.epsilon],dtype=float))
     ne = PiecewiseConstantNe.from_tsv(args.ne, args.ne_series, args.ne_extrapolate_last)
     calls_by_chrom = {}; samples = None
     for chrom, path in sorted(call_files(args.calls).items()):
@@ -185,6 +262,10 @@ def run_draw(args):
     ll = np.zeros((len(chromosomes), len(samples), len(grid))); used = {}; counts = {}
     ll_epsilon = (None if epsilon_grid is None else
                   np.zeros((len(epsilon_grid),len(chromosomes),len(samples),len(grid))))
+    joint_shape=(None if time_scale_grid is None else
+                 (len(time_scale_grid),len(joint_epsilon_grid),len(chromosomes),
+                  len(samples),len(grid)))
+    ll_scale_epsilon=None
     block_counts=[int(np.ceil(layout[c][1]/args.block_size)) for c in chromosomes]
     if len(set(block_counts)) != 1:
         raise ValueError("current block bootstrap requires equal block counts per chromosome")
@@ -197,6 +278,9 @@ def run_draw(args):
                      Path(str(args.output)+".checkpoint.npz"))
     if args.checkpoint_every<=0:
         raise ValueError("--checkpoint-every must be positive")
+    scale_chunk_size=args.time_scale_chunk_size
+    if scale_chunk_size<=0:
+        raise ValueError("--time-scale-chunk-size must be positive")
     config={"format_version":1,"tree":str(args.tree.resolve()),"draw_id":args.draw_id,
             "calls":str(args.calls.resolve()),"chromosomes":chromosomes,"samples":samples,
             "targets":[len(calls_by_chrom[c]["position"]) for c in chromosomes],
@@ -205,7 +289,11 @@ def run_draw(args):
             "ne":str(args.ne.resolve()),"ne_series":args.ne_series,
             "ne_extrapolate_last":args.ne_extrapolate_last,
             "block_size":args.block_size}
+    if time_scale_grid is not None:
+        config["format_version"]=2
+        config["time_scale_grid"]=time_scale_grid.tolist()
     start_chrom_index=0; start_row=0
+    arrays=None
     if checkpoint_path.exists():
         start_chrom_index,start_row,arrays,counts,used=load_draw_checkpoint(
             checkpoint_path,config,chromosomes)
@@ -218,10 +306,23 @@ def run_draw(args):
         ll_by_d0=arrays["ll_by_d0"]; sites_by_d0=arrays["sites_by_d0"]
         print(f"resuming checkpoint {checkpoint_path}: chromosome index "
               f"{start_chrom_index}, row {start_row}",flush=True)
+    if time_scale_grid is not None:
+        ll_scale_epsilon=open_joint_accumulator(
+            joint_accumulator_path(checkpoint_path),joint_shape,
+            resume=checkpoint_path.exists(),
+            legacy_array=None if arrays is None else arrays.get("ll_scale_epsilon"))
+    elif arrays is not None and arrays.get("ll_scale_epsilon") is not None:
+        raise ValueError("checkpoint contains a joint grid but this run does not")
     checkpoint_arrays=lambda: {
         "ll":ll,"ll_by_block":ll_by_block,"sites_by_block":sites_by_block,
         "ll_by_d0":ll_by_d0,"sites_by_d0":sites_by_d0,
         **({} if ll_epsilon is None else {"ll_epsilon":ll_epsilon})}
+    if ll_scale_epsilon is not None and not checkpoint_path.exists():
+        # Close the normal preemption window before the first periodic
+        # checkpoint: once the sidecar exists, state identifying row zero does too.
+        ll_scale_epsilon.flush()
+        save_draw_checkpoint(checkpoint_path,config,0,0,checkpoint_arrays(),
+                             counts,used,chromosomes)
     tree = ts.first()
     for chrom_index, chrom in enumerate(chromosomes):
         if chrom_index<start_chrom_index:
@@ -242,6 +343,7 @@ def run_draw(args):
         for row in range(row_start,len(local_positions)):
             if row>row_start and row%args.checkpoint_every==0:
                 used[chrom]=np.asarray(kept,dtype=np.int64); counts[str(chrom)]=stat
+                if ll_scale_epsilon is not None: ll_scale_epsilon.flush()
                 save_draw_checkpoint(checkpoint_path,config,chrom_index,row,
                                      checkpoint_arrays(),counts,used,chromosomes)
                 print(f"checkpoint chr{chrom}: {row}/{len(local_positions)} targets, "
@@ -264,6 +366,16 @@ def run_draw(args):
             try:
                 p = derived_probability_uniform_edge_grid(
                     tree, mutation.node, grid, tree.time(mutation.node), tree.time(parent), ne)
+                scaled_probabilities=[]
+                if ll_scale_epsilon is not None:
+                    for time_scale in time_scale_grid:
+                        if time_scale==1:
+                            scaled_probabilities.append(p)
+                        else:
+                            scaled_probabilities.append(
+                                derived_probability_uniform_edge_grid(
+                                    tree,mutation.node,grid,tree.time(mutation.node),
+                                    tree.time(parent),ne,time_scale=time_scale))
             except ValueError:
                 stat["invalid"] += 1; continue
             observed=np.asarray(calls["observed_alt"][row]); called=np.asarray(calls["called"][row])
@@ -272,6 +384,13 @@ def run_draw(args):
             if ll_epsilon is not None:
                 ll_epsilon[:,chrom_index] += call_loglik_grid(
                     p,observed,called,is_alt,epsilon_grid)
+            if ll_scale_epsilon is not None:
+                for scale_start in range(0,len(time_scale_grid),scale_chunk_size):
+                    scale_stop=min(scale_start+scale_chunk_size,len(time_scale_grid))
+                    chunk=np.asarray(scaled_probabilities[scale_start:scale_stop])
+                    ll_scale_epsilon[scale_start:scale_stop,:,chrom_index] += (
+                        call_loglik_scale_epsilon_grid(
+                            chunk,observed,called,is_alt,joint_epsilon_grid))
             block=min(int(local//args.block_size),block_counts[chrom_index]-1)
             ll_by_block[chrom_index,block] += contribution
             sites_by_block[chrom_index,block] += 1
@@ -287,6 +406,7 @@ def run_draw(args):
             sites_by_d0[chrom_index, d0] += 1
             kept.append(int(local)); stat["used"] += 1
         used[chrom]=np.asarray(kept,dtype=np.int64); counts[str(chrom)]=stat
+        if ll_scale_epsilon is not None: ll_scale_epsilon.flush()
         save_draw_checkpoint(checkpoint_path,config,chrom_index+1,0,
                              checkpoint_arrays(),counts,used,chromosomes)
         print(f"chr{chrom}: {stat['used']}/{stat['targets']}", flush=True)
@@ -299,11 +419,22 @@ def run_draw(args):
     if ll_epsilon is not None:
         np.save(args.output/"epsilon_grid.npy",epsilon_grid)
         np.save(args.output/"ll_by_chrom_epsilon.npy",ll_epsilon)
+    if ll_scale_epsilon is not None:
+        ll_scale_epsilon.flush()
+        np.save(args.output/"time_scale_grid.npy",time_scale_grid)
+        np.save(args.output/"epsilon_grid.npy",joint_epsilon_grid)
+        del ll_scale_epsilon
+        joint_accumulator_path(checkpoint_path).replace(
+            args.output/"ll_by_chrom_scale_epsilon.npy")
     (args.output/"samples.txt").write_text("\n".join(samples)+"\n")
     for chrom in chromosomes: np.save(args.output/f"used_chr{chrom}.npy",used[chrom])
     (args.output/"run.json").write_text(json.dumps({"model":"direct ancient-lineage insertion",
         "tree":str(args.tree.resolve()),"draw_id":args.draw_id,"epsilon":args.epsilon,
-        "epsilon_grid":None if epsilon_grid is None else epsilon_grid.tolist(),
+        "epsilon_grid":None if (epsilon_grid is None and time_scale_grid is None)
+                       else joint_epsilon_grid.tolist(),
+        "time_scale_grid":None if time_scale_grid is None else time_scale_grid.tolist(),
+        "time_scale_chunk_size":None if time_scale_grid is None else scale_chunk_size,
+        "joint_accumulator":"disk-backed numpy memmap" if time_scale_grid is not None else None,
         "chromosomes":chromosomes,"ne":str(args.ne.resolve()),"block_size":args.block_size,
         "counts_by_chromosome":counts},indent=2)+"\n")
 
@@ -316,8 +447,8 @@ def merge(args):
             ids=[line.rstrip("\n").split("\t")[draw_col] for line in handle if line.strip()]
         parts=[args.draw_root/f"draw_{draw_id}" for draw_id in ids]
     samples=(parts[0]/"samples.txt").read_text().split(); grid=np.load(parts[0]/"grid.npy")
-    arrays=[]; epsilon_paths=[]; arrays_d0=[]; site_counts_d0=[]; block_arrays=[]; block_counts=[]; reference=None; metas=[]
-    epsilon_grid=None
+    arrays=[]; epsilon_paths=[]; joint_paths=[]; arrays_d0=[]; site_counts_d0=[]; block_arrays=[]; block_counts=[]; reference=None; metas=[]
+    epsilon_grid=None; joint_epsilon_grid=None; time_scale_grid=None
     for part in parts:
         if (part/"samples.txt").read_text().split()!=samples: raise SystemExit(f"sample order differs in {part}")
         if not np.array_equal(np.load(part/"grid.npy"),grid): raise SystemExit(f"grid differs in {part}")
@@ -336,6 +467,18 @@ def merge(args):
             elif not np.array_equal(current_grid,epsilon_grid):
                 raise SystemExit(f"epsilon grid differs in {part}")
             epsilon_paths.append(epsilon_path)
+        joint_path=part/"ll_by_chrom_scale_epsilon.npy"
+        if joint_path.exists():
+            current_scale_grid=np.load(part/"time_scale_grid.npy")
+            current_epsilon_grid=np.load(part/"epsilon_grid.npy")
+            if time_scale_grid is None:
+                time_scale_grid=current_scale_grid
+                joint_epsilon_grid=current_epsilon_grid
+            elif not np.array_equal(current_scale_grid,time_scale_grid):
+                raise SystemExit(f"time-scale grid differs in {part}")
+            elif not np.array_equal(current_epsilon_grid,joint_epsilon_grid):
+                raise SystemExit(f"joint epsilon grid differs in {part}")
+            joint_paths.append(joint_path)
         if (part/"ll_by_block.npy").exists():
             block_arrays.append(np.load(part/"ll_by_block.npy")); block_counts.append(np.load(part/"sites_by_block.npy"))
         d0_path=part/"ll_by_chrom_d0.npy"
@@ -370,6 +513,34 @@ def merge(args):
             merged_epsilon += running_max+np.log(running_sum/len(epsilon_paths))
         np.save(args.output/"epsilon_grid.npy",epsilon_grid)
         np.save(args.output/"ll_marginal_epsilon.npy",merged_epsilon)
+    if joint_paths:
+        if len(joint_paths)!=len(arrays):
+            raise SystemExit("only some draws contain joint scale/epsilon likelihoods")
+        expected=(len(time_scale_grid),len(joint_epsilon_grid),len(chromosomes),
+                  len(samples),len(grid))
+        merged_joint=np.zeros((len(time_scale_grid),len(joint_epsilon_grid),
+                               len(samples),len(grid)))
+        # As above, stream chromosomes and draws while retaining both joint
+        # calibration axes in the merged output.
+        for chrom_index in range(len(chromosomes)):
+            running_max=None; running_sum=None
+            for joint_path in joint_paths:
+                saved=np.load(joint_path,mmap_mode="r")
+                if saved.shape!=expected:
+                    raise SystemExit(f"joint likelihood shape in {joint_path} is "
+                                     f"{saved.shape}; expected {expected}")
+                current=np.asarray(saved[:,:,chrom_index],dtype=float)
+                if running_max is None:
+                    running_max=current.copy(); running_sum=np.ones_like(current)
+                else:
+                    new_max=np.maximum(running_max,current)
+                    running_sum=(running_sum*np.exp(running_max-new_max)
+                                 +np.exp(current-new_max))
+                    running_max=new_max
+            merged_joint += running_max+np.log(running_sum/len(joint_paths))
+        np.save(args.output/"time_scale_grid.npy",time_scale_grid)
+        np.save(args.output/"epsilon_grid.npy",joint_epsilon_grid)
+        np.save(args.output/"ll_marginal_scale_epsilon.npy",merged_joint)
     if arrays_d0:
         if len(arrays_d0) != len(arrays): raise SystemExit("only some draws contain d0-stratified likelihoods")
         by_d0=np.stack(arrays_d0)  # draw, chromosome, d0, sample, age
@@ -398,14 +569,18 @@ def merge(args):
             handle.write(sample+"\t"+"\t".join(f"{x:.6g}" for x in summarize(grid,lp))+"\n")
     (args.output/"run.json").write_text(json.dumps({"model":"direct ancient-lineage insertion",
         "n_arg_draws":len(parts),"draw_ids":[m["draw_id"] for m in metas],"epsilon":metas[0]["epsilon"],
-        "epsilon_grid":None if epsilon_grid is None else epsilon_grid.tolist(),
+        "epsilon_grid":None if (joint_epsilon_grid if time_scale_grid is not None
+                                 else epsilon_grid) is None else
+                       (joint_epsilon_grid if time_scale_grid is not None
+                        else epsilon_grid).tolist(),
+        "time_scale_grid":None if time_scale_grid is None else time_scale_grid.tolist(),
         "marginalisation":"logmeanexp draws within chromosome, then sum chromosomes",
         "ne":metas[0]["ne"],"chromosomes":metas[0]["chromosomes"],
         "sites_by_chromosome":{str(c):len(x) for c,x in zip(metas[0]["chromosomes"],reference)}},indent=2)+"\n")
 
 def main():
     p=argparse.ArgumentParser(); sub=p.add_subparsers(dest="command",required=True)
-    r=sub.add_parser("run-draw"); r.add_argument("--tree",type=Path,required=True); r.add_argument("--draw-id",type=int,required=True); r.add_argument("--calls",type=Path,required=True); r.add_argument("--chrom-fai",type=Path,help="FAI used to reconstruct offsets when the concatenated ARG lacks chrom_offsets metadata"); r.add_argument("--ne",type=Path,required=True); r.add_argument("--ne-series"); r.add_argument("--ne-extrapolate-last",action="store_true"); r.add_argument("--epsilon",type=float,default=.01); r.add_argument("--epsilon-grid",help="also evaluate START:STOP:STEP or comma-separated epsilon values"); r.add_argument("--age-min",type=float,default=0); r.add_argument("--age-max",type=float,default=30000); r.add_argument("--age-step",type=float,default=100); r.add_argument("--block-size",type=float,default=5_000_000); r.add_argument("--checkpoint",type=Path,help="resumable checkpoint NPZ [OUTPUT.checkpoint.npz]"); r.add_argument("--checkpoint-every",type=int,default=25000,help="checkpoint after this many target rows [25000]"); r.add_argument("--output",type=Path,required=True); r.set_defaults(func=run_draw)
+    r=sub.add_parser("run-draw"); r.add_argument("--tree",type=Path,required=True); r.add_argument("--draw-id",type=int,required=True); r.add_argument("--calls",type=Path,required=True); r.add_argument("--chrom-fai",type=Path,help="FAI used to reconstruct offsets when the concatenated ARG lacks chrom_offsets metadata"); r.add_argument("--ne",type=Path,required=True); r.add_argument("--ne-series"); r.add_argument("--ne-extrapolate-last",action="store_true"); r.add_argument("--epsilon",type=float,default=.01); r.add_argument("--epsilon-grid",help="also evaluate START:STOP:STEP or comma-separated epsilon values"); r.add_argument("--time-scale-grid",help="also evaluate positive START:STOP:STEP or comma-separated ARG time multipliers"); r.add_argument("--time-scale-chunk-size",type=int,default=4,help="number of scale values per temporary likelihood chunk [4]"); r.add_argument("--age-min",type=float,default=0); r.add_argument("--age-max",type=float,default=30000); r.add_argument("--age-step",type=float,default=100); r.add_argument("--block-size",type=float,default=5_000_000); r.add_argument("--checkpoint",type=Path,help="resumable checkpoint NPZ [OUTPUT.checkpoint.npz]"); r.add_argument("--checkpoint-every",type=int,default=25000,help="checkpoint after this many target rows [25000]"); r.add_argument("--output",type=Path,required=True); r.set_defaults(func=run_draw)
     m=sub.add_parser("merge"); m.add_argument("--draw-results",type=Path,nargs="+"); m.add_argument("--manifest",type=Path); m.add_argument("--draw-root",type=Path); m.add_argument("--skip-d0",action="store_true",help="do not merge optional frequency-stratified likelihoods"); m.add_argument("--bootstrap-replicates",type=int,default=1000); m.add_argument("--bootstrap-seed",type=int,default=20260914); m.add_argument("--output",type=Path,required=True); m.set_defaults(func=merge)
     a=p.parse_args(); a.func(a)
 if __name__=="__main__": main()

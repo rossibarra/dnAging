@@ -95,15 +95,24 @@ def _as_demography(ne, maximum):
                                np.array([value]))
 
 
-def _lineage_intervals(tree: tskit.Tree, focal_node: int):
+def _validated_time_scale(time_scale):
+    """Return a finite, strictly positive ARG-to-real-time multiplier."""
+    value = float(time_scale)
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError("time_scale must be finite and positive")
+    return value
+
+
+def _lineage_intervals(tree: tskit.Tree, focal_node: int, time_scale=1.0):
     """Return (lower, upper, is_focal_descendant) for every tree edge."""
+    scale = _validated_time_scale(time_scale)
     ts = tree.tree_sequence
     focal_descendants = set(tree.nodes(focal_node))
     intervals = []
     for parent in tree.nodes():
         for child in tree.children(parent):
-            intervals.append((float(ts.node(child).time),
-                              float(ts.node(parent).time),
+            intervals.append((scale * float(ts.node(child).time),
+                              scale * float(ts.node(parent).time),
                               child in focal_descendants))
     return intervals
 
@@ -114,6 +123,7 @@ def derived_probability_exact_time(
     sample_time: float,
     mutation_time: float,
     ne: float,
+    time_scale: float = 1.0,
 ) -> float:
     """Probability an inserted ancient haplotype carries the focal mutation.
 
@@ -121,8 +131,9 @@ def derived_probability_exact_time(
     diploid constant-size Kingman coalescent. Times are generations before the
     present. A sample older than the mutation is necessarily ancestral.
     """
+    scale = _validated_time_scale(time_scale)
     T = float(sample_time)
-    m = float(mutation_time)
+    m = scale * float(mutation_time)
     if not np.isfinite([T, m]).all() or T < 0 or m < 0:
         raise ValueError("sample time, mutation time and Ne must be finite and valid")
     if T >= m:
@@ -130,7 +141,7 @@ def derived_probability_exact_time(
     if focal_node == tskit.NULL or focal_node < 0:
         raise ValueError("focal_node must identify a node in the tree")
 
-    intervals = _lineage_intervals(tree, focal_node)
+    intervals = _lineage_intervals(tree, focal_node, scale)
     demography = _as_demography(ne, m)
     knots = {T, m}
     knots.update(demography.internal_breaks(T, m))
@@ -169,8 +180,10 @@ def derived_probability_uniform_edge(
     edge_upper: float,
     ne: float,
     quadrature_order: int = 32,
+    time_scale: float = 1.0,
 ) -> float:
     """Average the insertion probability over a uniform mutation position."""
+    scale = _validated_time_scale(time_scale)
     lower = float(edge_lower)
     upper = float(edge_upper)
     if not upper > lower:
@@ -181,7 +194,8 @@ def derived_probability_uniform_edge(
     mutation_times = 0.5 * (upper - lower) * nodes + 0.5 * (upper + lower)
     probabilities = np.asarray([
         derived_probability_exact_time(
-            tree, focal_node, sample_time, mutation_time, ne
+            tree, focal_node, sample_time, mutation_time, ne,
+            time_scale=scale,
         )
         for mutation_time in mutation_times
     ])
@@ -189,7 +203,7 @@ def derived_probability_uniform_edge(
 
 
 def _cumulative_insertion_functions(
-    tree: tskit.Tree, focal_node: int, times, ne: float
+    tree: tskit.Tree, focal_node: int, times, ne: float, time_scale: float = 1.0
 ):
     """Evaluate cumulative total hazard K, focal incidence B and integral C.
 
@@ -202,7 +216,7 @@ def _cumulative_insertion_functions(
         raise ValueError("evaluation times must be finite and nonnegative")
     maximum = float(np.max(times)) if times.size else 0.0
     demography = _as_demography(ne, maximum)
-    intervals = _lineage_intervals(tree, focal_node)
+    intervals = _lineage_intervals(tree, focal_node, time_scale)
     knots = {0.0, maximum}
     for lower, upper, _ in intervals:
         if 0 < lower < maximum:
@@ -265,15 +279,17 @@ def derived_probability_uniform_edge_grid(
     edge_lower: float,
     edge_upper: float,
     ne: float,
+    time_scale: float = 1.0,
 ):
     """Vectorized uniform-edge insertion probability over sample ages.
 
     This evaluates the nested coalescence/mutation-time integrals analytically
     between modern-tree events, avoiding per-site numerical quadrature.
     """
+    scale = _validated_time_scale(time_scale)
     sample_times = np.asarray(sample_times, dtype=float)
-    lower = float(edge_lower)
-    upper = float(edge_upper)
+    lower = scale * float(edge_lower)
+    upper = scale * float(edge_upper)
     if not upper > lower:
         raise ValueError("edge_upper must exceed edge_lower")
     sample_times_bounded = np.minimum(sample_times, upper)
@@ -282,7 +298,7 @@ def derived_probability_uniform_edge_grid(
         (sample_times_bounded, integration_lower, [upper])
     )
     K, B, C = _cumulative_insertion_functions(
-        tree, focal_node, evaluation_times, ne
+        tree, focal_node, evaluation_times, ne, time_scale=scale
     )
     n = len(sample_times)
     K_T = K[:n]

@@ -20,6 +20,58 @@ generations and a regression slope of approximately 0.81. A fixed
 `epsilon = 0.05` reduced the MAE substantially, but `epsilon` should not be
 forced to compensate for a systematic ARG time-scale error.
 
+## Implementation status (2026-10-28)
+
+Development is on Git branch `feature/radiocarbon-epsilon-calibration`.
+
+Completed:
+
+- The insertion kernel applies a finite positive time-scale multiplier to ARG
+  node times and mutation-edge endpoints while retaining candidate ages and the
+  Ne history in real generations. `time_scale = 1` is backward compatible and
+  matches an explicitly rescaled tree sequence in tests.
+- `pipeline/insertion_real_data.py` accepts joint time-scale and epsilon grids,
+  checkpoints both grids, merges ARG draws independently within chromosomes,
+  and preserves the two calibration axes in
+  `ll_marginal_scale_epsilon.npy`.
+- Joint per-draw likelihoods use a disk-backed NumPy sidecar, bounded scale
+  chunks, atomic checkpoint metadata, and an initial row-zero checkpoint for
+  preemptible jobs. An interrupted run is numerically identical to an
+  uninterrupted run in the integration test.
+- `pipeline/joint_scale_epsilon_calibration.py` integrates full calibrated
+  radiocarbon densities, performs leakage-safe LOO or stratified K-fold
+  validation, propagates the complete training surface into held-out and
+  unknown ages, and reports joint/marginal estimates, boundary mass, parameter
+  correlation, and dated-sample bootstrap uncertainty.
+- Production Slurm wrappers, documentation, merge tests, one-scale
+  compatibility tests, leakage tests, and deterministic-bootstrap tests are in
+  place. The full suite currently passes 197 tests.
+
+In progress:
+
+- Phase B's first exact diagnostic is running as Farm job `40199101`: inferred
+  ARG draw 50, chromosome 1, time scales 0.8--1.6 by 0.1, epsilons 0--0.10 by
+  0.02, and ages 0--10,000 by 100 generations. Dependent merge job `40199105`
+  and joint cross-validation job `40199106` will run only after upstream
+  success. Outputs are under
+  `batches/joint_scale_epsilon_pilot_20261028/constant_r1_chr1/`.
+
+Remaining:
+
+- Evaluate the coarse Phase B result against the epsilon-only baseline, then
+  refine the scale grid around a non-boundary maximum if warranted.
+- Add imposed-scale, isolated-discordance, pure-compression, and jointly
+  perturbed simulation-recovery tests (test objectives 3--6 below).
+- Extend genomic block-bootstrap resampling across the joint surface; current
+  reported age intervals marginalize calibration-surface uncertainty but do
+  not yet include genomic block uncertainty.
+- Complete the 10-draw/three-chromosome simulation comparison before beginning
+  the protected chr1 real-data pilot (Phases C and D).
+
+Phase A's post-hoc axis-scaling diagnostic has not been used for inference. The
+exact coarse Phase B pilot was launched directly; a post-hoc diagnostic remains
+optional for visualization or grid refinement only.
+
 ## Model
 
 Let:

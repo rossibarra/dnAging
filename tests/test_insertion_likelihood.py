@@ -22,6 +22,12 @@ def two_tip_tree(root_time=10.0):
     return tables.tree_sequence().first(), left
 
 
+def rescale_tree(tree, scale):
+    tables = tree.tree_sequence.dump_tables()
+    tables.nodes.time = np.asarray(tables.nodes.time) * scale
+    return tables.tree_sequence().first()
+
+
 def test_exact_time_two_tip_tree_matches_closed_form():
     tree, focal = two_tip_tree()
     ne = 100.0
@@ -72,6 +78,51 @@ def test_vectorized_uniform_edge_matches_quadrature():
         for t in sample_times
     ])
     assert np.allclose(observed, expected, atol=2e-6)
+
+
+def test_time_scale_one_exactly_preserves_existing_results():
+    tree, focal = two_tip_tree()
+    sample_times = np.array([0.0, 1.5, 5.0, 8.0, 10.0, 12.0])
+    baseline = derived_probability_uniform_edge_grid(
+        tree, focal, sample_times, edge_lower=0, edge_upper=10, ne=100
+    )
+    scaled = derived_probability_uniform_edge_grid(
+        tree, focal, sample_times, edge_lower=0, edge_upper=10, ne=100,
+        time_scale=1.0,
+    )
+    np.testing.assert_array_equal(scaled, baseline)
+
+
+def test_time_scale_matches_explicitly_rescaled_tree():
+    tree, focal = two_tip_tree(root_time=14)
+    scale = 1.35
+    sample_times = np.array([0.0, 2.0, 7.0, 12.0, 18.0])
+    demography = PiecewiseConstantNe(
+        np.array([0.0, 5.0, 20.0]), np.array([5.0, 20.0, 100.0]),
+        np.array([100.0, 50.0, 200.0]))
+    implicit = derived_probability_uniform_edge_grid(
+        tree, focal, sample_times, edge_lower=2, edge_upper=14, ne=demography,
+        time_scale=scale,
+    )
+    explicit = derived_probability_uniform_edge_grid(
+        rescale_tree(tree, scale), focal, sample_times,
+        edge_lower=2 * scale, edge_upper=14 * scale, ne=demography,
+    )
+    np.testing.assert_allclose(implicit, explicit, rtol=0, atol=1e-15)
+
+
+def test_time_scale_is_validated():
+    tree, focal = two_tip_tree()
+    for bad in (0, -1, np.inf, np.nan):
+        try:
+            derived_probability_uniform_edge_grid(
+                tree, focal, [0, 1], edge_lower=0, edge_upper=10, ne=100,
+                time_scale=bad,
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid time scale accepted: {bad}")
 
 
 def test_piecewise_ne_exact_time_matches_closed_form():
