@@ -45,8 +45,8 @@ derived only if $T<z_i$ and its first coalescence before $z_i$ enters one
 of the $\delta_i(u)$ descendant lineages:
 
 $$
-q_i(T\mid z_i,E_i,\mathcal T)=
-\mathbf 1\{T<z_i\}
+q_i(T\mid z_i,E_i,\mathcal{T})=
+\mathbf{1}_{T<z_i}
 \int_T^{z_i}S_T(u)\frac{\delta_i(u)}{2N_e(u)}\,du.
 $$
 
@@ -54,10 +54,10 @@ Under the infinite-sites model, mutation time is uniform on its assigned edge,
 so the implemented probability marginalizes it:
 
 $$
-q_i(T\mid E_i,\mathcal T)=
+q_i(T\mid E_i,\mathcal{T})=
 \frac{1}{t_{p,i}-t_{c,i}}
 \int_{t_{c,i}}^{t_{p,i}}
-q_i(T\mid z,E_i,\mathcal T)\,dz.
+q_i(T\mid z,E_i,\mathcal{T})\,dz.
 $$
 
 `pipeline/insertion_likelihood.py` evaluates this analytically between tree
@@ -114,12 +114,13 @@ the held-out radiocarbon density is used only for scoring.
 
 ### Posterior ARG draws and chromosomes
 
-Sites are multiplied within one ARG draw before draws are averaged:
+Sites are multiplied within one ARG draw before draws are averaged. Writing
+$\mathrm{LSE}$ for the log-sum-exp operation:
 
 $$
-\log\mathcal L_c(T)=
-\operatorname{logsumexp}_g
-\left[\sum_{i\in\mathcal I_c}\ell_{ic}^{(g)}(T)\right]-\log G_c.
+\log\mathcal{L}_c(T)=
+\mathrm{LSE}_g
+\left[\sum_{i\in\mathcal{I}_c}\ell_{ic}^{(g)}(T)\right]-\log G_c.
 $$
 
 Independently inferred chromosomes are then combined by adding their
