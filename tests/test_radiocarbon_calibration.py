@@ -16,6 +16,14 @@ def test_radiocarbon_profile_integrates_density_not_midpoint():
     assert profile[0]>profile[1]
 
 
+def test_weighted_quantile_preserves_discrete_point_mass():
+    grid=np.array([.8,.9,1.,1.1])
+    log_weight=np.array([-np.inf,-np.inf,0.,-np.inf])
+    assert cal.weighted_quantile(grid,log_weight,.025)==1.
+    assert cal.weighted_quantile(grid,log_weight,.5)==1.
+    assert cal.weighted_quantile(grid,log_weight,.975)==1.
+
+
 def test_cross_validation_and_unknown_age_inference(tmp_path):
     likelihood=tmp_path/"likelihood"; likelihood.mkdir()
     age=np.array([0.,10.,20.]); epsilon=np.array([0.,.1])

@@ -20,7 +20,7 @@ generations and a regression slope of approximately 0.81. A fixed
 `epsilon = 0.05` reduced the MAE substantially, but `epsilon` should not be
 forced to compensate for a systematic ARG time-scale error.
 
-## Implementation status (2026-10-28)
+## Implementation status (2026-11-09)
 
 Development is on Git branch `feature/radiocarbon-epsilon-calibration`.
 
@@ -45,23 +45,45 @@ Completed:
   correlation, and dated-sample bootstrap uncertainty.
 - Production Slurm wrappers, documentation, merge tests, one-scale
   compatibility tests, leakage tests, and deterministic-bootstrap tests are in
-  place. The full suite currently passes 197 tests.
-
-In progress:
-
-- Phase B's first exact diagnostic is running as Farm job `40199101`: inferred
-  ARG draw 50, chromosome 1, time scales 0.8--1.6 by 0.1, epsilons 0--0.10 by
-  0.02, and ages 0--10,000 by 100 generations. Dependent merge job `40199105`
-  and joint cross-validation job `40199106` will run only after upstream
-  success. Outputs are under
-  `batches/joint_scale_epsilon_pilot_20261028/constant_r1_chr1/`.
+  place.
+- Discrete posterior quantiles now use the generalized inverse CDF. This fixes
+  intervals that fell between unoccupied grid points and excluded a posterior
+  point mass; focused calibration and recovery tests pass on Farm.
+- The controlled true-ARG scale/epsilon matrix passed all 45 recovery gates,
+  showing that the basic scale/epsilon likelihood arithmetic is correct when
+  topology and node times are known.
+- The inferred-ARG demographic matrix remained biased under constant size,
+  bottleneck/recovery, and recent growth. A single global scale did not provide
+  a general correction.
+- Age-stratified diagnostics found demographic-specific scale preferences
+  rather than one universal monotone warp.
+- Chromosome-specific calibration improved the recent-growth inferred-ARG
+  result from bias -2,652 and RMSE 3,033 to bias -1,517 and RMSE 1,802, but did
+  not remove the systematic error.
+- A production-matched fixed-topology experiment split the same true ARG at
+  the exact SINGER chunk boundaries and merged it in the same way after either
+  retaining true times or running POLEGON per chunk. The true-time control was
+  essentially unbiased (bias +13, RMSE 69, slope 1.010), whereas the POLEGON
+  arm had bias -1,247, RMSE 1,459, and slope 0.762. This localizes the MAP-age
+  bias to POLEGON dating or its demographic assumptions rather than chunking,
+  topology, or the core insertion-likelihood arithmetic.
+- The POLEGON/true node-time median was close to one, but its 5--95% range was
+  approximately 0.59--1.56. Aggregate edge length and global scale summaries
+  therefore hide structured local timing distortions.
+- Even the true-time control produced intervals that were too narrow: only 30%
+  contained the radiocarbon mean. Composite-likelihood overconfidence remains
+  a separate problem from MAP-age bias.
 
 Remaining:
 
-- Evaluate the coarse Phase B result against the epsilon-only baseline, then
-  refine the scale grid around a non-boundary maximum if warranted.
-- Add imposed-scale, isolated-discordance, pure-compression, and jointly
-  perturbed simulation-recovery tests (test objectives 3--6 below).
+- Diagnose POLEGON child/parent edge-time error by true age stratum on the
+  mutation-bearing edges used by the likelihood. Distinguish scalar-Ne
+  demographic misspecification from loss of node-time uncertainty at the
+  POLEGON-to-likelihood handoff.
+- Run the production-matched true-time versus POLEGON-time comparison under
+  constant population size and bottleneck/recovery, not only recent growth.
+- Evaluate either posterior integration over node times or an explicitly
+  age-dependent calibration only if the edge-level diagnostic supports it.
 - Extend genomic block-bootstrap resampling across the joint surface; current
   reported age intervals marginalize calibration-surface uncertainty but do
   not yet include genomic block uncertainty.

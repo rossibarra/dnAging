@@ -139,8 +139,28 @@ def summarize_density(grid, log_likelihood, log_prior=None):
 
 
 def weighted_quantile(grid, log_weight, probability):
-    mass=np.exp(log_weight); cdf=np.cumsum(mass); cdf/=cdf[-1]
-    return float(np.interp(probability,cdf,grid))
+    """Return a quantile of probability masses on a discrete grid.
+
+    This is the generalized inverse of the discrete CDF.  Interpolating
+    between successive CDF values can put a quantile between grid points that
+    carry no mass and, for a point mass, can even exclude its location from an
+    equal-tail interval.
+    """
+    grid=np.asarray(grid,dtype=float)
+    log_weight=np.asarray(log_weight,dtype=float)
+    if (grid.ndim!=1 or log_weight.shape!=grid.shape or len(grid)==0
+            or np.any(~np.isfinite(grid)) or np.any(np.diff(grid)<=0)):
+        raise ValueError("weighted quantile needs matching, increasing finite grid values")
+    if not 0<=probability<=1:
+        raise ValueError("quantile probability must lie in [0, 1]")
+    peak=np.max(log_weight)
+    if not np.isfinite(peak):
+        raise ValueError("weighted quantile needs at least one finite log weight")
+    mass=np.exp(log_weight-peak)
+    cdf=np.cumsum(mass)
+    threshold=probability*cdf[-1]
+    index=int(np.searchsorted(cdf,threshold,side="left"))
+    return float(grid[min(index,len(grid)-1)])
 
 
 def accuracy_metrics(rows, estimate_key="map_T"):

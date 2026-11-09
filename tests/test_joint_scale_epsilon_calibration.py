@@ -70,3 +70,14 @@ def test_joint_bootstrap_is_deterministic():
     first=joint.bootstrap_joint(profiles,scale,epsilon,25,17)
     second=joint.bootstrap_joint(profiles,scale,epsilon,25,17)
     np.testing.assert_array_equal(first,second)
+
+
+def test_joint_summary_interval_contains_concentrated_map_grid_point():
+    scale=np.array([.8,.9,1.,1.1])
+    epsilon=np.array([0.,.02,.04])
+    profile=np.full((len(scale),len(epsilon)),-1000.)
+    profile[2,1]=0.
+    summary=joint.joint_summary(profile,scale,epsilon)
+    assert summary["joint_map"]=={"time_scale":1.,"epsilon":.02}
+    assert summary["time_scale"]["ci95"]==[1.,1.]
+    assert summary["epsilon"]["ci95"]==[.02,.02]
