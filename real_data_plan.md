@@ -13,7 +13,7 @@ cannot also provide an unbiased assessment of dating accuracy. The primary
 analysis will therefore use cross-validation, with radiocarbon information used
 only for the training samples in each fold.
 
-This repository must not store sample-level radiocarbon metadata or ancient VCFs.
+Sample-level radiocarbon metadata and ancient VCFs must never be committed or published. As of 2026-11-12 (user decision) local copies of dates and metadata may live in the gitignored `private/` directory in the working tree; the git remote is on GitHub, so keep them out of tracked paths, commits and shared outputs.
 The analysis should read those inputs from their protected external locations and
 write only aggregate summaries or explicitly de-identified validation results.
 

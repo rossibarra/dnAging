@@ -288,3 +288,9 @@ msprime_variable_ne_error/insertion_inference/
 msprime_variable_ne_error/insertion_posterior/
 msprime_variable_ne_error/insertion_frequency/
 batches/*/runs/
+
+# Private sample-level metadata and radiocarbon dates; never commit.
+private/
+
+# Ancient genotype data (PLINK sets, VCFs); sample-level, never commit.
+radiocarbon_goodvcfs/
