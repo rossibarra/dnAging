@@ -1,0 +1,30 @@
+>>> hpc_run: partition 'low' (cpus=1 mem=16G time=02:00:00), waiting up to 60s for a node
+srun: job 40590288 queued and waiting for resources
+srun: job 40590288 has been allocated resources
+__HPC_STARTED_3963896__
+Loading conda/base/latest
+arm	true_age	mean_bias	se	n
+no_fixed	250	93	77	20
+no_fixed	1000	-36	79	20
+no_fixed	2000	-212	85	20
+no_fixed	4000	-559	92	20
+no_fixed	6000	-984	102	20
+no_fixed	8000	-1228	96	20
+with_fixed	250	120	81	20
+with_fixed	1000	80	82	20
+with_fixed	2000	10	90	20
+with_fixed	4000	3	102	20
+with_fixed	6000	-90	105	20
+with_fixed	8000	117	120	20
+wrong_pol_0.01	250	120	82	20
+wrong_pol_0.01	1000	83	82	20
+wrong_pol_0.01	2000	26	89	20
+wrong_pol_0.01	4000	33	103	20
+wrong_pol_0.01	6000	-47	105	20
+wrong_pol_0.01	8000	177	121	20
+wrong_pol_0.1	250	150	84	20
+wrong_pol_0.1	1000	176	85	20
+wrong_pol_0.1	2000	213	88	20
+wrong_pol_0.1	4000	365	115	20
+wrong_pol_0.1	6000	389	114	20
+wrong_pol_0.1	8000	728	136	20

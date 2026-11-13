@@ -1,0 +1,48 @@
+draws [75, 82, 89, 96, 103, 110, 117, 124, 131, 138]
+n ancient 50 n controls 6
+
+Per-draw: ancient median f, control mean f, offset, ancient median T_hat, #T_hat==0
+75 0.4175 0.3184 0.0991 9902 0
+82 0.4204 0.3163 0.1041 10359 0
+89 0.4205 0.3172 0.1033 10323 0
+96 0.4206 0.3183 0.1022 10254 0
+103 0.4180 0.3206 0.0974 9822 0
+110 0.4191 0.3173 0.1018 10208 0
+117 0.4169 0.3171 0.0998 10192 0
+124 0.4177 0.3154 0.1023 10360 0
+131 0.4194 0.3176 0.1018 10363 0
+138 0.4187 0.3181 0.1006 10175 0
+
+f ancient: mean within-sample SD across draws 0.002081; SD across sample means 0.009646; ratio within/between 0.22; ICC(1) 0.950
+
+T_hat ancient: mean within-sample SD across draws 209.8; SD across sample means 697.9; ratio within/between 0.30; ICC(1) 0.911
+
+f controls: mean within-sample SD across draws 0.002199; SD across sample means 0.007929; ratio within/between 0.28; ICC(1) 0.925
+f ancient between-draw correlation over 50 ancient samples: Pearson mean 0.962 (min 0.931 max 0.981); Spearman mean 0.956 (min 0.918 max 0.977)
+T_hat ancient between-draw correlation over 50 ancient samples: Pearson mean 0.960 (min 0.924 max 0.981); Spearman mean 0.956 (min 0.918 max 0.977)
+
+Offset across draws: ancient median f mean 0.4189 SD 0.0013; control mean f mean 0.3176 SD 0.0014; offset mean 0.1012 SD 0.0020 min 0.0974 max 0.1041
+per-control f range (min of draw means .. max): [0.3084 0.3237 0.3263 0.323  0.316  0.3084]
+fraction of ancient samples with f > max control f, per draw: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+T_hat mean over draws: median 10219, min 8242, max 11484, SD across samples 697.9
+
+n dated 46
+draw 75 T_hat: Pearson 0.072 (p=0.63), Spearman 0.090 (p=0.55)
+draw 82 T_hat: Pearson 0.058 (p=0.7), Spearman 0.103 (p=0.5)
+draw 89 T_hat: Pearson 0.045 (p=0.77), Spearman 0.085 (p=0.57)
+draw 96 T_hat: Pearson 0.052 (p=0.73), Spearman 0.112 (p=0.46)
+draw 103 T_hat: Pearson 0.050 (p=0.74), Spearman 0.093 (p=0.54)
+draw 110 T_hat: Pearson 0.044 (p=0.77), Spearman 0.086 (p=0.57)
+draw 117 T_hat: Pearson 0.004 (p=0.98), Spearman 0.069 (p=0.65)
+draw 124 T_hat: Pearson 0.045 (p=0.77), Spearman 0.077 (p=0.61)
+draw 131 T_hat: Pearson 0.046 (p=0.76), Spearman 0.110 (p=0.47)
+draw 138 T_hat: Pearson 0.013 (p=0.93), Spearman 0.107 (p=0.48)
+mean T_hat over draws: Pearson 0.043 (p=0.77), Spearman 0.101 (p=0.5)
+mean f over draws: Pearson 0.051 (p=0.74), Spearman 0.100 (p=0.51)
+single-draw Pearson: mean 0.043 min 0.004 max 0.072
+subsets of 1 draws: mean Pearson 0.044 (range 0.004..0.072)
+subsets of 2 draws: mean Pearson 0.045 (range 0.009..0.066)
+subsets of 5 draws: mean Pearson 0.043 (range 0.031..0.055)
+subsets of 10 draws: mean Pearson 0.043 (range 0.043..0.043)
+per-sample f residual after removing draw mean; sanity f-pooled: Pearson 0.051 (p=0.74), Spearman 0.100 (p=0.51)

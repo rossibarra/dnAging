@@ -1,0 +1,18 @@
+{
+ "created": "2026-11-11/12",
+ "purpose": "stand-in for a not-yet-available modern controls VCF: ARGs re-inferred from the maize NAM+TE modern panel minus k held-out lines; the held-out lines are the controls",
+ "panel_source_vcf": "/quobyte/jrigrp/beil/te_evo/singer_analysis/singer-snakemake/for_te_chr10/chr.10.combined.snp.te.sorted.vcf.gz",
+ "chromosome": "10 (smallest of the 10 nuclear chromosomes, 152.4 Mb)",
+ "selection": {"seed": 20261111, "k": 6, "rng": "python random.Random(20261111).sample(sorted(non-REF columns), 6)",
+               "heldout": ["CML322", "CML69", "Il14H", "Ki11", "M162W", "Tzi8"], "script": "scripts/01_select_heldout.py"},
+ "panel_columns": 20, "panel_names_file": "panel_names.txt",
+ "recipe": {"engine": "singer-snakemake at /quobyte/jrigrp/beil/te_evo/singer_analysis/singer-snakemake (SINGER 0.1.8-beta custom, POLEGON 0.1.3-alpha), the code used for the real NAM+TE run",
+            "config": "singer_config.yaml (= singer-snakemake/chr.9.yaml values: 150 MCMC samples, thin 10, polegon 150/thin 10/scaling reps 5/max-step 10, mu 3.3e-8, r 2e-8 (hapmap used), chunks 0.1-1 Mb, max-masked-samples 6, random seed 56789)",
+            "ne": "pipeline-estimated constant ballpark Ne for chr10 = 96672.31 (real 26-line run: 101545.78); not overridable in the workflow",
+            "draws_kept": [75, 82, 89, 96, 103, 110, 117, 124, 131, 138],
+            "draws_note": "reps 0-149 are SINGER MCMC samples; first 75 are burn-in in the real recipe; 10 evenly spaced post-burn-in reps were merged"},
+ "jobs": {"prep": {"id": 40590168, "script": "scripts/02_prep_inputs.sbatch", "cpus": 2, "mem": "8G", "elapsed": "00:01:02"},
+          "singer_polegon": {"id": 40590169, "script": "scripts/03_singer_polegon.sbatch", "partition": "low", "qos": "jrigrp-low-qos", "cpus": 48, "mem": "64G requested; sacct batch MaxRSS 67102824K (sum over child processes; job COMPLETED, no OOM)", "elapsed": "03:12:53", "total_cpu": "2-11:43:11 (about 59.7 CPU-hours)"},
+          "verify": "hpc_run srun jobs 40590819 (failed, plink module), 40590821/..., final successful run via scripts/04_verify_run_draw.sh 75"},
+ "failed_first_attempt": {"jobs": [40590163, 40590166], "reason": "k=5 gave 21 haploid columns; singer-snakemake refuses to diploidize an odd number of haploid samples; redone with k=6", "dir": "failed_k5_attempt/"}
+}

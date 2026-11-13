@@ -1,0 +1,13 @@
+# Bottleneck demography, single panmictic population, sizes in HAPLOID COUNTS (= 2 * diploid Ne), so
+# the template's Ne = 20,000 is 40,000 here.  Use with msprime ploidy=1 (as the simulator does) and
+# with `--ploidy 1` in the estimator, which gives pair coalescence rate c = 1/N = 1/(2 Ne), same as the template.
+# Time runs backwards from the present: ancestral size to 500 gens ago; at 500 gens ago the size DROPS BY 70%
+# (to 30% of ancestral); then it recovers EXPONENTIALLY (forward in time) to ancestral size by 300 gens ago.
+description: Ne bottleneck, reduced by 70% (to 0.3 Ne) 500 gens ago, exponential recovery to Ne by 300 gens ago
+time_units: generations
+demes:
+  - name: pop
+    epochs:
+      - {start_size: 40000, end_time: 500}
+      - {start_size: 12000, end_size: 40000, end_time: 300, size_function: exponential}
+      - {start_size: 40000, end_time: 0}
