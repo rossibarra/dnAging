@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Cartoon graphical abstract for the non-sharing-ratio dating estimator.
+"""Graphical abstract for the non-sharing-ratio dating estimator.
 
-No simulation data are plotted; every panel is schematic.  Panels:
+Panels a-c are schematic; panel d plots simulation results (results/nonsharing_ratio/sim_inferred_vs_true.csv,
+made by scripts/collect_nonsharing_ratio_sim_table.py).  Panels:
   a  an ancient lineage sampled at age T cannot coalesce during (0, T);
   b  panel haplotype carrying an old mutation (age > A0 >> T): the ancient
      target fails to share it slightly more often than a modern control;
   c  the ratio f_anc / mean f_mod = exp(int_0^T c) and the solved T.
+  d  simulated ancient samples (SINGER+POLEGON ARGs, c(t) from the ARG): inferred vs true age,
+     constant size and a bottleneck, A0 = 20,000.
 
 Colours follow scripts/build_graphical_abstract.py (ancient = blue, extra
 non-sharing = orange); the two are distinguishable under the common
@@ -17,6 +20,8 @@ Run through hpc_run:  ~/.claude/bin/hpc_run 'python scripts/build_nonsharing_rat
 from __future__ import annotations
 
 from pathlib import Path
+
+import csv
 
 import matplotlib
 
@@ -180,23 +185,71 @@ def panel_c(ax):
             color=MUTED, va="center", linespacing=1.2)
 
 
+SIM_CSV = ROOT / "results" / "nonsharing_ratio" / "sim_inferred_vs_true.csv"
+
+
+def panel_d(fig, rect, demography, title, color, a0="20000"):
+    rows = [r for r in csv.DictReader(open(SIM_CSV)) if r["demography"] == demography]
+    x = np.array([float(r["true_age"]) for r in rows])
+    y = np.array([float(r["T_arg_" + a0]) for r in rows])
+    ax = fig.add_axes(rect)
+    ax.plot([0, 6500], [0, 6500], color=MUTED, lw=1.3, ls="--", zorder=1)
+    ax.scatter(x, y, s=34, color=color, alpha=0.85, edgecolor="white", lw=0.6, zorder=2)
+    r = np.corrcoef(x, y)[0, 1]
+    ax.text(0.04, 0.95, f"r = {r:.2f}\nmean bias {np.mean(y - x):+.0f} gen\nn = {len(x)} ancient samples",
+            transform=ax.transAxes, va="top", fontsize=11.5, color=INK)
+    ax.set_xlim(0, 6500)
+    ax.set_ylim(-300, 6500)
+    ax.set_xlabel("true age (generations)", fontsize=11.5, color=INK2)
+    ax.set_ylabel("inferred age (generations)", fontsize=11.5, color=INK2)
+    ax.set_title(title, fontsize=13, fontweight="bold", color=INK, loc="left")
+    ax.tick_params(labelsize=10.5, colors=INK2)
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+    ax.grid(color=GRID, lw=0.8)
+    ax.set_axisbelow(True)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    fig = plt.figure(figsize=(18, 6.9), facecolor="white")
-    fig.text(0.5, 0.955, "Dating ancient genomes by the non-sharing ratio", ha="center", fontsize=24,
+    HT, HB = 6.9, 5.1                      # inches: schematic row, data row
+    FH = HT + HB
+    k = HT / FH
+    ty = lambda y: (1 - k) + y * k         # map the original 0-1 top-row coordinates into the taller figure
+    fig = plt.figure(figsize=(18, FH), facecolor="white")
+    fig.text(0.5, ty(0.955), "Dating ancient genomes by the non-sharing ratio", ha="center", fontsize=24,
              fontweight="bold", color=INK, family="serif")
-    fig.text(0.5, 0.893, "An ancient lineage cannot coalesce with modern ones for its first $T$ generations; "
+    fig.text(0.5, ty(0.893), "An ancient lineage cannot coalesce with modern ones for its first $T$ generations; "
              "that deficit is the clock", ha="center", fontsize=13.5, color=INK2)
-    W, H, y0 = 0.30, 0.70, 0.075
+    W, H, y0 = 0.30, 0.70 * k, ty(0.075)
     xs = (0.02, 0.35, 0.68)
-    heading(fig, xs[0], y0 + H + 0.012, "a", "Ancient lineage starts late")
-    heading(fig, xs[1], y0 + H + 0.012, "b", "Old mutations, who shares")
-    heading(fig, xs[2], y0 + H + 0.012, "c", "Ratio gives age")
+    for x, l, t in zip(xs, "abc", ("Ancient lineage starts late", "Old mutations, who shares", "Ratio gives age")):
+        heading(fig, x, y0 + H + 0.012 * k, l, t)
     panel_a(panel_axes(fig, xs[0], y0, W, H))
     panel_b(panel_axes(fig, xs[1], y0, W, H))
     panel_c(panel_axes(fig, xs[2], y0, W, H))
-    fig.text(0.5, 0.022, "Schematic, not data. Validated on msprime simulations; a first real-data check did not "
-             "recover ages (docs/nonsharing_ratio/REAL_DATA_OFFSET_REPORT.md).", ha="center", fontsize=11, color=MUTED)
+
+    # row 2: simulation results
+    fig.text(0.02, 0.385, "d", fontsize=20, fontweight="bold", color=BLUE, family="serif")
+    fig.text(0.05, 0.387, "Works on simulated ancient samples, with ARGs and c(t) both inferred", fontsize=15,
+             fontweight="bold", color=INK, va="baseline")
+    yb, hb = 0.105, 0.225
+    panel_d(fig, [0.06, yb, 0.22, hb], "constant", "Constant size", BLUE)
+    panel_d(fig, [0.35, yb, 0.22, hb], "bottleneck", "Bottleneck (0.3 Ne, 500 to 300 gens ago)", ORANGE)
+    fig.text(0.62, 0.325, "What was simulated", fontsize=12.5, fontweight="bold", color=INK, va="top")
+    fig.text(0.62, 0.295,
+             "msprime, 20 Mb, 5 replicates each; 26 panel + 10 held-out\n"
+             "modern controls; 50 ancient samples per demography\n"
+             "(true ages 0-6,000 gen, not in the ARG).\n"
+             "ARG inferred by SINGER + POLEGON (5 draws, averaged);\n"
+             "c(t) from the inferred ARG's lineage counts;\n"
+             "A0 = 20,000 gen on the child-node time of the site.\n"
+             "Using the true demography for c(t) changes mean bias\n"
+             "by about 190 gen. Dashed line: inferred = true.",
+             fontsize=11.5, color=INK2, va="top", linespacing=1.45)
+    fig.text(0.5, 0.022, "a-c schematic; d simulated data (results/nonsharing_ratio/sim_inferred_vs_true.csv). "
+             "A first real-data check did not recover ages; see docs/nonsharing_ratio/REAL_DATA_OFFSET_REPORT.md.",
+             ha="center", fontsize=11, color=MUTED)
     fig.savefig(OUT / "graphical_abstract.png", dpi=160, facecolor="white")
     fig.savefig(OUT / "graphical_abstract.svg", facecolor="white")
     print("wrote", OUT / "graphical_abstract.png")
