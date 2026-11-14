@@ -21,7 +21,7 @@ Regenerate with `python scripts/build_nonsharing_ratio_abstract.py`.*
 |---|---|
 | Simulated ancient samples, ARG inferred, c(t) inferred | **works**: r 0.90 to 0.95 with true age, mean bias a few hundred generations (table below) |
 | Real ancient maize genomes (one chromosome, radiocarbon-dated samples) | **does not yet recover ages**: r about 0 with radiocarbon age; every ancient sample shows a constant ~31% excess non-sharing vs held-out modern controls |
-| Cause of the real-data offset | open. Not read depth, not simple reference bias; more posterior draws and more chromosomes of the same data do not help (inferred from one chromosome). Population structure or drift between the ancient samples and the modern panel is the leading hypothesis and is **untested**; a simulation with ancient samples from a diverged population is the direct test and is not finished. |
+| Cause of the real-data offset | open. Not read depth, not simple reference bias; more posterior draws and more chromosomes of the same data do not help (inferred from one chromosome). Population structure between the ancient samples and the modern panel is the leading hypothesis and has **not** been tested on real data. In simulation, ancient samples from a population that split from the panel's 6,000 generations ago give a constant offset of about 1.14-1.16 when controls come from the panel's population. Controls from the ancient samples' population remove the offset (ratio 1.00-1.01) but ages are still not recovered (r about 0.1). So controls from the ancient samples' region may fix the offset without fixing ages; this is untested on real data (5 replicates, one split time). |
 
 So: the estimator is validated on simulated data, including with ARG inference error and with c(t) taken from the
 inferred ARG. It has not been shown to work on real ancient genomes, and a clean-data simulation succeeding does not
@@ -57,15 +57,12 @@ Full numbers, per-bin biases, true-tree comparisons and figures: [docs/nonsharin
 `batches/nonsharing_ratio_realsims_bottleneck_20261112/` (bottleneck). The per-sample data behind panel d is
 [results/nonsharing_ratio/sim_inferred_vs_true.csv](results/nonsharing_ratio/sim_inferred_vs_true.csv).
 
-## Where to start
+## More documentation
 
-| I want to... | Read |
-|---|---|
-| Understand the real-data result and what was ruled out | [docs/nonsharing_ratio/REAL_DATA_OFFSET_REPORT.md](docs/nonsharing_ratio/REAL_DATA_OFFSET_REPORT.md) |
-| Find any piece of the non-sharing-ratio work | [docs/nonsharing_ratio/README.md](docs/nonsharing_ratio/README.md) ("Start here" map) |
-| Run the estimator on real data | [docs/nonsharing_ratio/RUNNING.md](docs/nonsharing_ratio/RUNNING.md) |
-| See what is open | [TODO_nonsharing_ratio.md](TODO_nonsharing_ratio.md) |
-| Find a file in the repo | [PROJECT_MAP.md](PROJECT_MAP.md) |
+- [docs/nonsharing_ratio/REAL_DATA_OFFSET_REPORT.md](docs/nonsharing_ratio/REAL_DATA_OFFSET_REPORT.md): the real-data result, what was ruled out, and the simulation results in full.
+- [docs/nonsharing_ratio/RUNNING.md](docs/nonsharing_ratio/RUNNING.md): how to run the estimator on real data.
+- [PROJECT_MAP.md](PROJECT_MAP.md): where things are in the repository.
+- Open work is tracked in the [issues](../../issues?q=is%3Aissue+label%3Anon-sharing-ratio) (label `non-sharing-ratio`).
 
 Code: `pipeline/nonsharing_ratio.py` (site selection, $f$, $H$, inversion), `pipeline/nonsharing_ratio_demography.py` (c(t) from
 lineage counts or a demes file), `pipeline/nonsharing_ratio_io.py` (VCF reading, polarisation),
@@ -85,18 +82,3 @@ $\int_0^{\hat T} c(t)\,dt = \hat H$. Posterior ARG draws are averaged; block boo
 Sample-level real data (ancient VCFs, radiocarbon dates, sample names, metadata) are **not** in this repository. They are kept in the
 gitignored `private/` and `radiocarbon_goodvcfs/` directories. Everything committed for the real-data work is aggregate. The
 simulated data are fully shareable.
-
-## Previous approaches and where they live
-
-Earlier approaches estimated age from allele-frequency models rather than from non-sharing. They are not the current direction
-and are kept for reference; each has a branch or document.
-
-| Approach | What it did | Where |
-|---|---|---|
-| 1. Present-count diffusion (the former `main`) | Age posterior from derived-allele frequency at the sample's age, conditioned on mutation age and present panel count, under a Wright-Fisher moment recursion | the old front page is preserved as [docs/PRESENT_COUNT_DIFFUSION_README.md](docs/PRESENT_COUNT_DIFFUSION_README.md); code `pipeline/posterior_sample_age_infer.py`, `pipeline/precompute_freq_trajectory_moments.py`; derivation MATH.md §3-6; record [working_diffusion.md](working_diffusion.md). Last state of the old `main`: commit `bf27303` (branch `insertion` points at it) |
-| 2. Tree-at-$T$ beta-binomial | Beta-binomial likelihood from the tree at the sample's age | branch `betabinom` (archived); MATH.md §7; [working_betabinom.md](working_betabinom.md) |
-| 3. Ancient-lineage insertion | Insert the ancient lineage into the modern ARG at age $T$; product over sites gives a posterior for $T$. Point-calibrated in simulation with a known ARG, intervals overconfident under linkage | branch `insertion`; [working_insertion.md](working_insertion.md); MATH.md §8; graphical abstract in [docs/graphical_abstract_readme.png](docs/graphical_abstract_readme.png) |
-| 3a. Insertion validation with POLEGON | POLEGON-dated ARG insertion calibration and its validation guide | branch `feature/polegon-insertion-validation`; [POLEGON_INSERTION_VALIDATION.md](POLEGON_INSERTION_VALIDATION.md) |
-| 3b. Insertion with radiocarbon epsilon calibration | Joint ARG time-scale and epsilon calibration against radiocarbon ages | branch `feature/radiocarbon-epsilon-calibration`; [TIME_SCALE_EPSILON_CALIBRATION_PLAN.md](TIME_SCALE_EPSILON_CALIBRATION_PLAN.md) |
-
-The current work is on branch `ydcollate` (now merged into `main`). Modelling judgement calls are in [NOTES.md](NOTES.md).

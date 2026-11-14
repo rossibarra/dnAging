@@ -1,0 +1,32 @@
+# --- beibei te selection; sites randomly polarized ---
+input-dir: "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nonsharing_ratio_realsims_split6k_Bcontrols_20261113/singer_in/sim2"
+output-dir: "/quobyte/jrigrp/beil/logan_collab/dnAging/batches/nonsharing_ratio_realsims_split6k_Bcontrols_20261113/singer_out/sim2"
+chromosomes: ["sim2"]
+mutation-rate: 1.25e-8
+recombination-rate: 1.0e-8
+polarised: False # are variants polarised so that the reference state is ancestral
+stratify-by: null # column in metadata to use for population table in tree sequence (or `null`)
+random-seed: 56791
+# --- discretization options ---
+max-chunk-size: 1.0e6 # target size in base pairs for each chunk run through SINGER
+min-chunk-size: 0.1e6 # discard chunks smaller than this (e.g. isolated between gaps)
+min-gap-size: 1.0e5 # minimum size in base pairs for a masked interval to be converted to a gap
+max-missing: 0.95 # ignore chunks with more than this proportion of masked sequence or filtered variants
+min-sites: 500 # ignore chunks with fewer than this number of accessible polymorphic sites
+min-branch-length: 1.0e-7 # minimum possible branch length in generations in tree sequence
+max-masked-samples: 0
+# --- SINGER options ---
+singer-mcmc-samples: 150 # number of MCMC samples (each sample is a tree sequence)
+singer-mcmc-thin: 10 # thinning interval between MCMC samples
+singer-mcmc-burnin: 0.5 # proportion of initial samples discarded when computing plots of statistics
+singer-mcmc-resumes: 1000 # maximum number of times to try to resume MCMC on error
+# --- POLEGON options ---
+polegon-mcmc-samples: 150 # number of MCMC samples for POLEGON dating
+polegon-mcmc-thin: 10 # thinning interval between MCMC samples for POLEGON dating
+polegon-mcmc-burnin: 0.5 # proportion of initial samples trimmed from posterior mean for POLEGON dating
+polegon-scaling-reps: 5 # number of timescale rescaling reps after MCMC sampling for POLEGON dating
+polegon-max-step: 10.0 # step size used in proposal for POLEGON dating
+# --- summary statistics ---
+stats-time-grid: [1, 7, 25]  # [log10 start, log10 stop, number of intervals] for coalescence rates, etc
+stats-window-size: 5.0e4 # size of genomic windows in base pairs for comparing expected vs observed
+paircoal-reweight: false # (experimental) average coalescing pairs over recombination map rather than base pairs

@@ -2,12 +2,12 @@
 
 Status (updated 2026-11-12, end of day): real data = one chromosome (chr10), 10 draws. Simulations = constant size and bottleneck.
 Aggregates only; no sample-level ages or dates are stored here.
-The population-structure explanation below is a hypothesis that has **not** been tested on real data. A simulation with
-ancient samples from a population that split 6,000 generations ago is the direct test (batch
-`batches/nonsharing_ratio_realsims_split6k_bottleneck_20261112/`; check its README for whether it finished and what it showed).
+The population-structure explanation below is a hypothesis that has **not** been tested on real data. Simulations with ancient
+samples from a population that split 6,000 generations ago are in section 8 (controls from the panel population and from the
+ancient population); they show that structure can produce a constant offset in simulation, not that it explains the real one.
 
-If you are coming back to this cold: read this file, then sections 6 and 7 (simulations; whether more data helps), then
-`TODO_nonsharing_ratio.md`.
+If you are coming back to this cold: read this file, then sections 6 to 8 (simulations; whether more data helps; structure), then the open
+GitHub issues (label `non-sharing-ratio`).
 
 ## Summary
 
@@ -92,10 +92,11 @@ That would give a positive, roughly constant, age-independent offset as observed
 - It should shrink for ancient samples genetically closer to the panel, and for controls chosen from a
   more distant ancestry group (3 of the 6 held-out lines are tropical types; only a narrow spread of
   f among controls was seen, 0.307-0.329).
-- Using controls from the same population as the ancient samples, if available, should remove it.
+- Using controls from the same population as the ancient samples, if available, should remove it (in the section 8 simulation it removes the offset but not the age error).
 - Simulated data with no structure or artefacts should recover ages: it does (section 6).
 - Simulated data with ancient samples from a diverged population should show a flat positive offset:
-  not yet known; see `batches/nonsharing_ratio_realsims_split6k_bottleneck_20261112/`.
+  it does in simulation (ratio 1.14-1.16 at A0 10k/20k; section 8). Controls from the ancient population cancel it in simulation but age
+  recovery was not restored.
 
 If structure is the cause, the ratio method as formulated assumes the ancient and control samples differ
 only by the age of the ancient lineage, which real ancient data violate.
@@ -148,6 +149,44 @@ Inference (not tested): the offset is shared by all draws and chunks, and the sa
 across draws is unrelated to age, so more data of the same kind probably will not recover ages. Limits: one chromosome; the
 10 draws come from one SINGER chain; the per-chunk spread of r (SD 0.24) does not rule out a true r of 0.2-0.3; only A0 = 20,000
 with child-node ages was run across draws.
+
+## 8. Structure simulations: split population, controls from A versus from B (2026-11-12/13)
+
+Design: ancestral Ne 20,000 (diploid-equivalent) splits 6,000 generations ago into A and B, no migration; both have the 0.3 Ne
+bottleneck 500 generations ago with recovery by 300. Panel (26, the ARG) and the held-out controls from A; the 10 ancient samples per
+replicate from B (ages stratified-uniform 0-6,000). 5 replicates, one split time, SINGER+POLEGON, 5 draws, child-node A0, ARG c(t).
+Batches: `batches/nonsharing_ratio_realsims_split6k_bottleneck_20261112/` (controls from A only) and
+`batches/nonsharing_ratio_realsims_split6k_Bcontrols_20261113/` (new simulations with 10 controls from A and 10 from B; the two arms differ only in
+`--controls-vcf`). Offset = median ancient f / mean control f.
+
+| Batch / arm | A0 | Offset (ARG) | r | Mean bias | Slope |
+|---|---|---|---|---|---|
+| No structure (bottleneck batch) | 10k / 20k | not computed | 0.937 / 0.927 | -438 / -352 | 0.85 / 0.90 |
+| Split, controls A (earlier batch) | 10k | 1.135 | 0.181 | +1569 | 0.04 |
+| Split, controls A (earlier batch) | 20k | 1.146 | 0.214 | +1914 | 0.08 |
+| Split, controls A (earlier batch) | 50k | 1.588 | 0.205 | +13877 | 0.24 |
+| Split, controls A (new batch) | 10k | 1.144 | 0.065 | +1905 | 0.02 |
+| Split, controls A (new batch) | 20k | 1.155 | 0.108 | +2281 | 0.05 |
+| Split, controls A (new batch) | 50k | 1.596 | 0.083 | +14094 | 0.09 |
+| Split, controls B (new batch) | 10k | 1.004 | 0.111 | -2716 | 0.02 |
+| Split, controls B (new batch) | 20k | 1.007 | 0.122 | -2576 | 0.03 |
+| Split, controls B (new batch) | 50k | 1.034 | 0.071 | -1632 | 0.05 |
+
+On the true tree the A-control offsets are 1.20 / 1.22 / 1.75 (earlier batch) and 1.22 / 1.24 / 1.74 (new batch); B-control 1.005 / 1.006 / 1.036.
+Controls as pseudo-targets: A-controls and B-controls each date as modern against their own set (median T_hat 0-2). B-controls dated against the A-control mean
+read as about 4,400 generations old in the ARG (about 6,900-7,400 on the true tree; A0 10k and 20k), so a modern B sample carries the same offset as the B ancient samples.
+With B-controls, 29 of 50 targets have H<=0 in at least one draw at A0 10k and 20k (0 with A-controls).
+
+Measurements: (1) with controls from A the ancient samples from B show a nearly constant excess non-sharing of 1.14-1.16 at A0 10k/20k (similar in all
+5 replicates in both batches) and ages are not recovered (r 0.07-0.21, versus 0.93 without structure); (2) controls from B cancel the offset (ratio 1.00-1.01) but
+ages are still not recovered (r 0.07-0.12, estimates collapse toward 0).
+Inferences, not tested: structure alone can produce a roughly constant offset like the one seen on the real data, and matched controls remove the offset
+but did not restore age signal here; a possible reason is that every ancient age is younger than the split while the old alleles used (A0 >= 10k)
+are older than it, so age changes sharing with the A panel by little (untested; would need ancient ages older than the split or a panel from B).
+Caveats: 5 replicates per condition (per-replicate r runs from -0.26 to +0.71); one split time; no migration; B-controls are
+exactly the ancient population, the best case; real moderns from the ancient samples' region would not be exact. The earlier and new controls-A rows differ
+(r 0.18-0.21 vs 0.07-0.11) because the simulations differ; whether this is beyond noise was not tested. Nothing here is a statement about the real data:
+real offsets were 1.31 at A0 20,000 and the real ancient and panel populations, split time and gene flow are unknown.
 
 ## Caveats
 

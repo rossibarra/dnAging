@@ -311,7 +311,7 @@ def main(argv=None):
                    help="FAI to reconstruct chromosome offsets if the ARG lacks chrom_offsets metadata")
     r.add_argument("--position-shift", type=float, default=0.0,
                    help="added to VCF position + chromosome offset to match ARG site positions. 0 is right "
-                        "for the real maize ARG draws and VCFs (checked, see docs/nonsharing_ratio/README.md) [0]")
+                        "for the real maize ARG draws and VCFs (checked on the real data) [0]")
     r.add_argument("--a0", type=float, required=True,
                    help="keep segregating sites dated above this age (generations)")
     r.add_argument("--age-mode", choices=["midpoint", "child"], default="midpoint",

@@ -1,0 +1,24 @@
+# Split + bottleneck demography. Sizes in HAPLOID COUNTS (= 2 * diploid Ne); template Ne = 20,000 diploid -> 40,000 here.
+# Use with msprime ploidy=1 and `--ploidy 1` in the estimator (c = 1/N = 1/(2 Ne)).
+# Ancestral population (size Ne) splits 6000 generations ago into A (modern panel + controls, sampled at time 0)
+# and B (ancient samples, sampled at their ages 0..<6000). No migration.
+# BOTH A and B are independently reduced BY 70% (to 0.3 Ne = 12,000 haploid) 500 gens ago and recover exponentially
+# (forward in time) to Ne by 300 gens ago.
+description: Ne split 6000 gens ago into A and B, each with a 70% bottleneck at 500 gens ago and exponential recovery to Ne by 300
+time_units: generations
+demes:
+  - name: anc
+    epochs:
+      - {start_size: 40000, end_time: 6000}
+  - name: A
+    ancestors: [anc]
+    epochs:
+      - {start_size: 40000, end_time: 500}
+      - {start_size: 12000, end_size: 40000, end_time: 300, size_function: exponential}
+      - {start_size: 40000, end_time: 0}
+  - name: B
+    ancestors: [anc]
+    epochs:
+      - {start_size: 40000, end_time: 500}
+      - {start_size: 12000, end_size: 40000, end_time: 300, size_function: exponential}
+      - {start_size: 40000, end_time: 0}

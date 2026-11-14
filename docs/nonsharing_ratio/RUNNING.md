@@ -8,7 +8,7 @@ Inputs you supply:
 | `ANCIENT_VCF` | ancient pseudo-haploid VCF (`0/0`,`1/1`,`./.` or haploid calls), same chromosome labels as the ARG (`1`..`10` or `chr1`..; accession labels such as `NC_050096.1` are not mapped) |
 | `DRAW_DIR` | directory with the ARG draws (`*.tsz` / `*.trees` directly inside; draw id = trailing number in the name). Real raw SINGER draws: `/quobyte/jrigrp/beil/te_evo/singer_analysis/argtest/results/combined/tsz_files` |
 | `CHROM_FAI` | `/quobyte/jrigrp/beil/te_evo/singer_analysis/argtest/ref.fa.fai` (the draws carry no `chrom_offsets` metadata) |
-| `A0` | cutoff in generations, above the oldest sample age, in the ARG's time units (you must choose; see README section 6) |
+| `A0` | cutoff in generations, above the oldest sample age, in the ARG's time units (you must choose; see the A0 issue and report section 6) |
 | `OUTROOT` | NEW directory for outputs (nothing is overwritten; a second run into the same files fails) |
 | optional `NE_TSV` (+ `NE_SERIES`, default `posterior_mean`) or `DEMES_YAML` | c(t) source; default is the ARG's own lineage counts |
 
@@ -43,7 +43,7 @@ Notes
 * Output: `$OUTROOT/draws/draw_<id>.npz` (per-block counts) and `$OUTROOT/ages_merged.tsv` with columns
   `sample T_hat_mean T_hat_median draw_sd ci_lo ci_hi n_draws flag`. `flag` lists degenerate targets per draw count:
   `f0` (no non-sharing at all: T_hat = 0 by convention), `H<=0` (no excess non-sharing: T_hat truncated to 0), `no_data`. Do not interpret flagged rows as ages.
-* Panel-fixed sites outside the ARG (optional; see README section 3 for why the real data cannot supply them today):
+* Panel-fixed sites outside the ARG (optional; real data currently lack an invariant-site panel table and an ancestral-allele source):
   `python pipeline/nonsharing_ratio_real_data.py prepare-fixed --panel-vcf PANEL_WITH_INVARIANT_SITES.vcf --output $OUTROOT/panel_fixed.npz`
   (or `sbatch slurm/nonsharing_ratio_prepare_fixed.sbatch`), then add `PANEL_FIXED=$OUTROOT/panel_fixed.npz POLARITY_TABLE=anc_alleles.txt`
   (`chrom pos ancestral_allele` per line) to the draw job. Without an ancestral-allele table this option is refused (REF is not ancestral in the maize ARG).
