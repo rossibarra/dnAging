@@ -18,7 +18,7 @@ import warnings
 
 import numpy as np
 
-from nonsharing_ratio import lineage_counts, rate_from_lineage_counts
+from nonsharing_ratio import lineage_moments, rate_from_lineage_counts
 
 
 def make_edges(grid_max, grid_n):
@@ -49,8 +49,8 @@ def rates_from_arg(ts, edges):
     """
     finite = np.asarray(edges, dtype=float)
     finite = finite[np.isfinite(finite)]
-    kappa = lineage_counts(ts, finite)
-    c = rate_from_lineage_counts(finite, kappa)
+    kappa, pairs = lineage_moments(ts, finite)
+    c = rate_from_lineage_counts(finite, kappa, pairs)
     return _with_open_tail(finite, c)
 
 

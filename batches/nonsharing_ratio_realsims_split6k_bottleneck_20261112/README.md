@@ -62,5 +62,5 @@ See `COMMANDS.md`. Jobs: simulation hpc_run 40619415; SINGER+POLEGON 40619425-29
 Setup/SINGER stage (jobs up to 40619430) was run by an earlier agent; I did not re-verify its logs beyond reading the job states above and confirming 25 `.tsz` files. SINGER's "ballpark Ne" for rep 1 was 19,295 (log line seen); not checked for other reps.
 
 ## Notes
-* `merged/` (from `04_run_draws.sbatch`) globs `draw*_a0*.npz`, which also matches the `_demes` NPZs, so those merged files mix ARG-c(t) and demes-c(t) draws. They are not used by `05_analyze.py`/`06_offset.py`. The Bcontrols batch uses explicit draw lists.
+* The original `merged/` files from `04_run_draws.sbatch` mixed ARG-c(t) and demes-c(t) draws because its glob matched both. They were not used by `05_analyze.py`/`06_offset.py`. The script now uses an explicit ARG-c(t) draw list, and the merge CLI rejects incompatible rate sources.
 * Large intermediates (`singer_out/`, `sim/` VCFs, `draws/` NPZ) are gitignored (`*.tsz`, `*.vcf.gz`, `*.npz`, `*.tsv`); nothing was committed.

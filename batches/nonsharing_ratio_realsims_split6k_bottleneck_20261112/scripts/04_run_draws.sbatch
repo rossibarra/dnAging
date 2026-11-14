@@ -45,5 +45,5 @@ for d in 75 93 112 131 149; do
 done
 for a in 10000 20000 50000; do
   m=$B/merged/rep${r}_a0$a.tsv
-  [[ -e $m ]] || $CLI merge --draw-results $B/draws/rep$r/draw*_a0$a.npz --output $m > $B/logs/merge_rep${r}_a0$a.log 2>&1
+  [[ -e $m ]] || $CLI merge --draw-results $B/draws/rep$r/draw{75,93,112,131,149}_a0$a.npz --output $m > $B/logs/merge_rep${r}_a0$a.log 2>&1
 done

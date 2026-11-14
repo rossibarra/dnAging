@@ -102,17 +102,17 @@ def restrict_to_chromosomes(ts, layout, chroms):
 def add_fixed_sites(positions, anc_state, der_state, panel, ages, fixed_sites):
     """Append panel-fixed sites (derived in every called panel haplotype, age +inf).
 
-    Extra sites are given a panel column with n_called ones (the called haplotypes carry
-    the derived allele; uncalled ones count as non-references), so the estimator's
-    'segregating and older than A0' rule keeps them through age = +inf.  Returns the
-    merged arrays sorted by position and a boolean `is_extra`.
+    Extra sites are represented as fixed-derived in the panel for site selection.  A
+    separate reference-count array preserves the actual number of called haplotypes, so
+    uncalled panel samples do not contribute (site, reference) pairs.  Returns the merged
+    arrays sorted by position, a boolean `is_extra`, and the reference counts.
     """
     n_panel = panel.shape[0]
     k = fixed_sites["positions"].size
     if k == 0:
-        return positions, anc_state, der_state, panel, ages, np.zeros(positions.size, bool)
-    extra_panel = (np.arange(n_panel)[:, None] < np.minimum(fixed_sites["n_called"], n_panel)[None, :]
-                   ).astype(np.int8)
+        return (positions, anc_state, der_state, panel, ages,
+                np.zeros(positions.size, bool), panel.sum(axis=0).astype(float))
+    extra_panel = np.ones((n_panel, k), dtype=np.int8)
     pos = np.concatenate([positions, fixed_sites["positions"]])
     order = np.argsort(pos, kind="stable")
     anc = np.concatenate([anc_state, fixed_sites["ancestral"]])[order]
@@ -120,7 +120,9 @@ def add_fixed_sites(positions, anc_state, der_state, panel, ages, fixed_sites):
     pan = np.concatenate([panel, extra_panel], axis=1)[:, order]
     ag = np.concatenate([ages, np.full(k, np.inf)])[order]
     is_extra = np.concatenate([np.zeros(positions.size, bool), np.ones(k, bool)])[order]
-    return pos[order], anc, der, pan, ag, is_extra
+    ref_count = np.concatenate([panel.sum(axis=0),
+                                np.minimum(fixed_sites["n_called"], n_panel)])[order].astype(float)
+    return pos[order], anc, der, pan, ag, is_extra, ref_count
 
 
 def load_rates(args, ts, edges):
@@ -171,6 +173,7 @@ def run_draw(args):
     positions = np.asarray(ts.tables.sites.position)
     anc_state, der_state = nio.arg_site_alleles(ts)
     panel = nr.panel_derived_matrix(ts)
+    reference_counts = panel.sum(axis=0).astype(float)
     ages = nr.edge_child_ages(ts) if args.age_mode == "child" else nr.edge_midpoint_ages(ts)
     print(f"ARG tables ({time.time() - t0:.0f}s): {positions.size} sites", flush=True)
 
@@ -190,7 +193,7 @@ def run_draw(args):
         extra = nio.polarise_fixed_sites(fixed, fixed_layout, positions, args.fixed_polarity,
                                          table, args.position_shift)
         fixed_stats = extra["stats"]
-        positions, anc_state, der_state, panel, ages, is_extra = add_fixed_sites(
+        positions, anc_state, der_state, panel, ages, is_extra, reference_counts = add_fixed_sites(
             positions, anc_state, der_state, panel, ages, extra)
         print(f"panel-fixed sites added: {fixed_stats}", flush=True)
 
@@ -204,7 +207,8 @@ def run_draw(args):
     targets = np.vstack([anc_d, ctrl_d])[:, usable]
     called = targets >= 0
     targets = np.where(called, targets, 0)
-    panel, ages, positions, is_extra = panel[:, usable], ages[usable], positions[usable], is_extra[usable]
+    panel, ages, positions, is_extra, reference_counts = (
+        panel[:, usable], ages[usable], positions[usable], is_extra[usable], reference_counts[usable])
 
     edges = nd.make_edges(args.c_grid_max, args.c_grid_n)
     (edges, rates), c_source = load_rates(args, ts, edges)
@@ -213,7 +217,8 @@ def run_draw(args):
                            include_panel_fixed=not args.no_panel_fixed, called=called)
     labels, first = block_layout(layout, args.block_size)
     blocks = site_blocks(positions, layout, args.block_size, first)
-    num, den = nr.nonsharing_counts(panel, targets, mask, called, blocks, len(labels))
+    num, den = nr.nonsharing_counts(panel, targets, mask, called, blocks, len(labels),
+                                    reference_counts=reference_counts)
 
     n_anc = anc_d.shape[0]
     names = list(ancient.columns) + list(controls.columns)
@@ -253,10 +258,24 @@ def merge(args):
     if not draws:
         raise ValueError("no draw results given")
     ref = draws[0]
+    compatibility_keys = ("a0", "age_mode", "c_source", "chroms", "position_shift",
+                          "include_panel_fixed", "n_panel")
+    ref_meta = json.loads(str(ref["meta"]))
     for p, d in zip(args.draw_results, draws):
         for key in ("targets", "is_control", "block_labels"):
             if not np.array_equal(ref[key], d[key]):
                 raise ValueError(f"{p}: {key} differs from the first draw")
+        if not np.array_equal(ref["edges"], d["edges"]):
+            raise ValueError(f"{p}: hazard-grid edges differ from the first draw")
+        if d["num"].shape != ref["num"].shape or d["den"].shape != ref["den"].shape:
+            raise ValueError(f"{p}: count-array shape differs from the first draw")
+        meta = json.loads(str(d["meta"]))
+        for key in compatibility_keys:
+            if meta.get(key) != ref_meta.get(key):
+                raise ValueError(f"{p}: metadata {key!r} differs from the first draw "
+                                 f"({meta.get(key)!r} != {ref_meta.get(key)!r})")
+        if ref_meta.get("c_source") != "arg" and not np.array_equal(ref["rates"], d["rates"]):
+            raise ValueError(f"{p}: externally supplied coalescence rates differ from the first draw")
     is_control = ref["is_control"]
     names = [str(x) for x in ref["targets"][~is_control]]
     n_blocks = ref["num"].shape[0]

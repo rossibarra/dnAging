@@ -160,13 +160,22 @@ def test_add_fixed_sites_orders_and_marks():
     ages = np.array([5.0, 7.0])
     extra = {"positions": np.array([20.0]), "ancestral": np.array(["C"], object),
              "derived": np.array(["T"], object), "n_called": np.array([2], dtype=np.int32)}
-    p2, a2, d2, pan2, ag2, ex = add_fixed_sites(pos, anc, der, panel, ages, extra)
+    p2, a2, d2, pan2, ag2, ex, ref_count = add_fixed_sites(
+        pos, anc, der, panel, ages, extra)
     assert p2.tolist() == [10.0, 20.0, 30.0] and ex.tolist() == [False, True, False]
-    assert pan2[:, 1].tolist() == [1, 1, 0] and np.isinf(ag2[1])
+    assert pan2[:, 1].tolist() == [1, 1, 1] and ref_count.tolist() == [2, 2, 1]
+    assert np.isinf(ag2[1])
     assert d2.tolist() == ["G", "T", "G"] and a2.tolist() == ["A", "C", "A"]
-    # the estimator keeps the extra site even though it is "segregating" in the padded column
+    # The site is fixed among called references, is weighted by the two calls, and obeys
+    # both the fixed-everywhere exclusion and include_panel_fixed=False.
     mask = nr.select_sites(pan2, np.zeros((1, 3), int), ag2, a0=100.0)
     assert mask.tolist() == [False, True, False]
+    assert not nr.select_sites(pan2, np.ones((1, 3), int), ag2, a0=100.0).any()
+    assert not nr.select_sites(pan2, np.zeros((1, 3), int), ag2, a0=100.0,
+                               include_panel_fixed=False).any()
+    num, den = nr.nonsharing_counts(pan2, np.zeros((1, 3), int), mask,
+                                    reference_counts=ref_count)
+    assert num[0, 0] == 2 and den[0, 0] == 2
 
 
 # ----------------------------------------------- end to end with the CLI ---

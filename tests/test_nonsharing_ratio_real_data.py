@@ -130,6 +130,26 @@ def test_run_draw_matches_direct_computation(data, tmp_path):
     assert len(rows) == 3 and rows[1].startswith("a0\t")
 
 
+def test_merge_rejects_incompatible_rate_sources(data, tmp_path):
+    d, _, _ = data
+    first = tmp_path / "first.npz"
+    main(["run-draw", "--tree", str(d / "draw0.trees"), "--draw-id", "0",
+          "--controls-vcf", str(d / "controls.vcf.gz"), "--ancient-vcf", str(d / "ancient.vcf.gz"),
+          "--controls-mode", "sample", "--chrom-fai", str(d / "g.fai"),
+          "--a0", "3000", "--block-size", "100000", "--c-grid-max", "6000", "--c-grid-n", "30",
+          "--output", str(first)])
+    with np.load(first, allow_pickle=False) as loaded:
+        fields = {key: loaded[key] for key in loaded.files}
+    meta = json.loads(str(fields["meta"]))
+    meta["c_source"] = "different-demography.yaml"
+    fields["meta"] = json.dumps(meta)
+    second = tmp_path / "second.npz"
+    np.savez(second, **fields)
+    with pytest.raises(ValueError, match="c_source"):
+        main(["merge", "--draw-results", str(first), str(second),
+              "--output", str(tmp_path / "bad.tsv")])
+
+
 def test_overlapping_sample_names_are_rejected(data, tmp_path):
     d, ts, panel_ts = data
     names = tmp_path / "panel.txt"

@@ -6,7 +6,7 @@ from nonsharing_ratio import (
     cumulative_hazard,
     estimate_H,
     invert_hazard,
-    lineage_counts,
+    lineage_counts, lineage_moments,
     nonsharing_fraction,
     rate_from_lineage_counts,
     select_sites,
@@ -108,6 +108,16 @@ def test_rate_from_lineage_counts_recovers_constant_c():
     assert np.allclose(est, c, rtol=0.02)
 
 
+def test_rate_uses_mean_lineage_pairs_not_pairs_of_mean():
+    times = np.array([0.0, 10.0])
+    kappa = np.array([6.0, 4.0])
+    # Half the genome has k=2 and half k=10 initially: mean C(k,2)=23,
+    # which is not C(mean(k),2)=15.  At the second boundary mean C(k,2)=10.
+    pair_counts = np.array([23.0, 10.0])
+    got = rate_from_lineage_counts(times, kappa, pair_counts)
+    assert got[0] == pytest.approx(2.0 / (10.0 * 16.5))
+
+
 def test_lineage_counts_two_tip_tree():
     tables = tskit.TableCollection(sequence_length=10)
     a = tables.nodes.add_row(flags=tskit.NODE_IS_SAMPLE, time=0)
@@ -121,6 +131,11 @@ def test_lineage_counts_two_tip_tree():
     tables.sort()
     ts = tables.tree_sequence()
     assert np.allclose(lineage_counts(ts, [0, 5, 15, 25]), [2, 2, 1, 0])
+    k, pairs = lineage_moments(ts, [0, 5, 15, 25])
+    assert np.allclose(k, [2, 2, 1, 0])
+    # At t=15 the first half is above its root (0 pairs) while the second
+    # still has two lineages (1 pair), even though mean(k) is exactly 1.
+    assert np.allclose(pairs, [1, 1, 0.5, 0])
 
 
 def test_edge_child_ages_uses_child_node_time():

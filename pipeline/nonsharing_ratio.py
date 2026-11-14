@@ -60,7 +60,8 @@ def select_sites(panel, targets, ages, a0, include_panel_fixed=True, called=None
     return keep & ~fixed_everywhere
 
 
-def nonsharing_counts(panel, targets, mask, called=None, block_ids=None, n_blocks=None):
+def nonsharing_counts(panel, targets, mask, called=None, block_ids=None, n_blocks=None,
+                      reference_counts=None):
     """Numerator/denominator of f per block and target.
 
     num[b, t] = #(site, reference) pairs in block b where the reference carries the
@@ -72,7 +73,10 @@ def nonsharing_counts(panel, targets, mask, called=None, block_ids=None, n_block
     targets = np.asarray(targets)[:, mask]
     called = (np.ones(targets.shape, dtype=bool) if called is None
               else np.asarray(called, dtype=bool)[:, mask])
-    ref_derived = panel.sum(axis=0).astype(float)  # (sites,)
+    ref_derived = (panel.sum(axis=0).astype(float) if reference_counts is None else
+                   np.asarray(reference_counts, dtype=float)[mask])
+    if ref_derived.shape != (mask.sum(),):
+        raise ValueError("reference_counts must have one entry per unmasked site")
     if block_ids is None:
         block_ids, n_blocks = np.zeros(mask.sum(), dtype=int), 1
     else:
@@ -86,13 +90,14 @@ def nonsharing_counts(panel, targets, mask, called=None, block_ids=None, n_block
     return num, den
 
 
-def nonsharing_fraction(panel, targets, mask, called=None):
+def nonsharing_fraction(panel, targets, mask, called=None, reference_counts=None):
     """f per target: derived-in-reference pairs where the target is ancestral.
 
     Returns (f, n_pairs), both of shape (n_targets,).  Each (site, reference) pair
     counts once, so a site carried by k panel haplotypes contributes k pairs.
     """
-    num, den = nonsharing_counts(panel, targets, mask, called)
+    num, den = nonsharing_counts(panel, targets, mask, called,
+                                 reference_counts=reference_counts)
     num, den = num[0], den[0]
     if np.any(den == 0):
         raise ValueError("no (site, reference) pairs after site selection "
@@ -146,22 +151,31 @@ def invert_hazard(H, edges, rates):
     return out
 
 
-def rate_from_lineage_counts(times, kappa):
+def rate_from_lineage_counts(times, kappa, pair_counts=None):
     """Pairwise coalescence rate c per epoch from average lineage counts.
 
     times : (m+1,) increasing epoch boundaries starting at 0
     kappa : (m+1,) average number of lineages at each boundary
 
     Lineages are lost at rate C(k,2) c(t), so over an epoch
-    c ~= (kappa_i - kappa_{i+1}) / (dt * C(kbar, 2)).  Epochs with kbar <= 1 or
-    non-positive loss inherit the previous epoch's rate (first epoch: 0).
+    c ~= (kappa_i - kappa_{i+1}) / (dt * mean C(k, 2)).  `pair_counts`, when
+    supplied, is the genome-averaged C(k, 2) at each boundary.  Omitting it uses
+    C(kbar, 2), which is exact only when k does not vary among local trees.
+    Epochs with no lineage pairs or non-positive loss inherit the previous
+    epoch's rate (first epoch: 0).
     """
     times = np.asarray(times, dtype=float)
     kappa = np.asarray(kappa, dtype=float)
     dt = np.diff(times)
-    kbar = 0.5 * (kappa[:-1] + kappa[1:])
     loss = kappa[:-1] - kappa[1:]
-    pairs = kbar * (kbar - 1) / 2.0
+    if pair_counts is None:
+        kbar = 0.5 * (kappa[:-1] + kappa[1:])
+        pairs = kbar * (kbar - 1) / 2.0
+    else:
+        pair_counts = np.asarray(pair_counts, dtype=float)
+        if pair_counts.shape != kappa.shape:
+            raise ValueError("pair_counts must have the same shape as kappa")
+        pairs = 0.5 * (pair_counts[:-1] + pair_counts[1:])
     c = np.zeros_like(dt)
     last = 0.0
     for i in range(dt.shape[0]):
@@ -188,6 +202,24 @@ def lineage_counts(ts, times):
         sel = (child_t <= t) & (t < parent_t)
         out[i] = span[sel].sum() / ts.sequence_length
     return out
+
+
+def lineage_moments(ts, times):
+    """Genome-averaged k and C(k, 2) at each time across local trees.
+
+    The second moment is required because mean(C(k, 2)) is not generally
+    C(mean(k), 2) when local genealogies have different lineage counts.
+    """
+    times = np.asarray(times, dtype=float)
+    counts = np.zeros(times.shape)
+    pairs = np.zeros(times.shape)
+    for tree in ts.trees():
+        k = np.fromiter((tree.num_lineages(float(t)) for t in times),
+                        dtype=float, count=times.size)
+        weight = tree.span / ts.sequence_length
+        counts += weight * k
+        pairs += weight * k * (k - 1) / 2.0
+    return counts, pairs
 
 
 def estimate_ages(panel, ancient, controls, ages, a0, edges, rates,
